@@ -1,0 +1,1126 @@
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix sh:    <http://www.w3.org/ns/shacl#> .
+@prefix sql: <http://graphlaw.org/sql#> .
+@prefix fn:    <http://graphlaw.org/functions#> .
+
+<http://graphlaw.org/sql>
+    a owl:Ontology ;
+    rdfs:label "GraphLaw Relational AST Ontology" ;
+    rdfs:comment "Declarative representation of relational algebra and DuckDB-compatible SQL ASTs as addressable RDF graphs." ;
+    owl:versionInfo "2.0.0" .
+
+# =============================================================================
+# Core AST Classes
+# =============================================================================
+
+# Root Classes (sql-rdf Rec section 3.1)
+sql:ASTNode a owl:Class ;
+    rdfs:label "AST Node" ;
+    rdfs:comment "Abstract superclass of all SQL Abstract Syntax Tree elements." .
+
+sql:Statement a owl:Class ;
+    rdfs:subClassOf sql:ASTNode ;
+    rdfs:label "SQL Statement" ;
+    rdfs:comment "Top-level relational statement capable of compilation and execution." .
+
+# Major Statement Families (section 3.1)
+sql:DataQueryStatement a owl:Class ;
+    rdfs:subClassOf sql:Statement .
+sql:DataManipulationStatement a owl:Class ;
+    rdfs:subClassOf sql:Statement .
+sql:DataDefinitionStatement a owl:Class ;
+    rdfs:subClassOf sql:Statement .
+sql:TransactionStatement a owl:Class ;
+    rdfs:subClassOf sql:Statement .
+sql:SessionStatement a owl:Class ;
+    rdfs:subClassOf sql:Statement .
+sql:ExtensionStatement a owl:Class ;
+    rdfs:subClassOf sql:Statement .
+
+sql:SelectStatement a owl:Class ;
+    rdfs:subClassOf sql:Statement .
+
+sql:Expression a owl:Class ;
+    rdfs:subClassOf owl:Thing .
+
+sql:TableRef a owl:Class ;
+    rdfs:subClassOf sql:Expression .
+
+sql:ColumnRef a owl:Class ;
+    rdfs:subClassOf sql:Expression .
+
+sql:BinaryExpression a owl:Class ;
+    rdfs:subClassOf sql:Expression .
+
+sql:UnaryExpression a owl:Class ;
+    rdfs:subClassOf sql:Expression .
+
+sql:FunctionCall a owl:Class ;
+    rdfs:subClassOf sql:Expression .
+
+sql:Literal a owl:Class ;
+    rdfs:subClassOf sql:Expression .
+
+sql:Alias a owl:Class ;
+    rdfs:subClassOf sql:Expression .
+
+sql:Operator a owl:Class ;
+    rdfs:subClassOf owl:Thing .
+
+sql:Function a owl:Class ;
+    rdfs:subClassOf owl:Thing .
+
+# =============================================================================
+# Structural Properties
+# =============================================================================
+
+# Clause Relations (section 3.3). The normative names below are subproperties
+# of sql:hasClause; the legacy aliases (selectList/fromTable/whereClause) remain
+# accepted during the alias window.
+sql:hasClause a rdf:Property ;
+    rdfs:domain sql:Statement ;
+    rdfs:range sql:ASTNode .
+
+sql:select a rdf:Property ;
+    rdfs:subPropertyOf sql:hasClause ;
+    rdfs:domain sql:SelectStatement ;
+    rdfs:range rdf:List ;
+    rdfs:comment "Ordered projection list evaluated under sql:ViewScope." .
+
+sql:from a rdf:Property ;
+    rdfs:subPropertyOf sql:hasClause ;
+    rdfs:domain sql:Statement ;
+    rdfs:range rdf:List ;
+    rdfs:comment "List of data sources, joins, or table-valued functions." .
+
+sql:where a rdf:Property ;
+    rdfs:subPropertyOf sql:hasClause ;
+    rdfs:domain sql:Statement ;
+    rdfs:range sql:Expression ;
+    rdfs:comment "Filtering expression evaluated under sql:ProcessScope." .
+
+sql:having a rdf:Property ;
+    rdfs:subPropertyOf sql:hasClause ;
+    rdfs:domain sql:SelectStatement ;
+    rdfs:range sql:Expression .
+
+# Legacy alias, kept legal during the alias window (SQLRDF-01).
+sql:fromTable a owl:ObjectProperty ;
+    rdfs:domain sql:SelectStatement ;
+    rdfs:range sql:TableRef .
+
+sql:selectList a owl:ObjectProperty ;
+    rdfs:domain sql:SelectStatement ;
+    rdfs:range rdf:List .
+
+sql:joinClause a owl:ObjectProperty ;
+    rdfs:domain sql:SelectStatement ;
+    rdfs:range sql:Join .
+
+sql:Join a owl:Class ;
+    rdfs:subClassOf owl:Thing .
+
+sql:JoinType a owl:Class ;
+    rdfs:subClassOf owl:Thing .
+
+sql:InnerJoin a sql:JoinType ; rdfs:label "INNER JOIN" .
+sql:LeftJoin  a sql:JoinType ; rdfs:label "LEFT JOIN" .
+
+sql:joinType a owl:ObjectProperty ;
+    rdfs:domain sql:Join ;
+    rdfs:range sql:JoinType .
+
+sql:joinTable a owl:ObjectProperty ;
+    rdfs:domain sql:Join ;
+    rdfs:range sql:TableRef .
+
+sql:joinCondition a owl:ObjectProperty ;
+    rdfs:domain sql:Join ;
+    rdfs:range sql:Expression .
+
+sql:whereClause a owl:ObjectProperty ;
+    rdfs:domain sql:SelectStatement ;
+    rdfs:range sql:Expression .
+
+sql:groupBy a owl:ObjectProperty ;
+    rdfs:subPropertyOf sql:hasClause ;
+    rdfs:domain sql:SelectStatement ;
+    rdfs:range rdf:List .
+
+sql:havingClause a owl:ObjectProperty ;
+    rdfs:domain sql:SelectStatement ;
+    rdfs:range sql:Expression ;
+    rdfs:comment "Legacy alias of sql:having; retained during the alias window (SQLRDF-01)." .
+
+sql:orderBy a owl:ObjectProperty ;
+    rdfs:subPropertyOf sql:hasClause ;
+    rdfs:domain sql:SelectStatement ;
+    rdfs:range rdf:List .
+
+sql:limit a owl:DatatypeProperty ;
+    rdfs:subPropertyOf sql:hasClause ;
+    rdfs:domain sql:SelectStatement ;
+    rdfs:range xsd:nonNegativeInteger .
+
+sql:offset a owl:DatatypeProperty ;
+    rdfs:subPropertyOf sql:hasClause ;
+    rdfs:domain sql:SelectStatement ;
+    rdfs:range xsd:nonNegativeInteger .
+
+# SQLRDF-25 gap 2: WITH clause (standard + recursive CTEs).
+sql:withClause a owl:ObjectProperty ;
+    rdfs:subPropertyOf sql:hasClause ;
+    rdfs:domain sql:SelectStatement ;
+    rdfs:range rdf:List ;
+    rdfs:comment "Ordered list of sql:cte nodes; serialized as WITH [RECURSIVE] name (cols) AS (query), ... before the main SELECT. WITH RECURSIVE is promoted for the whole list when any member carries sql:recursive true." .
+
+sql:cte a owl:Class ;
+    rdfs:subClassOf owl:Thing ;
+    rdfs:comment "One WITH arm: a named sub-select." .
+
+sql:cteName a owl:DatatypeProperty ;
+    rdfs:domain sql:cte ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Required CTE identifier (validated like every identifier; REFUSAL-01 outside the alphabet)." .
+
+sql:cteColumns a owl:ObjectProperty ;
+    rdfs:domain sql:cte ;
+    rdfs:range rdf:List ;
+    rdfs:comment "Optional rdf:List of sql:columnName literals naming the CTE's columns." .
+
+sql:cteQuery a owl:ObjectProperty ;
+    rdfs:domain sql:cte ;
+    rdfs:range sql:SelectStatement ;
+    rdfs:comment "Required nested SelectStatement root; absent is typed REFUSAL-01 arm CTE_NO_QUERY (47) — the rendered SQL would be 'name AS ()'." .
+
+sql:recursive a owl:DatatypeProperty ;
+    rdfs:domain sql:cte ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Marks the CTE recursive; promotes the WITH list to WITH RECURSIVE." .
+
+# Statement invariant (section 4): every statement carries an execution index.
+sql:statementIndex a owl:DatatypeProperty ;
+    rdfs:domain sql:Statement ;
+    rdfs:range xsd:integer .
+
+# Scoping (section 3.3)
+sql:Scope a owl:Class .
+sql:ViewScope a sql:Scope ;
+    rdfs:comment "Scope for terms exposed directly in query outputs." .
+sql:ProcessScope a sql:Scope ;
+    rdfs:comment "Scope for terms evaluated internally in predicates or joins." .
+
+sql:scope a owl:ObjectProperty ;
+    rdfs:domain sql:ASTNode ;
+    rdfs:range sql:Scope .
+
+# Operators & Expressions
+sql:operator a owl:ObjectProperty ;
+    rdfs:domain sql:BinaryExpression ;
+    rdfs:range sql:Operator .
+
+# Operators & Expressions
+sql:left a owl:ObjectProperty ;
+    rdfs:domain sql:BinaryExpression ;
+    rdfs:range sql:ASTNode .
+
+sql:right a owl:ObjectProperty ;
+    rdfs:domain sql:BinaryExpression ;
+    rdfs:range sql:ASTNode .
+
+sql:leftOperand a owl:ObjectProperty ;
+    rdfs:domain sql:BinaryExpression ;
+    rdfs:range sql:Expression .
+
+sql:rightOperand a owl:ObjectProperty ;
+    rdfs:domain sql:BinaryExpression ;
+    rdfs:range sql:Expression .
+
+sql:function a owl:ObjectProperty ;
+    rdfs:domain sql:FunctionCall ;
+    rdfs:range sql:Function .
+
+sql:argument a owl:ObjectProperty ;
+    rdfs:domain sql:FunctionCall ;
+    rdfs:range sql:Expression .
+
+sql:expression a owl:ObjectProperty ;
+    rdfs:domain sql:Alias ;
+    rdfs:range sql:Expression .
+
+# Terminals & Identifiers
+sql:tableName a owl:DatatypeProperty ;
+    rdfs:domain sql:TableRef ;
+    rdfs:range xsd:string .
+
+sql:tableAlias a owl:DatatypeProperty ;
+    rdfs:domain sql:TableRef ;
+    rdfs:range xsd:string .
+
+sql:columnName a owl:DatatypeProperty ;
+    rdfs:domain sql:ColumnRef ;
+    rdfs:range xsd:string .
+
+sql:aliasName a owl:DatatypeProperty ;
+    rdfs:domain sql:Alias ;
+    rdfs:range xsd:string .
+
+# Identifiers may carry an optional schema qualifier (rec 3.3) and a dotted
+# qualifier spelling; the compiler reads these as datatype literals.
+sql:schemaName a owl:DatatypeProperty ;
+    rdfs:domain sql:TableRef ;
+    rdfs:range xsd:string .
+
+sql:qualifier a owl:DatatypeProperty ;
+    rdfs:domain sql:ASTNode ;
+    rdfs:range xsd:string .
+
+# Function calls (rec section 7 literal form): functionName + ordered
+# sql:arguments rdf:List.
+sql:functionName a owl:DatatypeProperty ;
+    rdfs:domain sql:ASTNode ;
+    rdfs:range xsd:string .
+
+sql:arguments a rdf:Property ;
+    rdfs:domain sql:ASTNode ;
+    rdfs:range rdf:List .
+
+# Window functions (SQLRDF-25): sql:windowFunction discriminates the window
+# node; sql:partitionBy / sql:orderBy are ordered rdf:Lists; sql:frame carries
+# sql:frameUnit ("ROWS"|"RANGE"), sql:frameStart and optional sql:frameEnd
+# bound tokens. sql:qualify is the statement-level window-filter clause.
+sql:WindowFunction a owl:Class ;
+    rdfs:subClassOf sql:Expression .
+
+sql:windowFunction a owl:ObjectProperty ;
+    rdfs:domain sql:WindowFunction ;
+    rdfs:range sql:Expression .
+
+sql:partitionBy a rdf:Property ;
+    rdfs:domain sql:WindowFunction ;
+    rdfs:range rdf:List .
+
+sql:frame a rdf:Property ;
+    rdfs:domain sql:WindowFunction ;
+    rdfs:range sql:Frame .
+
+sql:Frame a owl:Class ;
+    rdfs:subClassOf sql:ASTNode .
+
+sql:frameUnit a owl:DatatypeProperty ;
+    rdfs:domain sql:Frame ;
+    rdfs:range xsd:string .
+
+sql:frameStart a owl:DatatypeProperty ;
+    rdfs:domain sql:Frame ;
+    rdfs:range xsd:string .
+
+sql:frameEnd a owl:DatatypeProperty ;
+    rdfs:domain sql:Frame ;
+    rdfs:range xsd:string .
+
+sql:qualify a rdf:Property ;
+    rdfs:subPropertyOf sql:hasClause ;
+    rdfs:domain sql:SelectStatement ;
+    rdfs:range sql:Expression ;
+    rdfs:comment "Window-filtering predicate (SQLRDF-25); rendered after HAVING, before ORDER BY/LIMIT." .
+
+# Order-by direction token ("ASC" | "DESC", ASC default; malformed is
+# REFUSAL-01, never a silent fold).
+sql:direction a owl:DatatypeProperty ;
+    rdfs:domain sql:ASTNode ;
+    rdfs:range xsd:string .
+
+# Section 3.3/7 attribute spellings read by the compiler (rec section 7 uses
+# sql:alias on projection expressions and sql:value on literal expressions).
+sql:alias a owl:DatatypeProperty ;
+    rdfs:domain sql:ASTNode ;
+    rdfs:range xsd:string .
+
+sql:value a owl:DatatypeProperty ;
+    rdfs:domain sql:ASTNode ;
+    rdfs:range xsd:string .
+
+sql:literalValue a owl:DatatypeProperty ;
+    rdfs:domain sql:Literal .
+
+# =============================================================================
+# Axiomatic Operators & Functions
+# =============================================================================
+
+sql:Equals          a sql:Operator ; rdfs:label "=" .
+# label = compiled SQL surface; normative admission token is "!=" (rec section 4).
+sql:NotEquals       a sql:Operator ; rdfs:label "<>" .
+sql:GreaterThan     a sql:Operator ; rdfs:label ">" .
+sql:GreaterThanOrEq a sql:Operator ; rdfs:label ">=" .
+sql:LessThan        a sql:Operator ; rdfs:label "<" .
+sql:LessThanOrEq    a sql:Operator ; rdfs:label "<=" .
+sql:And             a sql:Operator ; rdfs:label "AND" .
+sql:Or              a sql:Operator ; rdfs:label "OR" .
+sql:Like            a sql:Operator ; rdfs:label "LIKE" .
+
+fn:COUNT            a sql:Function ; rdfs:label "COUNT" .
+fn:SUM              a sql:Function ; rdfs:label "SUM" .
+fn:AVG              a sql:Function ; rdfs:label "AVG" .
+fn:MIN              a sql:Function ; rdfs:label "MIN" .
+fn:MAX              a sql:Function ; rdfs:label "MAX" .
+
+# =============================================================================
+# SHACL Structural Invariant Shapes (Anti-Injection & Soundness)
+# =============================================================================
+
+sql:StatementBaseShape a sh:NodeShape ;
+    sh:targetClass sql:Statement ;
+    sh:property [
+        sh:path sql:statementIndex ;
+        sh:datatype xsd:integer ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "Every statement MUST contain an integer execution sequence index." ;
+    ] .
+
+sql:SelectStatementShape a sh:NodeShape ;
+    sh:targetClass sql:SelectStatement ;
+    # Alias window: legacy documents carry exactly one sql:fromTable; normative
+    # section 4 documents carry at most one ordered sql:from list.
+    # Alias window: a source clause in one of the two forms — legacy
+    # sql:fromTable (one TableRef) or normative sql:from (one ordered list,
+    # rec section 4/7). sh:or, not sh:xone: the from branch would otherwise be
+    # satisfied vacuously on legacy documents that carry only fromTable.
+    sh:or (
+        [ sh:path sql:fromTable ;
+          sh:minCount 1 ;
+          sh:maxCount 1 ;
+          sh:node sql:TableRefShape ;
+          sh:severity sh:Violation ;
+          sh:message "A SelectStatement MUST carry exactly one alias fromTable with a well-formed table name." ; ]
+        [ sh:path sql:from ;
+          sh:minCount 1 ;
+          sh:maxCount 1 ;
+          sh:node sql:OrderedListShape ;
+          sh:severity sh:Violation ;
+          sh:message "A SelectStatement MUST carry exactly one ordered sql:from clause (rec section 4)." ; ]
+    ) ;
+    # Exactly one projection list: either the normative sql:select (section 4)
+    # or the legacy alias sql:selectList — never zero, never both.
+    # A nil (empty) projection list satisfies neither branch's value-existence
+    # intent; the xone-level message keeps the refusal typed instead of the
+    # generic "Node <Q>: violation" (fuzz D1).
+    sh:message "[REFUSAL-01] MalformedAstRefusal: a SelectStatement MUST contain exactly one projection list (sql:select, or legacy alias sql:selectList — never zero, never both; an empty rdf:nil list is never an implicit SELECT *)." ;
+    sh:xone (
+        [ sh:path sql:select ;
+          sh:minCount 1 ;
+          sh:maxCount 1 ;
+          sh:node sql:OrderedListShape ;
+          sh:severity sh:Violation ;
+          sh:message "A SelectStatement MUST contain exactly one projection list." ; ]
+        [ sh:path sql:selectList ;
+          sh:minCount 1 ;
+          sh:maxCount 1 ;
+          sh:severity sh:Violation ;
+          sh:message "A SelectStatement MUST contain exactly one projection list (alias sql:selectList)." ; ]
+    ) ;
+    # Alias window: sh:class sql:Expression is withheld — data documents do not
+    # carry the ontology's rdfs:subClassOf axioms, so the validator's asserted
+    # type closure would reject normative sql:BinaryExpression values.
+    sh:property [
+        sh:path sql:where ;
+        sh:maxCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "At most one sql:where expression." ;
+    ] ;
+    # Section 3.3 closed-world closure: groupBy/orderBy, when present, MUST each
+    # be a single ordered rdf:List (mirrors the sql:from normative branch).
+    # Both clauses are optional per section 3.3 — no minCount.
+    sh:property [
+        sh:path sql:groupBy ;
+        sh:maxCount 1 ;
+        sh:node sql:OrderedListShape ;
+        sh:severity sh:Violation ;
+        sh:message "At most one sql:groupBy clause, and it MUST be an ordered list (rec sections 3.3/4)." ;
+    ] ;
+    sh:property [
+        sh:path sql:orderBy ;
+        sh:maxCount 1 ;
+        sh:node sql:OrderedListShape ;
+        sh:severity sh:Violation ;
+        sh:message "At most one sql:orderBy clause, and it MUST be an ordered list (rec sections 3.3/4)." ;
+    ] .
+
+sql:BinaryExpressionShape a sh:NodeShape ;
+    sh:targetClass sql:BinaryExpression ;
+    # Alias window: operand/operator are the normative names; leftOperand/
+    # rightOperand and operator IRIs are the legacy aliases.
+    # Alias window: sh:class sql:ASTNode is withheld (same asserted-closure
+    # limitation as sql:where above).
+    sh:xone (
+        [ sh:path sql:left ;
+          sh:minCount 1 ;
+          sh:maxCount 1 ;
+          sh:severity sh:Violation ;
+          sh:message "A BinaryExpression MUST carry exactly one sql:left AST node." ; ]
+        [ sh:path sql:leftOperand ;
+          sh:minCount 1 ;
+          sh:maxCount 1 ;
+          sh:severity sh:Violation ;
+          sh:message "A BinaryExpression MUST carry exactly one operand (alias sql:leftOperand)." ; ]
+    ) ;
+    sh:xone (
+        [ sh:path sql:right ;
+          sh:minCount 1 ;
+          sh:maxCount 1 ;
+          sh:severity sh:Violation ;
+          sh:message "A BinaryExpression MUST carry exactly one sql:right AST node." ; ]
+        [ sh:path sql:rightOperand ;
+          sh:minCount 1 ;
+          sh:maxCount 1 ;
+          sh:severity sh:Violation ;
+          sh:message "A BinaryExpression MUST carry exactly one operand (alias sql:rightOperand)." ; ]
+    ) ;
+    sh:xone (
+        # Normative section 4 form: an xsd:string token from the fixed enum.
+        [ sh:path sql:operator ;
+          sh:minCount 1 ;
+          sh:maxCount 1 ;
+          sh:datatype xsd:string ;
+          sh:in ( "=" "!=" "<" "<=" ">" ">=" "AND" "OR" "+" "-" "*" "/" "%" "LIKE" "ILIKE" "->" "->>" ) ;
+          sh:severity sh:Violation ;
+          sh:message "Expression operator MUST be an approved comparison, logical, or arithmetic token." ; ]
+        # Legacy alias form: an operator IRI — the alias-window form of the
+        # rec section 4 string-token enum above.
+        [ sh:path sql:operator ;
+          sh:minCount 1 ;
+          sh:maxCount 1 ;
+          sh:in ( sql:Equals sql:NotEquals sql:GreaterThan sql:GreaterThanOrEq
+                  sql:LessThan sql:LessThanOrEq sql:And sql:Or sql:Like
+                  sql:JsonExtract sql:JsonExtractText ) ;
+          sh:severity sh:Violation ;
+          sh:message "Expression operator MUST be a legacy operator IRI (alias window)." ; ]
+    ) .
+
+sql:OrderedListShape a sh:NodeShape ;
+    sh:property [
+        sh:path rdf:first ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "An ordered list node MUST carry exactly one rdf:first." ;
+    ] ;
+    sh:property [
+        sh:path rdf:rest ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "An ordered list node MUST carry exactly one rdf:rest." ;
+    ] .
+
+sql:TableRefShape a sh:NodeShape ;
+    sh:targetClass sql:TableRef ;
+    sh:property [
+        sh:path sql:tableName ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:pattern "^[a-zA-Z_][a-zA-Z0-9_]*$" ;
+    ] .
+
+sql:ColumnRefShape a sh:NodeShape ;
+    sh:targetClass sql:ColumnRef ;
+    sh:property [
+        sh:path sql:columnName ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:pattern "^[a-zA-Z_][a-zA-Z0-9_]*$" ;
+    ] .
+
+# =============================================================================
+# Section 7 — Analytical MERGE (closed-world structural shapes)
+# =============================================================================
+# Normative vocabulary per rec section 7 (and the compiler's accepted
+# predicates, src/sql_ast.rs extract_merge_statement): sql:targetTable,
+# sql:usingSource, sql:mergeOn, sql:whenMatched, sql:setAssignments,
+# sql:targetColumn, sql:valueExpression. All four top-level clauses are
+# REQUIRED by the compiler (MissingProperty refusals), hence minCount 1.
+# sql:targetTable is NOT re-declared here: it already exists in the ggen
+# dialect pack (ggen/sql-dialect/statement_classes.ttl).
+
+sql:MergeIntoStatement a owl:Class ;
+    rdfs:subClassOf sql:Statement ;
+    rdfs:label "Merge Into Statement" ;
+    rdfs:comment "Section 7 analytical upsert: target table, USING source select, ON condition, WHEN MATCHED update assignments." .
+
+sql:MergeUpdateAction a owl:Class ;
+    rdfs:subClassOf sql:ASTNode ;
+    rdfs:label "Merge Update Action" ;
+    rdfs:comment "The WHEN MATCHED action of a section 7 MERGE: exactly one ordered sql:setAssignments list (rec section 7)." .
+
+sql:MergeStatementShape a sh:NodeShape ;
+    sh:targetClass sql:MergeIntoStatement ;
+    # Exactly one target table reference (compiler: MissingProperty(targetTable)).
+    sh:property [
+        sh:path sql:targetTable ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:node sql:TableRefShape ;
+        sh:severity sh:Violation ;
+        sh:message "A MergeIntoStatement MUST carry exactly one sql:targetTable table reference (rec section 7)." ;
+    ] ;
+    # Exactly one USING source, itself a full SelectStatement (compiler:
+    # MissingProperty(usingSource); the sub-select re-enters SelectStatementShape).
+    sh:property [
+        sh:path sql:usingSource ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:node sql:SelectStatementShape ;
+        sh:severity sh:Violation ;
+        sh:message "A MergeIntoStatement MUST carry exactly one sql:usingSource SelectStatement (rec section 7)." ;
+    ] ;
+    # Exactly one ON condition, a well-formed binary expression (compiler:
+    # MissingProperty(mergeOn)).
+    sh:property [
+        sh:path sql:mergeOn ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:node sql:BinaryExpressionShape ;
+        sh:severity sh:Violation ;
+        sh:message "A MergeIntoStatement MUST carry exactly one sql:mergeOn binary condition (rec section 7)." ;
+    ] ;
+    # Exactly one WHEN MATCHED action (compiler: MissingProperty(whenMatched)).
+    sh:property [
+        sh:path sql:whenMatched ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:node sql:MergeUpdateActionShape ;
+        sh:severity sh:Violation ;
+        sh:message "A MergeIntoStatement MUST carry exactly one sql:whenMatched update action (rec section 7)." ;
+    ] .
+
+sql:MergeUpdateActionShape a sh:NodeShape ;
+    sh:targetClass sql:MergeUpdateAction ;
+    # Exactly one ordered assignment list (compiler: MissingProperty(setAssignments);
+    # unrolled as an rdf:List, mirroring the section 4 collection shapes).
+    sh:property [
+        sh:path sql:setAssignments ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:node sql:OrderedListShape ;
+        sh:severity sh:Violation ;
+        sh:message "A MergeUpdateAction MUST contain exactly one ordered sql:setAssignments list (rec section 7)." ;
+    ] .
+# Per-assignment sql:targetColumn/sql:valueExpression cardinality (exactly one
+# of each, compiler MissingProperty) is enforced at the compiler arm; a list-
+# item shape is not expressible against the rdf:List head under the section 4
+# collection-shape pattern used by this file.
+
+# =============================================================================
+# Statement Sequence (rec section 7)
+# =============================================================================
+
+sql:StatementSequence a owl:Class ;
+    rdfs:subClassOf sql:ASTNode ;
+    rdfs:label "Statement Sequence" ;
+    rdfs:comment "Ordered root carrying a list of top-level statements for multi-statement documents." .
+
+sql:statements a owl:ObjectProperty ;
+    rdfs:domain sql:StatementSequence ;
+    rdfs:range rdf:List ;
+    rdfs:comment "Ordered list head of the statements in the sequence (rdf:List, rec section 7)." .
+
+sql:StatementSequenceShape a sh:NodeShape ;
+    sh:targetClass sql:StatementSequence ;
+    sh:property [
+        sh:path sql:statements ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:node sql:OrderedListShape ;
+        sh:severity sh:Violation ;
+        sh:message "A StatementSequence MUST carry exactly one sql:statements list head." ;
+    ] .
+
+# =============================================================================
+# PIVOT / UNPIVOT (SQLRDF-25 Row 3)
+# =============================================================================
+# Statement classes and closed-world shapes for the PIVOT/UNPIVOT surface.
+# All required members are minCount-constrained: an empty IN-list (zero
+# sql:pivotInValue triples) or a missing sql:pivotAggregate violates the shape
+# and refuses typed REFUSAL-01 (MalformedAstRefusal, rec section 5) at the
+# shape layer — the compiler lane owns the dispatch arm; until it lands, an
+# unrecognized statement class still refuses typed (UnsupportedTerm carries
+# the class IRI). The dialect-pack twin of this block lives in
+# ggen/sql-dialect (statement_classes.ttl, regenerated from
+# templates/statement_classes.ttl.tera via `ggen sync run`).
+
+sql:PivotStatement a owl:Class ;
+    rdfs:subClassOf sql:Statement ;
+    rdfs:label "Pivot Statement" ;
+    rdfs:comment "PIVOT <table> ON <col, …> USING <agg>(v) IN (v1, …)." .
+
+sql:UnpivotStatement a owl:Class ;
+    rdfs:subClassOf sql:Statement ;
+    rdfs:label "Unpivot Statement" ;
+    rdfs:comment "UNPIVOT <table> ON <col, …> INTO NAME <c> VALUE <c>." .
+
+sql:pivotTable a owl:DatatypeProperty ;
+    rdfs:domain sql:ASTNode ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Source table of a PIVOT/UNPIVOT." .
+
+sql:pivotColumn a owl:DatatypeProperty ;
+    rdfs:domain sql:ASTNode ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Pivot column set (ON clause); at least one, never empty." .
+
+sql:pivotAggregate a owl:DatatypeProperty ;
+    rdfs:domain sql:ASTNode ;
+    rdfs:range xsd:string ;
+    rdfs:comment "USING aggregate token (sum|count|avg|min|max); exactly one." .
+
+sql:pivotInValue a owl:DatatypeProperty ;
+    rdfs:domain sql:ASTNode ;
+    rdfs:range xsd:string ;
+    rdfs:comment "IN-list member; at least one — an empty IN-list refuses REFUSAL-01." .
+
+sql:unpivotColumn a owl:DatatypeProperty ;
+    rdfs:domain sql:ASTNode ;
+    rdfs:range xsd:string ;
+    rdfs:comment "UNPIVOT column set (ON clause); at least one." .
+
+sql:unpivotNameColumn a owl:DatatypeProperty ;
+    rdfs:domain sql:ASTNode ;
+    rdfs:range xsd:string ;
+    rdfs:comment "INTO NAME column; exactly one." .
+
+sql:unpivotValueColumn a owl:DatatypeProperty ;
+    rdfs:domain sql:ASTNode ;
+    rdfs:range xsd:string ;
+    rdfs:comment "INTO VALUE column; exactly one." .
+
+sql:PivotStatementShape a sh:NodeShape ;
+    sh:targetClass sql:PivotStatement ;
+    sh:property [
+        sh:path sql:pivotTable ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-zA-Z_][a-zA-Z0-9_]*$" ;
+        sh:severity sh:Violation ;
+        sh:message "A PivotStatement MUST carry exactly one well-formed sql:pivotTable." ;
+    ] ;
+    # Pivot column set: at least one ON column, never empty (REFUSAL-01).
+    sh:property [
+        sh:path sql:pivotColumn ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-zA-Z_][a-zA-Z0-9_]*$" ;
+        sh:severity sh:Violation ;
+        sh:message "A PivotStatement MUST carry at least one sql:pivotColumn." ;
+    ] ;
+    # Exactly one aggregate from the approved token enum; a missing aggregate
+    # violates minCount 1 (REFUSAL-01, rec section 5).
+    sh:property [
+        sh:path sql:pivotAggregate ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in ( "sum" "count" "avg" "min" "max" ) ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01] MalformedAstRefusal: a PivotStatement MUST carry exactly one approved aggregate (sum|count|avg|min|max)." ;
+    ] ;
+    # IN-list: at least one member — an empty IN-list violates minCount 1
+    # (REFUSAL-01), never an implicit IN ().
+    sh:property [
+        sh:path sql:pivotInValue ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01] MalformedAstRefusal: a PivotStatement MUST carry at least one sql:pivotInValue; an empty IN-list refuses." ;
+    ] .
+
+sql:UnpivotStatementShape a sh:NodeShape ;
+    sh:targetClass sql:UnpivotStatement ;
+    sh:property [
+        sh:path sql:pivotTable ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-zA-Z_][a-zA-Z0-9_]*$" ;
+        sh:severity sh:Violation ;
+        sh:message "An UnpivotStatement MUST carry exactly one well-formed sql:pivotTable." ;
+    ] ;
+    sh:property [
+        sh:path sql:unpivotColumn ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-zA-Z_][a-zA-Z0-9_]*$" ;
+        sh:severity sh:Violation ;
+        sh:message "An UnpivotStatement MUST carry at least one sql:unpivotColumn." ;
+    ] ;
+    # INTO NAME / VALUE pair: exactly one of each (rec section 4 cardinality).
+    sh:property [
+        sh:path sql:unpivotNameColumn ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-zA-Z_][a-zA-Z0-9_]*$" ;
+        sh:severity sh:Violation ;
+        sh:message "An UnpivotStatement MUST carry exactly one sql:unpivotNameColumn." ;
+    ] ;
+    sh:property [
+        sh:path sql:unpivotValueColumn ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-zA-Z_][a-zA-Z0-9_]*$" ;
+        sh:severity sh:Violation ;
+        sh:message "An UnpivotStatement MUST carry exactly one sql:unpivotValueColumn." ;
+    ] .
+
+# =============================================================================
+# JSON extraction operators + composite literals/accessors (SQLRDF-25 Rows 4+5)
+# =============================================================================
+# Operator surface: `expr -> 'key'` (sql:JsonExtract, token "->") and
+# `expr ->> 'key'` (sql:JsonExtractText, token "->>"). Composite surface:
+# struct literal {'k': v, ...} (sql:StructLiteral), list literal [a, b, ...]
+# (sql:ListLiteral), element access base[index] (sql:IndexAccess) and slice
+# access base[start:end] (sql:SliceAccess).
+#
+# Refusal mirrors (src/sql_ast/refusals.rs, REFUSAL-01 MalformedAstRefusal):
+# - arm 48 COMPOSITE_DEPTH: nesting depth beyond the cap of 64 — mirrored at
+#   the shape layer by the sql:compositeDepth declared-depth annotation
+#   (sh:maxInclusive 64); the compiler computes true structural depth in
+#   SqlExpr::validate_composite (src/sql_ast/ast.rs MAX_COMPOSITE_DEPTH).
+# - arm 49 COMPOSITE_MEMBER: a struct field key failing
+#   ^[a-zA-Z_][a-zA-Z0-9_]*$ — mirrored by the sh:pattern on sql:fieldKey.
+# Nested members are linked through the same expression properties, so a
+# graph that nests composites recursively validates member-by-member; the
+# rdf:List discipline of rec section 4 applies to sql:structFields and
+# sql:listItems (sql:OrderedListShape).
+
+sql:JsonExtract a sql:Operator ;
+    rdfs:label "->" ;
+    rdfs:comment "JSON extraction operator -> (SQLRDF-25 Row 5)." .
+
+sql:JsonExtractText a sql:Operator ;
+    rdfs:label "->>" ;
+    rdfs:comment "JSON text-extraction operator ->> (SQLRDF-25 Row 5)." .
+
+sql:StructLiteral a owl:Class ;
+    rdfs:subClassOf sql:ASTNode ;
+    rdfs:label "Struct Literal" ;
+    rdfs:comment "Composite struct literal {'k': v, ...} — SQLRDF-25 Row 4." .
+
+sql:ListLiteral a owl:Class ;
+    rdfs:subClassOf sql:ASTNode ;
+    rdfs:label "List Literal" ;
+    rdfs:comment "Composite list literal [a, b, ...] — SQLRDF-25 Row 4." .
+
+sql:IndexAccess a owl:Class ;
+    rdfs:subClassOf sql:ASTNode ;
+    rdfs:label "Index Access" ;
+    rdfs:comment "Element access base[index] — SQLRDF-25 Row 4." .
+
+sql:SliceAccess a owl:Class ;
+    rdfs:subClassOf sql:ASTNode ;
+    rdfs:label "Slice Access" ;
+    rdfs:comment "Slice access base[start:end] — SQLRDF-25 Row 4." .
+
+sql:StructField a owl:Class ;
+    rdfs:subClassOf sql:ASTNode ;
+    rdfs:label "Struct Field" ;
+    rdfs:comment "One key/value member of a sql:StructLiteral." .
+
+sql:structFields a owl:ObjectProperty ;
+    rdfs:domain sql:StructLiteral ;
+    rdfs:range rdf:List ;
+    rdfs:comment "Ordered rdf:List of sql:StructField members; exactly one list head per struct literal." .
+
+sql:fieldKey a owl:DatatypeProperty ;
+    rdfs:domain sql:StructField ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Struct field key; MUST match ^[a-zA-Z_][a-zA-Z0-9_]*$ (arm 49 COMPOSITE_MEMBER)." .
+
+sql:fieldValue a owl:ObjectProperty ;
+    rdfs:domain sql:StructField ;
+    rdfs:range sql:ASTNode ;
+    rdfs:comment "Field value expression node; exactly one per sql:StructField." .
+
+sql:listItems a owl:ObjectProperty ;
+    rdfs:domain sql:ListLiteral ;
+    rdfs:range rdf:List ;
+    rdfs:comment "Ordered rdf:List of member expression nodes; exactly one list head per list literal." .
+
+sql:indexBase a owl:ObjectProperty ;
+    rdfs:domain sql:IndexAccess ;
+    rdfs:range sql:ASTNode ;
+    rdfs:comment "Accessed expression (base); exactly one." .
+
+sql:indexIndex a owl:ObjectProperty ;
+    rdfs:domain sql:IndexAccess ;
+    rdfs:range sql:ASTNode ;
+    rdfs:comment "Index expression; exactly one." .
+
+sql:sliceBase a owl:ObjectProperty ;
+    rdfs:domain sql:SliceAccess ;
+    rdfs:range sql:ASTNode ;
+    rdfs:comment "Sliced expression (base); exactly one." .
+
+sql:sliceStart a owl:ObjectProperty ;
+    rdfs:domain sql:SliceAccess ;
+    rdfs:range sql:ASTNode ;
+    rdfs:comment "Slice start expression; exactly one." .
+
+sql:sliceEnd a owl:ObjectProperty ;
+    rdfs:domain sql:SliceAccess ;
+    rdfs:range sql:ASTNode ;
+    rdfs:comment "Slice end expression; optional (open-ended slice)." .
+
+sql:compositeDepth a owl:DatatypeProperty ;
+    rdfs:domain sql:ASTNode ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Declared nesting-depth mirror (arm 48 COMPOSITE_DEPTH): MUST be <= 64 when present; the compiler computes true structural depth." .
+
+sql:StructLiteralShape a sh:NodeShape ;
+    sh:targetClass sql:StructLiteral ;
+    sh:property [
+        sh:path sql:structFields ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:node sql:OrderedListShape ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 arm 49 COMPOSITE_MEMBER] MalformedAstRefusal: a StructLiteral MUST carry exactly one ordered sql:structFields list (rec section 4)." ;
+    ] ;
+    sh:property [
+        sh:path sql:compositeDepth ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:integer ;
+        sh:maxInclusive 64 ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 arm 48 COMPOSITE_DEPTH] MalformedAstRefusal: composite nesting depth exceeds the cap of 64." ;
+    ] .
+
+sql:StructFieldShape a sh:NodeShape ;
+    sh:targetClass sql:StructField ;
+    sh:property [
+        sh:path sql:fieldKey ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-zA-Z_][a-zA-Z0-9_]*$" ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 arm 49 COMPOSITE_MEMBER] MalformedAstRefusal: struct literal field key is malformed; a sql:fieldKey MUST match ^[a-zA-Z_][a-zA-Z0-9_]*$." ;
+    ] ;
+    sh:property [
+        sh:path sql:fieldValue ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 arm 49 COMPOSITE_MEMBER] MalformedAstRefusal: a StructField MUST carry exactly one sql:fieldValue expression node." ;
+    ] .
+
+sql:ListLiteralShape a sh:NodeShape ;
+    sh:targetClass sql:ListLiteral ;
+    sh:property [
+        sh:path sql:listItems ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:node sql:OrderedListShape ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 arm 49 COMPOSITE_MEMBER] MalformedAstRefusal: a ListLiteral MUST carry exactly one ordered sql:listItems list (rec section 4)." ;
+    ] ;
+    sh:property [
+        sh:path sql:compositeDepth ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:integer ;
+        sh:maxInclusive 64 ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 arm 48 COMPOSITE_DEPTH] MalformedAstRefusal: composite nesting depth exceeds the cap of 64." ;
+    ] .
+
+sql:IndexAccessShape a sh:NodeShape ;
+    sh:targetClass sql:IndexAccess ;
+    sh:property [
+        sh:path sql:indexBase ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 arm 49 COMPOSITE_MEMBER] MalformedAstRefusal: an IndexAccess MUST carry exactly one sql:indexBase expression node." ;
+    ] ;
+    sh:property [
+        sh:path sql:indexIndex ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 arm 49 COMPOSITE_MEMBER] MalformedAstRefusal: an IndexAccess MUST carry exactly one sql:indexIndex expression node." ;
+    ] ;
+    sh:property [
+        sh:path sql:compositeDepth ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:integer ;
+        sh:maxInclusive 64 ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 arm 48 COMPOSITE_DEPTH] MalformedAstRefusal: composite nesting depth exceeds the cap of 64." ;
+    ] .
+
+sql:SliceAccessShape a sh:NodeShape ;
+    sh:targetClass sql:SliceAccess ;
+    sh:property [
+        sh:path sql:sliceBase ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 arm 49 COMPOSITE_MEMBER] MalformedAstRefusal: a SliceAccess MUST carry exactly one sql:sliceBase expression node." ;
+    ] ;
+    sh:property [
+        sh:path sql:sliceStart ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 arm 49 COMPOSITE_MEMBER] MalformedAstRefusal: a SliceAccess MUST carry exactly one sql:sliceStart expression node." ;
+    ] ;
+    sh:property [
+        sh:path sql:sliceEnd ;
+        sh:maxCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 arm 49 COMPOSITE_MEMBER] MalformedAstRefusal: a SliceAccess MUST carry at most one sql:sliceEnd expression node (open-ended slice omits it)." ;
+    ] ;
+    sh:property [
+        sh:path sql:compositeDepth ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:integer ;
+        sh:maxInclusive 64 ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 arm 48 COMPOSITE_DEPTH] MalformedAstRefusal: composite nesting depth exceeds the cap of 64." ;
+    ] .
+# =============================================================================
+# Star / COLUMNS projection vocabulary (SQLRDF-25 Rows 1+2)
+# =============================================================================
+# Surface: SELECT * [EXCLUDE (col, …)] [REPLACE (expr AS name, …)] and
+# SELECT COLUMNS(<pattern>) — projection-list-only markers. The vocabulary
+# names mirror the extractor in src/sql_ast.rs (extract_select_item) exactly:
+# sql:Star, sql:exclude, sql:replace, sql:Columns, sql:columnsPattern, with
+# list members carrying sql:columnName / sql:expression + sql:aliasName (the
+# legacy alias sql:alias is accepted by the compiler as a fallback for
+# sql:aliasName; shapes hold members to the normative name).
+# Position: these markers are projection-list-only. Graph position is not a
+# SHACL-expressible property, so the position constraint stays compiler-owned
+# (REFUSAL-01, STAR_MODIFIER_POSITION via the extract_expr_scoped gate); any
+# star/COLUMNS marker or member property reached through the expression path
+# refuses typed there.
+# Non-emptiness: an sql:exclude list head that is rdf:nil (zero members)
+# violates sh:minCount 1 on rdf:first via sql:NonEmptyRdfListShape — the shape
+# twin of the compiler's empty-EXCLUDE refusal (REFUSAL-01,
+# STAR_MODIFIER_POSITION arm).
+# List-member cardinality (exactly one sql:columnName per EXCLUDE member;
+# exactly one sql:expression + one sql:aliasName per REPLACE member) is not
+# expressible against the rdf:List head under the section 4 collection-shape
+# pattern used by this file — the compiler arms own it (MissingProperty),
+# while the sql:StarReplaceShape typing shape below admits members that
+# satisfy the class contract.
+
+sql:Star a owl:Class ;
+    rdfs:subClassOf sql:ASTNode ;
+    rdfs:label "Star" ;
+    rdfs:comment "Projection-list star marker: SELECT * with optional EXCLUDE/REPLACE modifiers; projection-list position only (compiler arm STAR_MODIFIER_POSITION)." .
+
+sql:Columns a owl:Class ;
+    rdfs:subClassOf sql:ASTNode ;
+    rdfs:label "Columns" ;
+    rdfs:comment "Projection-list COLUMNS(<pattern>) marker; projection-list position only (compiler arm STAR_MODIFIER_POSITION)." .
+
+sql:exclude a rdf:Property ;
+    rdfs:domain sql:Star ;
+    rdfs:range rdf:List ;
+    rdfs:comment "rdf:List of EXCLUDE members, each carrying sql:columnName; MUST be non-empty when present (an rdf:nil head refuses STAR_MODIFIER_POSITION)." .
+
+sql:replace a rdf:Property ;
+    rdfs:domain sql:Star ;
+    rdfs:range rdf:List ;
+    rdfs:comment "rdf:List of REPLACE members, each carrying exactly one sql:expression and one sql:aliasName." .
+
+sql:StarReplace a owl:Class ;
+    rdfs:subClassOf sql:ASTNode ;
+    rdfs:label "Star Replace Member" ;
+    rdfs:comment "One REPLACE member: exactly one sql:expression plus exactly one sql:aliasName (legacy alias sql:alias accepted by the compiler as a fallback)." .
+
+sql:columnsPattern a owl:DatatypeProperty ;
+    rdfs:domain sql:Columns ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Regex glob selecting columns; MUST be a non-empty (after trim) string literal — an empty or whitespace-only pattern refuses COLUMNS_PATTERN." .
+
+# -----------------------------------------------------------------------------
+# Shapes
+# -----------------------------------------------------------------------------
+
+# A non-empty rdf:List head: rdf:nil (the empty list) carries no rdf:first, so
+# minCount 1 on rdf:first refuses empty lists while any proper list head has
+# exactly one.
+sql:NonEmptyRdfListShape a sh:NodeShape ;
+    sh:property [
+        sh:path rdf:first ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 STAR_MODIFIER_POSITION] MalformedAstRefusal: an EXCLUDE list MUST be non-empty — an rdf:nil sql:exclude head (zero members) is never an implicit bare *." ;
+    ] .
+
+sql:StarShape a sh:NodeShape ;
+    sh:targetClass sql:Star ;
+    # sql:exclude is optional (bare * carries no modifier) but at most one; when
+    # present its head MUST be a non-empty ordered rdf:List (compiler: empty
+    # EXCLUDE refuses STAR_MODIFIER_POSITION).
+    sh:property [
+        sh:path sql:exclude ;
+        sh:maxCount 1 ;
+        sh:node sql:NonEmptyRdfListShape ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 STAR_MODIFIER_POSITION] MalformedAstRefusal: a Star MUST carry at most one sql:exclude list, and its head MUST be a non-empty rdf:List." ;
+    ] ;
+    # sql:replace is optional but at most one, an ordered rdf:List of
+    # sql:StarReplace members.
+    sh:property [
+        sh:path sql:replace ;
+        sh:maxCount 1 ;
+        sh:node sql:OrderedListShape ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 STAR_MODIFIER_POSITION] MalformedAstRefusal: a Star MUST carry at most one sql:replace list, and it MUST be an ordered rdf:List." ;
+    ] .
+
+sql:StarReplaceShape a sh:NodeShape ;
+    sh:targetClass sql:StarReplace ;
+    # Exactly one expression and exactly one alias per REPLACE member
+    # (compiler: MissingProperty(expression|aliasName); legacy alias sql:alias
+    # is compiler-accepted but shapes hold members to the normative name).
+    sh:property [
+        sh:path sql:expression ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 STAR_MODIFIER_POSITION] MalformedAstRefusal: a REPLACE member MUST carry exactly one sql:expression." ;
+    ] ;
+    sh:property [
+        sh:path sql:aliasName ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 STAR_MODIFIER_POSITION] MalformedAstRefusal: a REPLACE member MUST carry exactly one sql:aliasName string." ;
+    ] .
+
+sql:ColumnsShape a sh:NodeShape ;
+    sh:targetClass sql:Columns ;
+    # Exactly one pattern literal; \S requires at least one non-whitespace
+    # character — the shape twin of the compiler's trim-empty refusal
+    # (REFUSAL-01, COLUMNS_PATTERN arm).
+    sh:property [
+        sh:path sql:columnsPattern ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "\\S" ;
+        sh:severity sh:Violation ;
+        sh:message "[REFUSAL-01 COLUMNS_PATTERN] MalformedAstRefusal: a Columns MUST carry exactly one non-empty (after trim) sql:columnsPattern string literal." ;
+    ] .

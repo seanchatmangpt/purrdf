@@ -1,0 +1,5 @@
+@prefix ex: <http://example.org/> .
+@prefix log: <http://www.w3.org/2000/10/swap/log#> .
+
+@forAll ?x . { ?x a ex:Thing } log:implies { ?x a ex:Known } .
+ex:a a ex:Thing .

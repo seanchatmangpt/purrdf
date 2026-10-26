@@ -1,0 +1,6 @@
+@prefix ex: <http://example.org/> .
+@base <http://example.org/base/> .
+
+<http://example.org/s> ex:p ex:o .
+<s2> ex:p "absolute base resolves" .
+:local ex:p ex:o .

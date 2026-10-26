@@ -1,0 +1,3 @@
+@prefix ex: <http://example.org/> .
+
+ex:p a ex:Summed .

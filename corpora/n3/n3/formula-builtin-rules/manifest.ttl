@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+@prefix ex: <http://example.org/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+@prefix n3t: <http://example.org/n3/test#> .
+<> a mf:Manifest ; mf:entries ( <http://example.org/n3/formula-builtin-rules> ) .
+<http://example.org/n3/formula-builtin-rules> a n3t:Rules ; mf:name "formula-builtin-rules" ; mf:action [ n3t:ruleDocument <rules.n3> ; n3t:factsGraph <facts.n3> ] ; mf:result "formula-builtin-rules" ; mf:status n3t:proposed ; rdfs:comment """One formula implication whose antecedent binds ?x, ?y, ?z through a math:sum builtin; ground facts satisfy the antecedent, so exactly the ex:Summed classification is inferred.""" .

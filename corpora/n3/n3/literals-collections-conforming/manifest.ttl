@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+@prefix ex: <http://example.org/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+@prefix n3t: <http://example.org/n3/test#> .
+<> a mf:Manifest ; mf:entries ( <http://example.org/n3/literals-collections-conforming> ) .
+<http://example.org/n3/literals-collections-conforming> a n3t:Parse ; mf:name "literals-collections-conforming" ; mf:action [ n3t:sourceDocument <case.n3> ] ; mf:result "literals-collections-conforming" ; mf:status n3t:proposed ; rdfs:comment """Plain, language-tagged and datatype-qualified literals plus one '( 1 2 3 )' collection, which expands to rdf:first/rdf:rest cells ending at rdf:nil. Blank list-cell names are local graph identities, not interchangeable wildcards.""" .

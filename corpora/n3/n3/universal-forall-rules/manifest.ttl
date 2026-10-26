@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+@prefix ex: <http://example.org/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+@prefix n3t: <http://example.org/n3/test#> .
+<> a mf:Manifest ; mf:entries ( <http://example.org/n3/universal-forall-rules> ) .
+<http://example.org/n3/universal-forall-rules> a n3t:Rules ; mf:name "universal-forall-rules" ; mf:action [ n3t:ruleDocument <rules.n3> ; n3t:factsGraph <facts.n3> ] ; mf:result "universal-forall-rules" ; mf:status n3t:proposed ; rdfs:comment """A document-scoped @forAll universal quantifies the rule variables; each ex:Thing fact yields the ex:Known classification for that same term.""" .

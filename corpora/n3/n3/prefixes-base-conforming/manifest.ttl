@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+@prefix ex: <http://example.org/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+@prefix n3t: <http://example.org/n3/test#> .
+<> a mf:Manifest ; mf:entries ( <http://example.org/n3/prefixes-base-conforming> ) .
+<http://example.org/n3/prefixes-base-conforming> a n3t:Parse ; mf:name "prefixes-base-conforming" ; mf:action [ n3t:sourceDocument <case.n3> ] ; mf:result "prefixes-base-conforming" ; mf:status n3t:proposed ; rdfs:comment """@prefix and @base resolution joins relative references to the declared base; the same document's prefixed names stay on the corpus base. The expected N-Triples artifact is independently authored, not derived from the parser under test.""" .

@@ -26,6 +26,9 @@ path = "src/lib.rs"
 
 [dependencies]
 purrdf-columnar = { workspace = true }
+purrdf-arrow = { workspace = true }
+purrdf-sql = { workspace = true }
+purrdf-duckdb = { workspace = true }
 purrdf-rdf = { workspace = true }
 purrdf-slice = { workspace = true }
 purrdf-shapes = { workspace = true }
@@ -46,6 +49,9 @@ purrdf-entail = { workspace = true }
 # edge a consumer could reach those values but never name their types from the
 # umbrella alone, which is exactly the reach-into-a-sub-crate this crate forbids.
 purrdf-datalog = { workspace = true }
+# N3 (Notation3): parsing, forward/backward reasoning and proofs. Carried on the
+# umbrella for the same reason every sibling is — reachability from `purrdf` alone.
+purrdf-n3 = { workspace = true }
 # Part of the published surface, so the umbrella re-exports it: a consumer who
 # wants GeoSPARQL registers this crate's functions and relations against the
 # evaluator's two extension seams, and must be able to name `Geometry`,

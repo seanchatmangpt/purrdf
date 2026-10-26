@@ -6,6 +6,7 @@ resolver = "2"
 members = [
     "bindings/python",
     "crates/alloc-probe",
+    "crates/arrow",
     "crates/bench",
     "crates/cdt",
     "crates/cli",
@@ -13,6 +14,7 @@ members = [
     "crates/conformance-kit",
     "crates/datalog",
     "crates/deflate",
+    "crates/duckdb",
     "crates/ed25519",
     "crates/entail",
     "crates/envelope-probe",
@@ -30,6 +32,7 @@ members = [
     "crates/lex",
     "crates/markdown",
     "crates/mime",
+    "crates/n3",
     "crates/purrdf",
     "crates/rdf",
     "crates/rdf-capi",
@@ -44,6 +47,7 @@ members = [
     "crates/sparql-conformance",
     "crates/sparql-eval",
     "crates/sparql-results",
+    "crates/sql",
     "crates/testkit",
     "crates/stack",
     "crates/text",
@@ -84,12 +88,14 @@ purrdf-rs = { package = "purrdf", path = "crates/purrdf", version = "3.0.1" }
 # resolve it from the registry. Never a normal dependency of anything, so the
 # wasm32 lane (which builds `--lib`) never sees it.
 purrdf-alloc-probe = { path = "crates/alloc-probe" }
+purrdf-arrow = { path = "crates/arrow", version = "3.0.1" }
 purrdf-cdt = { path = "crates/cdt", version = "3.0.1" }
 purrdf-columnar = { path = "crates/columnar", version = "3.0.1" }
 purrdf-conformance-kit = { path = "crates/conformance-kit" }
 purrdf-core = { path = "crates/rdf-core", version = "3.0.1" }
 purrdf-datalog = { path = "crates/datalog", version = "3.0.1" }
 purrdf-deflate = { path = "crates/deflate", version = "3.0.1" }
+purrdf-duckdb = { path = "crates/duckdb", version = "3.0.1" }
 purrdf-ed25519 = { path = "crates/ed25519", version = "3.0.1" }
 purrdf-entail = { path = "crates/entail", version = "3.0.1" }
 purrdf-events = { path = "crates/rdf-events", version = "3.0.1" }
@@ -98,6 +104,7 @@ purrdf-glob = { path = "crates/glob", version = "3.0.1" }
 purrdf-geo-kernel = { path = "crates/geo-kernel", version = "3.0.1" }
 purrdf-gts = { path = "crates/gts", version = "3.0.1" }
 purrdf-hash = { path = "crates/hash", version = "3.0.1" }
+purrdf-n3 = { path = "crates/n3", version = "3.0.1" }
 purrdf-hnsw = { path = "crates/hnsw", version = "3.0.1" }
 purrdf-iri = { path = "crates/iri", version = "3.0.1" }
 purrdf-json = { path = "crates/json", version = "3.0.1" }
@@ -113,6 +120,8 @@ purrdf-slice = { path = "crates/slice", version = "3.0.1" }
 purrdf-sparql-algebra = { path = "crates/sparql-algebra", version = "3.0.1" }
 purrdf-sparql-eval = { path = "crates/sparql-eval", version = "3.0.1" }
 purrdf-sparql-results = { path = "crates/sparql-results", version = "3.0.1" }
+purrdf-sql = { path = "crates/sql", version = "3.0.1" }
+frozen-duckdb = { version = "2.0.2" }
 # DEV-ONLY test support (`publish = false`): goldens, temporary paths under the
 # target directory, frozen differential vectors and the `harness = false`
 # runner. PATH-ONLY with NO `version`, for the reason given for
@@ -161,6 +170,8 @@ rayon = "1"
 # a second byte-search implementation beside `purrdf_lex::scan`. Every other
 # performance feature (lazy DFA, one-pass, bounded backtracker, cache, inline)
 # stays on.
+num-bigint = "0.4"
+num-traits = "0.2"
 regex = { version = "1", default-features = false, features = ["std", "unicode", "perf-cache", "perf-dfa", "perf-onepass", "perf-backtrack", "perf-inline"] }
 regex-syntax = "0.8.11"
 # SHA-256/384/512 (the SPARQL SHA-2 built-ins, content digests); pure software.

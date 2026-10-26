@@ -176,6 +176,10 @@ name = "purrdf-datalog"
 deps = ["purrdf-core", "purrdf-hash", "purrdf-lex"]
 
 [[crate]]
+name = "purrdf-n3"
+deps = ["purrdf-hash", "purrdf-iri", "purrdf-lex", "purrdf-rdf"]
+
+[[crate]]
 name = "purrdf-json"
 deps = ["purrdf-core", "purrdf-hash", "purrdf-lex"]
 
@@ -354,10 +358,39 @@ deps = [
 ]
 
 [[crate]]
-name = "purrdf"
+name = "purrdf-arrow"
+deps = ["purrdf-hash"]
+
+[[crate]]
+name = "purrdf-sql"
+deps = [
+    "purrdf-core",
+    "purrdf-hash",
+    "purrdf-iri",
+    "purrdf-lex",
+    "purrdf-rdf",
+    "purrdf-shapes",
+]
+
+[[crate]]
+name = "purrdf-duckdb"
 deps = [
     "purrdf-columnar",
+    "purrdf-core",
+    "purrdf-hash",
+    "purrdf-rdf",
+    "purrdf-sql",
+]
+
+[[crate]]
+name = "purrdf"
+deps = [
+    "purrdf-arrow",
+    "purrdf-columnar",
     "purrdf-datalog",
+    "purrdf-duckdb",
+    "purrdf-n3",
+    "purrdf-sql",
     "purrdf-entail",
     "purrdf-events",
     "purrdf-geo",

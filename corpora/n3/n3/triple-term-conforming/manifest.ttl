@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+@prefix ex: <http://example.org/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+@prefix n3t: <http://example.org/n3/test#> .
+<> a mf:Manifest ; mf:entries ( <http://example.org/n3/triple-term-conforming> ) .
+<http://example.org/n3/triple-term-conforming> a n3t:Parse ; mf:name "triple-term-conforming" ; mf:action [ n3t:sourceDocument <case.n3> ] ; mf:result "triple-term-conforming" ; mf:status n3t:proposed ; rdfs:comment """A quoted triple term '<< >>' appears as the object term of the enclosing triple; the expected artifact is N3 because quoted-triple spelling is a dialect surface beyond classic N-Triples.""" .

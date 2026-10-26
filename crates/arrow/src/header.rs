@@ -1,0 +1,179 @@
+// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+//! CanonArrow egress wire protocol — 128-byte framed canonical Arrow IPC header.
+//!
+//! Layout is fixed: the struct is `#[repr(C, align(64))]` and the field
+//! order is the wire order. `total_byte_len` covers payload + 128 header + 64-byte trailing padding.
+
+use purrdf_hash::blake3;
+
+/// Wire header for the CanonArrow columnar egress payload. 128 bytes total, 64-byte aligned.
+#[repr(C, align(64))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ArrowEgressHeader {
+    /// Wire magic, `b"GLAWARRW"`.
+    pub magic: [u8; 8],
+    /// Wire schema version (`0x0002`).
+    pub schema_version: u16,
+    /// Flag bits (see `FLAG_*` constants).
+    pub flags: u16,
+    /// Number of record batches in the payload.
+    pub batch_count: u32,
+    /// Byte offset of the payload region (always 128).
+    pub payload_offset: u32,
+    /// Length of the payload region in bytes.
+    pub payload_byte_len: u64,
+    /// Payload + 128 header + 64-byte trailing padding.
+    pub total_byte_len: u64,
+    /// BLAKE3 over the triples-side witness.
+    pub triples_digest: [u8; 32],
+    /// BLAKE3 over the payload region.
+    pub columnar_digest: [u8; 32],
+    /// Reserved; zero-filled on the wire (offsets 100..128).
+    pub reserved: [u8; 24],
+}
+
+impl ArrowEgressHeader {
+    /// Total header size in bytes.
+    pub const SIZE: usize = 128;
+    /// Wire magic bytes.
+    pub const MAGIC: [u8; 8] = *b"GLAWARRW";
+    /// Wire schema version.
+    pub const SCHEMA_VERSION: u16 = 0x0002;
+    /// Byte offset of the payload region.
+    pub const PAYLOAD_OFFSET: u32 = 128;
+
+    /// Flags bit0: payload contains null values.
+    pub const FLAG_HAS_NULLS: u16 = 1 << 0;
+    /// Flags bit1: payload encoded big-endian.
+    pub const FLAG_BIG_ENDIAN: u16 = 1 << 1;
+    /// Flags bit2: columns follow declared projection order strictly.
+    pub const FLAG_STRICT_PROJECTION_ORDER: u16 = 1 << 2;
+
+    /// Mask of defined flag bits.
+    pub const FLAGS_MASK: u16 =
+        Self::FLAG_HAS_NULLS | Self::FLAG_BIG_ENDIAN | Self::FLAG_STRICT_PROJECTION_ORDER;
+
+    /// Serialize to the 128-byte little-endian wire form.
+    pub fn to_bytes(&self) -> [u8; Self::SIZE] {
+        let mut out = [0u8; Self::SIZE];
+        out[0..8].copy_from_slice(&self.magic);
+        out[8..10].copy_from_slice(&self.schema_version.to_le_bytes());
+        out[10..12].copy_from_slice(&self.flags.to_le_bytes());
+        out[12..16].copy_from_slice(&self.batch_count.to_le_bytes());
+        out[16..20].copy_from_slice(&self.payload_offset.to_le_bytes());
+        out[20..28].copy_from_slice(&self.payload_byte_len.to_le_bytes());
+        out[28..36].copy_from_slice(&self.total_byte_len.to_le_bytes());
+        out[36..68].copy_from_slice(&self.triples_digest);
+        out[68..100].copy_from_slice(&self.columnar_digest);
+        out
+    }
+
+    /// Deserialize from the 128-byte wire form.
+    pub fn from_bytes(bytes: &[u8; Self::SIZE]) -> Result<Self, ArrowEgressHeaderError> {
+        if bytes[0..8] != Self::MAGIC {
+            return Err(ArrowEgressHeaderError::BadMagic);
+        }
+        let schema_version = u16::from_le_bytes(bytes[8..10].try_into().unwrap());
+        if schema_version != Self::SCHEMA_VERSION {
+            return Err(ArrowEgressHeaderError::BadSchemaVersion(schema_version));
+        }
+        let flags = u16::from_le_bytes(bytes[10..12].try_into().unwrap());
+        if flags & !Self::FLAGS_MASK != 0 {
+            return Err(ArrowEgressHeaderError::BadFlags(flags));
+        }
+        let batch_count = u32::from_le_bytes(bytes[12..16].try_into().unwrap());
+        let payload_offset = u32::from_le_bytes(bytes[16..20].try_into().unwrap());
+        if payload_offset != Self::PAYLOAD_OFFSET {
+            return Err(ArrowEgressHeaderError::BadPayloadOffset(payload_offset));
+        }
+        let payload_byte_len = u64::from_le_bytes(bytes[20..28].try_into().unwrap());
+        let total_byte_len = u64::from_le_bytes(bytes[28..36].try_into().unwrap());
+        if total_byte_len != payload_byte_len + Self::SIZE as u64 + 64 {
+            return Err(ArrowEgressHeaderError::BadTotalLen {
+                payload_byte_len,
+                total_byte_len,
+            });
+        }
+        let mut triples_digest = [0u8; 32];
+        triples_digest.copy_from_slice(&bytes[36..68]);
+        let mut columnar_digest = [0u8; 32];
+        columnar_digest.copy_from_slice(&bytes[68..100]);
+        if bytes[100..128].iter().any(|&b| b != 0) {
+            return Err(ArrowEgressHeaderError::ReservedNotZero);
+        }
+        Ok(Self {
+            magic: Self::MAGIC,
+            schema_version,
+            flags,
+            batch_count,
+            payload_offset,
+            payload_byte_len,
+            total_byte_len,
+            triples_digest,
+            columnar_digest,
+            reserved: [0u8; 24],
+        })
+    }
+}
+
+/// Typed errors for header validation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ArrowEgressHeaderError {
+    /// Wire magic did not match `GLAWARRW`.
+    BadMagic,
+    /// Unknown schema version.
+    BadSchemaVersion(u16),
+    /// Undefined flag bits set.
+    BadFlags(u16),
+    /// Payload offset was not 128.
+    BadPayloadOffset(u32),
+    /// `total_byte_len` inconsistent with `payload_byte_len`.
+    BadTotalLen {
+        /// Payload region length.
+        payload_byte_len: u64,
+        /// Declared total length.
+        total_byte_len: u64,
+    },
+    /// Reserved region was not zero-filled.
+    ReservedNotZero,
+}
+
+impl std::fmt::Display for ArrowEgressHeaderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::BadMagic => write!(f, "canonarrow: bad wire magic"),
+            Self::BadSchemaVersion(v) => write!(f, "canonarrow: unsupported schema version {v}"),
+            Self::BadFlags(fl) => write!(f, "canonarrow: undefined flag bits 0x{fl:04x}"),
+            Self::BadPayloadOffset(off) => write!(f, "canonarrow: expected payload offset 128, got {off}"),
+            Self::BadTotalLen { payload_byte_len, total_byte_len } => write!(
+                f,
+                "canonarrow: inconsistent lengths: payload={payload_byte_len}, total={total_byte_len}"
+            ),
+            Self::ReservedNotZero => write!(f, "canonarrow: reserved header region not zero-filled"),
+        }
+    }
+}
+
+impl std::error::Error for ArrowEgressHeaderError {}
+
+impl purrdf_hash::error::StructuredError for ArrowEgressHeaderError {
+    purrdf_hash::error_visit! {
+        BadMagic => "canonarrow-bad-magic" {},
+        BadSchemaVersion(v) => "canonarrow-bad-schema-version" { "version" => Unsigned(*v as u128) },
+        BadFlags(f) => "canonarrow-bad-flags" { "flags" => Unsigned(*f as u128) },
+        BadPayloadOffset(o) => "canonarrow-bad-payload-offset" { "offset" => Unsigned(*o as u128) },
+        BadTotalLen { payload_byte_len, total_byte_len } => "canonarrow-bad-total-len" {
+            "payload_len" => Unsigned(*payload_byte_len as u128),
+            "total_len" => Unsigned(*total_byte_len as u128),
+        },
+        ReservedNotZero => "canonarrow-reserved-not-zero" {},
+    }
+}
+
+/// Domain null digest: `H_columnar_empty = BLAKE3(b"CANON_ARROW_EMPTY_V1")` for non-tabular results.
+pub fn canon_arrow_empty_v1() -> &'static [u8; 32] {
+    static DIGEST: std::sync::OnceLock<[u8; 32]> = std::sync::OnceLock::new();
+    DIGEST.get_or_init(|| *blake3::hash(b"CANON_ARROW_EMPTY_V1").as_bytes())
+}

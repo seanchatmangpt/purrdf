@@ -1,0 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+@prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+<> a mf:Manifest ; mf:include ( <prefixes-base-conforming/manifest.ttl> <punctuation-conforming/manifest.ttl> <literals-collections-conforming/manifest.ttl> <triple-term-conforming/manifest.ttl> <formula-builtin-rules/manifest.ttl> <universal-forall-rules/manifest.ttl> <unterminated-string-negative/manifest.ttl> <bad-iri-negative/manifest.ttl> <brace-mismatch-negative/manifest.ttl> ) .

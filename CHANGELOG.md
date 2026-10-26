@@ -6,7 +6,9 @@ breaking change bumps the major version, a minor bump is additive, and a patch
 bump is bugfix-only. The C ABI (`purrdf.h`) is versioned separately and remains
 0.x.
 
-## [Unreleased]
+## [Unreleased]## [Unreleased]
+
+**n3:** Introduced `purrdf-n3` (`crates/n3`): native Notation3 parsing, forward/backward reasoning and proof writing/checking over RDF 1.2, re-exported through the `purrdf` umbrella as `purrdf::n3`.
 
 - **Segmented data profile 3 (breaking persisted format):** the reverse index
   stores identifiers into the forward dictionary, and dictionary blocks read

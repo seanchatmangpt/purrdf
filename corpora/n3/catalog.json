@@ -1,0 +1,36 @@
+{
+  "contractVersion": 1,
+  "copyright": "2026 Blackcat Informatics Inc.",
+  "license": "MIT OR Apache-2.0 OR MulanPSL-2.0",
+  "status": "community-proposed",
+  "rootManifest": "manifest.ttl",
+  "suites": [
+    {
+      "inventory": "n3/inventory.json",
+      "directory": ".",
+      "kind": "n3",
+      "caseCount": 9,
+      "manifests": [
+        "n3/manifest.ttl"
+      ]
+    }
+  ],
+  "caseCount": 9,
+  "requiredCoverage": [
+    "prefixes",
+    "punctuation",
+    "literals",
+    "collections",
+    "formulas",
+    "builtins",
+    "universals",
+    "triple-terms",
+    "negative-syntax"
+  ],
+  "profiles": {
+    "n3-submission-2008": {
+      "specification": "https://www.w3.org/TeamSubmission/2008/SUBR-n3-20080114/",
+      "note": "Notation 3 is a Turtle superset; cases never switch the underlying RDF kernel to another grammar"
+    }
+  }
+}

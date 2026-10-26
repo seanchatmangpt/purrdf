@@ -1,0 +1,85 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+[package]
+name = "purrdf-n3"
+description = "PurRDF native Notation3 (N3): parsing, semi-naive reasoning and backward proofs over RDF 1.2"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/purrdf-n3"
+rust-version.workspace = true
+keywords = ["n3", "notation3", "rdf", "reasoning", "datalog"]
+categories = ["algorithms", "data-structures"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["rlib"]
+path = "src/lib.rs"
+
+[dependencies]
+# The N3 parser produces term and triple constructors over RDF 1.2's term
+# model; graph formulas, @forAll/@forSome quantification and log: payload
+# terms lower onto the same term identities the codecs mint.
+purrdf-rdf = { workspace = true }
+# One spelling of IRI resolution for @base/@prefix expansion — the same
+# relative-reference resolution the other codecs use, not a second one.
+purrdf-iri = { workspace = true }
+# The clause-term constructors that wrap a caller's text and the N3 tokenizer's
+# punctuation/keyword vocabulary share the lex crate's one spelling.
+purrdf-lex = { workspace = true }
+# Fixed-key interning of formula-scoped terms and content-addressed proof node
+# identity hash with purrdf-hash's `FixedHasher`. Fixed-key (not RandomState)
+# because wasm32 has no entropy source and iteration order must never reach an
+# output path.
+purrdf-hash = { workspace = true }
+# Formula-scoped dictionaries and the backward prover's premise tables hash
+# with the same `FixedHasher` (declared above). Fixed-key (not RandomState)
+# for wasm32's absent entropy source and deterministic output paths.
+hashbrown = { workspace = true }
+# The reasoner's list/math builtin families evaluate over arbitrary-precision
+# integers (num-bigint with num-traits' Signed/ToPrimitive) and match string
+# builtins with the workspace's one regex spelling (std+unicode+perf features).
+num-bigint = { workspace = true }
+num-traits = { workspace = true }
+regex = { workspace = true }
+
+
+
+wasm-bindgen = { workspace = true, optional = true }
+
+[features]
+wasm = ["dep:wasm-bindgen"]
+
+
+[dev-dependencies]
+purrdf-testkit = { workspace = true }
+purrdf-alloc-probe = { workspace = true }
+
+# The same production parser, prover and proof assertions execute natively and
+# in Node through the workspace wasm runner; no libtest runtime is assumed on
+# wasm32.
+[[test]]
+name = "n3_parse"
+harness = false
+
+[[test]]
+name = "n3_reason"
+harness = false
+
+[[test]]
+name = "n3_proofs"
+harness = false
+
+[[bench]]
+# Backward-proof latency along the axes a proof's cost actually has: rule-body
+# depth, premise fan-out and the term count of the goal. Report-only.
+name = "reasoner"
+harness = false

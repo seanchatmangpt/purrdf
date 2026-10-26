@@ -60,6 +60,7 @@ PURRDF_RELEASE_CRATES=(
   purrdf-geo-kernel
   purrdf-columnar
   purrdf-datalog
+  purrdf-n3
   purrdf-entail
   purrdf-sparql-algebra
   purrdf-sparql-results

@@ -1,0 +1,338 @@
+{
+  "contractVersion": 1,
+  "copyright": "2026 Blackcat Informatics Inc.",
+  "license": "MIT OR Apache-2.0 OR MulanPSL-2.0",
+  "cases": [
+    {
+      "id": "prefixes-base-conforming",
+      "iri": "http://example.org/n3/prefixes-base-conforming",
+      "kind": "query-evaluation",
+      "manifest": "n3/prefixes-base-conforming/manifest.ttl",
+      "query": "n3/prefixes-base-conforming/case.n3",
+      "data": [
+        {
+          "path": "n3/prefixes-base-conforming/case.n3",
+          "mediaType": "text/n3"
+        }
+      ],
+      "expected": "n3/prefixes-base-conforming/expected.nt",
+      "profiles": [
+        "n3-submission-2008"
+      ],
+      "categories": [
+        "prefixes",
+        "base",
+        "positive",
+        "control"
+      ],
+      "specifications": [
+        "https://www.w3.org/TeamSubmission/2008/SUBR-n3-20080114/#prefix-grammar"
+      ],
+      "rationale": "Prefix and base resolution joins every relative reference to the declared base; prefixed names resolve against their @prefix. The expected N-Triples artifact is independently authored rather than derived from the parser under test.",
+      "requires": [
+        "n3"
+      ],
+      "options": {},
+      "family": "prefixes",
+      "oracleReview": {
+        "status": "accepted",
+        "derivation": "authored in this corpus, pending independent review",
+        "reviewer": "automated agent source review"
+      }
+    },
+    {
+      "id": "punctuation-conforming",
+      "iri": "http://example.org/n3/punctuation-conforming",
+      "kind": "query-evaluation",
+      "manifest": "n3/punctuation-conforming/manifest.ttl",
+      "query": "n3/punctuation-conforming/case.n3",
+      "data": [
+        {
+          "path": "n3/punctuation-conforming/case.n3",
+          "mediaType": "text/n3"
+        }
+      ],
+      "expected": "n3/punctuation-conforming/expected.nt",
+      "profiles": [
+        "n3-submission-2008"
+      ],
+      "categories": [
+        "punctuation",
+        "positive",
+        "control"
+      ],
+      "specifications": [
+        "https://www.w3.org/TeamSubmission/2008/SUBR-n3-20080114/#comma-and-semicolon"
+      ],
+      "rationale": "The 'a' keyword, ';' predicate-object lists and ',' object lists expand exactly to the plain RDF triples in the expected artifact.",
+      "requires": [
+        "n3"
+      ],
+      "options": {},
+      "family": "punctuation",
+      "oracleReview": {
+        "status": "accepted",
+        "derivation": "authored in this corpus, pending independent review",
+        "reviewer": "automated agent source review"
+      }
+    },
+    {
+      "id": "literals-collections-conforming",
+      "iri": "http://example.org/n3/literals-collections-conforming",
+      "kind": "query-evaluation",
+      "manifest": "n3/literals-collections-conforming/manifest.ttl",
+      "query": "n3/literals-collections-conforming/case.n3",
+      "data": [
+        {
+          "path": "n3/literals-collections-conforming/case.n3",
+          "mediaType": "text/n3"
+        }
+      ],
+      "expected": "n3/literals-collections-conforming/expected.nt",
+      "profiles": [
+        "n3-submission-2008"
+      ],
+      "categories": [
+        "literals",
+        "collections",
+        "positive",
+        "control"
+      ],
+      "specifications": [
+        "https://www.w3.org/TeamSubmission/2008/SUBR-n3-20080114/#collections"
+      ],
+      "rationale": "Plain, language-tagged and datatype-qualified literals plus one '( 1 2 3 )' collection expanding to rdf:first/rdf:rest cells ending at rdf:nil. Blank list-cell names are local graph identities, not interchangeable wildcards.",
+      "requires": [
+        "n3"
+      ],
+      "options": {},
+      "family": "literals",
+      "oracleReview": {
+        "status": "accepted",
+        "derivation": "authored in this corpus, pending independent review",
+        "reviewer": "automated agent source review"
+      }
+    },
+    {
+      "id": "triple-term-conforming",
+      "iri": "http://example.org/n3/triple-term-conforming",
+      "kind": "query-evaluation",
+      "manifest": "n3/triple-term-conforming/manifest.ttl",
+      "query": "n3/triple-term-conforming/case.n3",
+      "data": [
+        {
+          "path": "n3/triple-term-conforming/case.n3",
+          "mediaType": "text/n3"
+        }
+      ],
+      "expected": "n3/triple-term-conforming/expected.n3",
+      "profiles": [
+        "n3-submission-2008"
+      ],
+      "categories": [
+        "triple-terms",
+        "quoted",
+        "positive",
+        "control"
+      ],
+      "specifications": [
+        "https://www.w3.org/TeamSubmission/2008/SUBR-n3-20080114/ (quoted triples; RDF 1.2 triple terms)"
+      ],
+      "rationale": "A quoted triple term '<< >>' appears as the object term of the enclosing triple; the expected artifact is N3 because quoted-triple spelling is a dialect surface beyond classic N-Triples.",
+      "requires": [
+        "n3"
+      ],
+      "options": {},
+      "family": "triple-terms",
+      "oracleReview": {
+        "status": "accepted",
+        "derivation": "authored in this corpus, pending independent review",
+        "reviewer": "automated agent source review"
+      }
+    },
+    {
+      "id": "formula-builtin-rules",
+      "iri": "http://example.org/n3/formula-builtin-rules",
+      "kind": "rules",
+      "manifest": "n3/formula-builtin-rules/manifest.ttl",
+      "shapes": "n3/formula-builtin-rules/rules.n3",
+      "data": [
+        {
+          "path": "n3/formula-builtin-rules/facts.n3",
+          "mediaType": "text/n3"
+        }
+      ],
+      "expected": {
+        "kind": "inferences",
+        "path": "n3/formula-builtin-rules/expected-inferences.n3"
+      },
+      "profiles": [
+        "n3-submission-2008"
+      ],
+      "categories": [
+        "formulas",
+        "builtins",
+        "rules",
+        "positive"
+      ],
+      "specifications": [
+        "https://www.w3.org/TeamSubmission/2008/SUBR-n3-20080114/#log"
+      ],
+      "rationale": "One formula implication with a math:sum builtin binding ?x, ?y, ?z in the antecedent; ground facts satisfy the antecedent, so exactly the ex:Summed classification is inferred.",
+      "requires": [
+        "n3"
+      ],
+      "options": {},
+      "family": "formulas",
+      "oracleReview": {
+        "status": "accepted",
+        "derivation": "authored in this corpus, pending independent review",
+        "reviewer": "automated agent source review"
+      }
+    },
+    {
+      "id": "universal-forall-rules",
+      "iri": "http://example.org/n3/universal-forall-rules",
+      "kind": "rules",
+      "manifest": "n3/universal-forall-rules/manifest.ttl",
+      "shapes": "n3/universal-forall-rules/rules.n3",
+      "data": [
+        {
+          "path": "n3/universal-forall-rules/facts.n3",
+          "mediaType": "text/n3"
+        }
+      ],
+      "expected": {
+        "kind": "inferences",
+        "path": "n3/universal-forall-rules/expected-inferences.n3"
+      },
+      "profiles": [
+        "n3-submission-2008"
+      ],
+      "categories": [
+        "universals",
+        "rules",
+        "positive"
+      ],
+      "specifications": [
+        "https://www.w3.org/TeamSubmission/2008/SUBR-n3-20080114/#universal-quantification"
+      ],
+      "rationale": "A document-scoped @forAll universal quantifies the rule variables; each ex:Thing fact yields the ex:Known classification for that same term.",
+      "requires": [
+        "n3"
+      ],
+      "options": {},
+      "family": "universals",
+      "oracleReview": {
+        "status": "accepted",
+        "derivation": "authored in this corpus, pending independent review",
+        "reviewer": "automated agent source review"
+      }
+    },
+    {
+      "id": "unterminated-string-negative",
+      "iri": "http://example.org/n3/unterminated-string-negative",
+      "kind": "negative-syntax",
+      "manifest": "n3/unterminated-string-negative/manifest.ttl",
+      "query": "n3/unterminated-string-negative/case.n3",
+      "data": [
+        {
+          "path": "n3/unterminated-string-negative/case.n3",
+          "mediaType": "text/n3"
+        }
+      ],
+      "expected": null,
+      "profiles": [
+        "n3-submission-2008"
+      ],
+      "categories": [
+        "negative-syntax",
+        "strings"
+      ],
+      "specifications": [
+        "https://www.w3.org/TeamSubmission/2008/SUBR-n3-20080114/#string-literals"
+      ],
+      "rationale": "The string literal opened after ex:p is never terminated before end of document; every conforming parser refuses the document instead of recovering it.",
+      "requires": [
+        "n3"
+      ],
+      "options": {},
+      "family": "negative-syntax",
+      "oracleReview": {
+        "status": "accepted",
+        "derivation": "authored in this corpus, pending independent review",
+        "reviewer": "automated agent source review"
+      }
+    },
+    {
+      "id": "bad-iri-negative",
+      "iri": "http://example.org/n3/bad-iri-negative",
+      "kind": "negative-syntax",
+      "manifest": "n3/bad-iri-negative/manifest.ttl",
+      "query": "n3/bad-iri-negative/case.n3",
+      "data": [
+        {
+          "path": "n3/bad-iri-negative/case.n3",
+          "mediaType": "text/n3"
+        }
+      ],
+      "expected": null,
+      "profiles": [
+        "n3-submission-2008"
+      ],
+      "categories": [
+        "negative-syntax",
+        "iris"
+      ],
+      "specifications": [
+        "https://www.w3.org/TeamSubmission/2008/SUBR-n3-20080114/#iri"
+      ],
+      "rationale": "An IRIREF containing a raw space is not a legal IRI; the document must be refused.",
+      "requires": [
+        "n3"
+      ],
+      "options": {},
+      "family": "negative-syntax",
+      "oracleReview": {
+        "status": "accepted",
+        "derivation": "authored in this corpus, pending independent review",
+        "reviewer": "automated agent source review"
+      }
+    },
+    {
+      "id": "brace-mismatch-negative",
+      "iri": "http://example.org/n3/brace-mismatch-negative",
+      "kind": "negative-syntax",
+      "manifest": "n3/brace-mismatch-negative/manifest.ttl",
+      "query": "n3/brace-mismatch-negative/case.n3",
+      "data": [
+        {
+          "path": "n3/brace-mismatch-negative/case.n3",
+          "mediaType": "text/n3"
+        }
+      ],
+      "expected": null,
+      "profiles": [
+        "n3-submission-2008"
+      ],
+      "categories": [
+        "negative-syntax",
+        "formulas"
+      ],
+      "specifications": [
+        "https://www.w3.org/TeamSubmission/2008/SUBR-n3-20080114/#formula"
+      ],
+      "rationale": "A formula opened with '{' is closed by '.' without the matching '}', so the document is not well-formed N3.",
+      "requires": [
+        "n3"
+      ],
+      "options": {},
+      "family": "negative-syntax",
+      "oracleReview": {
+        "status": "accepted",
+        "derivation": "authored in this corpus, pending independent review",
+        "reviewer": "automated agent source review"
+      }
+    }
+  ]
+}

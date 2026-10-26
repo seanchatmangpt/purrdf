@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+[package]
+name = "purrdf-duckdb"
+description = "PurRDF embedded DuckDB execution engine, virtual Parquet views and relational-to-RDF row projection"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+keywords = ["duckdb", "relational", "parquet", "rdf", "views"]
+categories = ["database-implementations"]
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["rlib"]
+path = "src/lib.rs"
+
+[dependencies]
+frozen-duckdb = { workspace = true }
+purrdf-columnar = { workspace = true }
+purrdf-core = { workspace = true }
+purrdf-hash = { workspace = true }
+purrdf-rdf = { workspace = true }
+purrdf-sql = { workspace = true }
+
+[dev-dependencies]
+purrdf-arrow = { workspace = true }
+purrdf-testkit = { workspace = true }
+
+[[bench]]
+name = "sieve_bench"
+harness = false

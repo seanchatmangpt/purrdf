@@ -19,6 +19,7 @@
 //! | [`shex`] | [`purrdf_shex`] (ShEx 2.1) |
 //! | [`entail`] | [`purrdf_entail`] (RDFS / OWL-RL / OWL-Direct / RIF entailment) |
 //! | [`datalog`] | [`purrdf_datalog`] (the semi-naive engine [`entail`]'s public types carry) |
+//! | [`n3`] | [`purrdf_n3`] (Notation3: parsing, reasoning and proofs) |
 //! | [`geo`] | [`purrdf_geo`] (GeoSPARQL 1.1 geometry, `geof:` functions, query rewrite) |
 //! | [`text`] | [`purrdf_text`] (deterministic full-text search over RDF 1.2 literals) |
 //! | [`retrieval`] | [`purrdf_retrieval`] (the composition layer over the ranked producers) |
@@ -275,6 +276,31 @@ pub mod entail {
 /// second dependency on `purrdf-datalog`.
 pub mod datalog {
     pub use purrdf_datalog::*;
+}
+
+/// Declarative SQL AST representation and deterministic compiler ([`purrdf_sql`]).
+pub mod sql {
+    pub use purrdf_sql::*;
+}
+
+/// Embedded DuckDB execution engine and relational-to-RDF row projection ([`purrdf_duckdb`]).
+pub mod duckdb {
+    pub use purrdf_duckdb::*;
+}
+
+/// Canonical Arrow IPC columnar egress protocol ([`purrdf_arrow`]).
+pub mod arrow {
+    pub use purrdf_arrow::*;
+}
+
+/// Notation3 ([`purrdf_n3`]): parsing, the forward/backward reasoner, and proof
+/// writing/checking over RDF 1.2 — N3 reads the syntaxes the facade already
+/// parses (Turtle, TriG, N-Triples, N-Quads), so its surface is carried here
+/// for the same reason every sibling is: anything a consumer legitimately
+/// imports is reachable from `purrdf` alone, never by reaching into a
+/// sub-crate.
+pub mod n3 {
+    pub use purrdf_n3::*;
 }
 
 /// GeoSPARQL 1.1 ([`purrdf_geo`]): exact, float-free WKT and GeoJSON geometry,
@@ -780,6 +806,19 @@ mod tests {
 
         // validate: the SARIF reporting boundary is reachable through the facade.
         assert_eq!(validate::SARIF_VERSION, "2.1.0");
+
+        // n3: Notation3 parsing, reasoning and proofs are reachable through the
+        // facade — parse a tiny program, run it, read back a derived fact.
+        let doc = n3::parse_n3(
+            "@prefix : <http://example.org/> .\n@prefix log: <http://www.w3.org/2000/10/swap/log#>.\n:socrates a :Man.\n{ ?x a :Man } => { ?x a :Mortal }.\n",
+            None,
+        )
+        .expect("n3 parse through the facade");
+        let out = n3::reason_document(&doc, &Default::default());
+        assert!(
+            out.statistics.iterations > 0,
+            "n3 reason runs through the facade"
+        );
 
         // The supported umbrella also exposes the succinct dataset-pack cache
         // boundary; downstreams never need to depend on purrdf-core directly.

@@ -707,3 +707,29 @@ reason = "WIT bindings for wasip2"
 distinct = "internal to getrandom's operating-system entropy bindings; PurRDF has no entropy source of its own"
 holder = "getrandom"
 metrics = { direct = false, exclusive_closure = 0, release = true, wasm = false, build_script = true, proc_macro = false }
+
+[packages.num-bigint]
+category = "direct:first-party-consumer"
+reason = "arbitrary-precision integers for the N3 math/list builtin families"
+distinct = "no workspace crate implements bigint arithmetic; upstream reference implementation"
+metrics = { direct = true, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+
+[packages.num-integer]
+category = "transitive:num-bigint"
+reason = "integer gcd/lcm used by num-bigint"
+distinct = "internal to num-bigint's arithmetic; no PurRDF call sites"
+holder = "num-bigint"
+metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+
+[packages.num-traits]
+category = "transitive:num-bigint"
+reason = "Signed::abs and ToPrimitive at the reasoner's numeric coercion sites"
+distinct = "no workspace equivalent numeric trait layer"
+metrics = { direct = true, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+
+[packages.autocfg]
+category = "transitive:num-traits"
+reason = "rustc cfg probing at num-traits build time"
+distinct = "build-time feature detection only; no PurRDF call sites"
+holder = "num-traits"
+metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }

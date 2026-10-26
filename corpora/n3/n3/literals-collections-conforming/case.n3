@@ -1,0 +1,6 @@
+@prefix ex: <http://example.org/> .
+
+ex:s ex:plain "txt" ;
+  ex:lang "bonjour"@fr ;
+  ex:typed "3"^^ex:count ;
+  ex:nums ( 1 2 3 ) .

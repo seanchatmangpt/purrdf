@@ -348,6 +348,7 @@ federation resolver, and the core ships no HTTP client.
 | [`purrdf-shapes`](./crates/shapes/) | SHACL validation/rules and schema compilation. |
 | [`purrdf-shex`](./crates/shex/) | ShEx schemas and validation. |
 | [`purrdf-datalog`](./crates/datalog/) | Deterministic semi-naive rule substrate. |
+| [`purrdf-n3`](./crates/n3/) | Native Notation3 parsing, reasoning and proofs. |
 | [`purrdf-entail`](./crates/entail/) | Materialization, OWL-Direct and RIF-Core. |
 | [`purrdf-text`](./crates/text/) | Exact fixed-point full-text search. |
 | [`purrdf-geo`](./crates/geo/) | Exact GeoSPARQL geometry and relations. |
