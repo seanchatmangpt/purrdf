@@ -36,6 +36,10 @@
 // Blank-node label syntax shared by parser and serializer egress contracts.
 pub mod blank_label;
 pub mod cdt_blank;
+/// Cache-friendly Eytzinger layout and branchless search.
+pub mod eytzinger;
+/// Branchless, zero-allocation low-level primitives.
+pub mod primitives;
 // Which scalars an `IRIREF` writer must escape, and the emission: the lexical
 // layer's one implementation, re-exported at its long-standing path.
 pub use purrdf_lex::iri_escape;
