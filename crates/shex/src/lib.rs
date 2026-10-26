@@ -123,7 +123,11 @@ pub use ast::{
     NumericLiteral, ObjectLiteral, ObjectValue, Schema, SemAct, Shape, ShapeDecl, ShapeExpr,
     ShapeLabel, StemValue, TripleConstraint, TripleExpr, TripleExprGroup, ValueSetValue,
 };
-pub use error::{Result, ShexError, XPathValidationError};
+pub use error::{
+    LanguageMember, LexicalContext, LexicalReason, MapExpectation, RepeatOperation, Result,
+    SHEXJ_LANGUAGE_POLICY, SHEXJ_LANGUAGE_PROFILE, ShapeMapContext, ShapeMapLanguageRefusal,
+    ShapeMapPosition, ShapeMapReason, ShexError, XPathValidationError,
+};
 pub use exact::{
     ExactSchema, validate_exact, validate_exact_with_xpath, validate_shape_map_exact,
     validate_shape_map_exact_with_xpath,

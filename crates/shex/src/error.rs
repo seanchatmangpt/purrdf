@@ -9,6 +9,15 @@
 
 use core::fmt;
 
+mod language;
+pub use language::{LanguageMember, SHEXJ_LANGUAGE_POLICY, SHEXJ_LANGUAGE_PROFILE};
+mod shape_map;
+pub use shape_map::{
+    MapExpectation, ShapeMapContext, ShapeMapLanguageRefusal, ShapeMapPosition, ShapeMapReason,
+};
+mod lexical;
+pub use lexical::{LexicalContext, LexicalReason, RepeatOperation};
+
 /// Why a ShExC or ShExJ document failed to parse into a
 /// [`crate::ast::Schema`].
 #[derive(Clone, PartialEq, Eq)]
@@ -20,11 +29,11 @@ pub enum ShexError {
         /// The recursive parser construct whose next frame was refused.
         construct: &'static str,
     },
-    /// The ShExC byte stream could not be tokenized. Carries a human reason
+    /// The ShExC byte stream could not be tokenized. Carries its native reason
     /// and the byte offset at which the lexer gave up.
     Lex {
         /// What the lexer objected to.
-        reason: String,
+        reason: LexicalReason,
         /// Byte offset of the offending input.
         at: usize,
     },
@@ -36,6 +45,15 @@ pub enum ShexError {
         /// Byte offset of the offending token.
         at: usize,
     },
+    /// A shape-map grammar refusal with original scalar and UTF-8 byte positions.
+    ShapeMapSyntax {
+        /// The original native reason and lexical operands.
+        reason: ShapeMapReason,
+        /// The true UTF-8 byte position in the original input.
+        at: usize,
+        /// The original decoded-scalar cursor, retained independently.
+        scalar_offset: usize,
+    },
     /// An IRI could not be resolved against the schema base (delegated to
     /// `purrdf-iri`).
     Iri {
@@ -44,8 +62,19 @@ pub enum ShexError {
         /// The underlying resolution failure.
         reason: purrdf_iri::IriError,
     },
-    /// The ShExJ document is not valid JSON or does not match the ShExJ
-    /// object model.
+    /// The shared JSON reader's original ShExJ ingress refusal, including its
+    /// native kind, byte offset and nested lexical or storage fields.
+    JsonRead(purrdf_lex::json::Error),
+    /// A language tag or stem failed the shared concrete-syntax profile.
+    LanguageTag {
+        /// The original member position, distinguishing tags from stems.
+        member: LanguageMember,
+        /// The owned original value, without normalization or case folding.
+        value: String,
+        /// The shared language parser's original cause.
+        cause: purrdf_iri::langtag::LanguageTagError,
+    },
+    /// A parsed JSON value does not match the ShExJ object model.
     Shexj(String),
     /// An `IMPORT`ed schema could not be resolved by the caller-supplied
     /// import resolver (no ambient I/O — resolution is injected). Carries the
@@ -78,9 +107,17 @@ pub enum ShexError {
 impl purrdf_hash::error::StructuredError for ShexError {
     purrdf_hash::error_visit! {
         StackMargin { construct } => "shex-stack-margin" { "construct" => Code(construct) },
-        Lex { reason, at } => "shex-lex" { "reason" => Text(reason), "at" => Unsigned(*at as u128) },
+        Lex { reason, at } => "shex-lex" { "reason" => Cause(reason), "at" => Unsigned(*at as u128) },
         Syntax { reason, at } => "shex-syntax" { "reason" => Text(reason), "at" => Unsigned(*at as u128) },
+        ShapeMapSyntax { reason, at, scalar_offset } => "shex-shape-map-syntax" {
+            "reason" => Cause(reason), "at" => ByteCount(*at as u128), "scalar_offset" => Unsigned(*scalar_offset as u128)
+        },
         Iri { lexical, reason } => "shex-iri" { "lexical" => Text(lexical), "cause" => Cause(reason) },
+        JsonRead(cause) => "shex-json-read" { "cause" => Cause(cause) },
+        LanguageTag { member, value, cause } => "shex-json-language-tag" {
+            "member" => Record(member), "value" => Text(value),
+            "profile" => Code(SHEXJ_LANGUAGE_POLICY), "cause" => Cause(cause)
+        },
         Shexj(reason) => "shex-json" { "reason" => Text(reason) },
         Import { iri, cause } => "shex-import" { "iri" => Iri(iri), "cause" => Cause(&**cause) },
         ImportConflict(label) => "shex-import-conflict" { "label" => Text(label) },
@@ -90,9 +127,6 @@ impl purrdf_hash::error::StructuredError for ShexError {
 
 purrdf_lex::constructors! {
     impl ShexError {
-        /// Construct a [`ShexError::Lex`] at a byte offset.
-        pub fn lex(reason, at: usize) -> Self::Lex { .. };
-
         /// Construct a [`ShexError::Syntax`] at a byte offset.
         pub fn syntax(reason, at: usize) -> Self::Syntax { .. };
 
@@ -108,6 +142,12 @@ purrdf_lex::constructors! {
 }
 
 impl ShexError {
+    /// Construct a native lexical refusal at its original byte offset.
+    #[must_use]
+    pub fn lex(reason: LexicalReason, at: usize) -> Self {
+        Self::Lex { reason, at }
+    }
+
     /// Admit every recursive front-end at the workspace's one stack boundary.
     pub(crate) fn admit_stack(construct: &'static str) -> Result<()> {
         if purrdf_stack::is_low() {
@@ -153,15 +193,20 @@ impl ShexError {
     }
 
     /// The byte offset the failure was reported at, for the position-bearing
-    /// variants ([`Lex`](Self::Lex)/[`Syntax`](Self::Syntax)). `None` for the
+    /// variants ([`Lex`](Self::Lex), [`Syntax`](Self::Syntax) and
+    /// [`ShapeMapSyntax`](Self::ShapeMapSyntax)). `None` for the
     /// others — in particular [`Import`](Self::Import), whose offset (if any)
     /// belongs to a *different* source document than the one being parsed.
     #[must_use]
     pub fn byte_offset(&self) -> Option<usize> {
         match self {
-            Self::Lex { at, .. } | Self::Syntax { at, .. } => Some(*at),
+            Self::Lex { at, .. } | Self::Syntax { at, .. } | Self::ShapeMapSyntax { at, .. } => {
+                Some(*at)
+            }
             Self::Iri { .. }
             | Self::StackMargin { .. }
+            | Self::JsonRead(_)
+            | Self::LanguageTag { .. }
             | Self::Shexj(_)
             | Self::Import { .. }
             | Self::ImportConflict(_)
@@ -170,7 +215,7 @@ impl ShexError {
     }
 
     /// Resolve this error's byte offset to a 1-based source [`Position`] against
-    /// the original ShExC text.
+    /// the original input text.
     ///
     /// The lexer keeps a cheap byte offset on the happy path; the line/column
     /// table is built here, on the error path only. `None` for variants without
@@ -194,6 +239,9 @@ impl fmt::Display for ShexError {
                 )
             }
             Self::Lex { reason, at } => write!(f, "ShExC lex error at byte {at}: {reason}"),
+            Self::ShapeMapSyntax { reason, at, .. } => {
+                write!(f, "ShExC syntax error at byte {at}: {reason}")
+            }
             Self::Syntax { reason, at } => {
                 write!(f, "ShExC syntax error at byte {at}: {reason}")
             }
@@ -204,6 +252,16 @@ impl fmt::Display for ShexError {
                     reason.diagnostic_code()
                 )
             }
+            Self::JsonRead(cause) => write!(f, "ShExJ error: invalid JSON: {cause}"),
+            Self::LanguageTag {
+                member,
+                value,
+                cause,
+            } => write!(
+                f,
+                "ShExJ error: {member}: malformed language tag {value:?}: {cause} [{}]",
+                cause.diagnostic_code()
+            ),
             Self::Shexj(reason) => write!(f, "ShExJ error: {reason}"),
             Self::Import { iri, cause } => write!(f, "unresolved IMPORT <{iri}>: {cause}"),
             Self::ImportConflict(label) => {
@@ -226,6 +284,10 @@ impl fmt::Debug for ShexError {
 }
 
 purrdf_lex::error_source!(ShexError => {
+    Self::ShapeMapSyntax { reason, .. } => reason,
+    Self::JsonRead(cause) => cause,
+    Self::LanguageTag { cause, .. } => cause,
+    Self::Lex { reason, .. } => reason,
     Self::Iri { reason, .. } => reason,
     Self::Import { cause, .. } => &**cause,
 });
@@ -279,7 +341,10 @@ mod tests {
 
     #[test]
     fn byte_offset_only_for_positional_variants() {
-        assert_eq!(ShexError::lex("x", 5).byte_offset(), Some(5));
+        assert_eq!(
+            ShexError::lex(LexicalReason::EmptyRegex, 5).byte_offset(),
+            Some(5)
+        );
         assert_eq!(ShexError::syntax("y", 9).byte_offset(), Some(9));
         assert_eq!(ShexError::shexj("bad").byte_offset(), None);
         assert_eq!(
