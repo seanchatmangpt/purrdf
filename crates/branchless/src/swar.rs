@@ -967,7 +967,7 @@ mod tests {
         for _ in 0..256 {
             let mut v16 = [0u32; 16];
             for slot in &mut v16 {
-                slot = (rng.next().unwrap() & 0xFFFF_FFFF) as u32;
+                *slot = (rng.next().unwrap() & 0xFFFF_FFFF) as u32;
             }
             v16[0] = u32::MAX;
             v16[7] = 0x8000_0000;
@@ -999,7 +999,7 @@ mod tests {
 
             let mut v8 = [0u64; 8];
             for slot in &mut v8 {
-                slot = rng.next().unwrap();
+                *slot = rng.next().unwrap();
             }
             let mut px = [0u64; 8];
             let mut a = 0u64;

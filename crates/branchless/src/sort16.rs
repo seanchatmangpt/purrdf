@@ -480,7 +480,8 @@ mod tests {
         }
         fn pop(&mut self) -> Option<u32> {
             let min = *self.live.iter().next().unwrap();
-            self.live.remove(&min)
+            self.live.remove(&min);
+            Some(min)
         }
         /// expected queue image: priorities ascending (seq tiebreak is
         /// irrelevant to the multiset of priorities)
