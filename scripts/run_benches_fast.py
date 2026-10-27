@@ -12,28 +12,47 @@ Splits `cargo bench` into compile (Mode A) and measure (Mode B):
                        (binary mtime must postdate compile start, else a
                        typed BenchError). Harness=true [[bench]] targets are
                        refused up front — the fast orchestrator only runs
-                       harness=false plain executables.
+                       harness=false plain executables. Standalone `measure`
+                       re-resolves binaries from the prior compile log; when
+                       that fails it refuses (typed BenchError) unless
+                       `--allow-stale-binaries` is passed explicitly.
   Mode B (measure)   : worker pool (max 4 concurrent) runs each bench binary
                        directly, each worker with its own
                        CARGO_TARGET_DIR=/tmp/purrdf-fast-t<N> lease (created
-                       on start, deleted at exit — lease law; a lease holding
-                       a live foreign pid is occupied), output to
+                       on start, deleted at exit — lease law; lease claim is
+                       guarded by an flock on the lease's `.lock` file and a
+                       lease holding a live foreign pid is occupied;
+                       owner.pid records the WORKER pid), output to
                        /tmp/bench-logs/<crate>.<bench>.fast.log, one register
                        row `CRATE BENCH=NAME rc=R SECS=S log=...` appended
                        under an exclusive flock to
                        /tmp/bench-logs/register-fast.txt via a single
-                       O_APPEND write. rc=137 (SIGKILL) records the killed
-                       attempt as its own row, then is retried once with no
-                       other bench in flight (solo); the retry gets a second
-                       row marked ` retry=1`. Each run is capped at CAP
-                       seconds (killed -> rc=124 row).
+                       O_APPEND write. Signal deaths are normalized in
+                       register rows: a worker killed by SIGKILL (raw rc -9
+                       on POSIX) is recorded as rc=137, and a CAP-expiry kill
+                       as rc=124 — rc is never None. A killed (rc=137)
+                       attempt records its own row, then is retried ONCE and
+                       SOLO: the worker pool is drained to EMPTY before the
+                       retry spawns, so no other bench is in flight; the
+                       retry gets a second row marked ` retry=1`. A green
+                       retry makes the bench green (reds accounting is per
+                       bench, decided by the retry). Each run is capped at
+                       CAP seconds (killed -> rc=124 row).
 
   `--resume` skips a crate only when EVERY bench name from its manifest has
   a green (rc=0) register row; without --resume no green row skips any
-  re-measurement. SIGTERM/SIGINT/SIGHUP terminate children (terminate,
-  bounded 5s wait, then kill), remove all leases and exit non-zero; an
-  atexit backstop repeats the lease cleanup. The only sleep is the 0.2s
-  worker poll (bounded, on a real observable: Popen.poll).
+  re-measurement. SIGTERM/SIGINT/SIGHUP are installed once at module level
+  against a mutable active-workers registry: every spawned child (compile
+  child included) runs in its own process group (start_new_session) and the
+  handler group-terminates, bounded-waits, then group-kills everything
+  registered, removes all leases and exits non-zero; an atexit backstop
+  repeats the cleanup. The only sleep is the 0.2s worker poll (bounded, on a
+  real observable: Popen.poll).
+
+Bench-flag passthrough (forwarded to each binary after `--bench`):
+  --quick --exact --filter F (repeatable) and exactly one of
+  --save-baseline NAME | --baseline NAME | --baseline-lenient NAME.
+  Default (no flags) behavior is identical to the flagless invocation.
 
 Usage:
   run_benches_fast.py compile <crates...>
@@ -58,6 +77,8 @@ import tomllib
 LOGS = "/tmp/bench-logs"
 REGISTER = os.path.join(LOGS, "register-fast.txt")
 RUNNER_LOG = os.path.join(LOGS, "runner-fast.log")
+# root for the worker lease dirs (/tmp default); injected by the court
+LEASE_ROOT = "/tmp"
 SHARED_TARGET = "/tmp/purrdf-fast-target"
 DEPS_DIR = os.path.join(SHARED_TARGET, "release", "deps")
 CRATES_ROOT = os.path.abspath(
@@ -73,9 +94,94 @@ BENCH_STORE = "/tmp/purrdf-bench-store"
 MACHO_MAGICS = (b"\xcf\xfa\xed\xfe", b"\xfe\xed\xfa\xcf")
 ELF_MAGIC = b"\x7fELF"
 
+# --- G8: module-level signal handling over a mutable active-workers registry
+_ACTIVE: list[dict] = []  # entries: {"proc": Popen | None}
+_HANDLERS_INSTALLED = False
+
 
 class BenchError(RuntimeError):
     """Typed orchestrator failure (missing manifest, compile red, no binary)."""
+
+
+def _killed(rc: int | None) -> bool:
+    """True iff rc classifies as a SIGKILL death.
+
+    subprocess returncode is -signum on POSIX (a SIGKILL'd worker yields
+    -9), while a shell that relays the signal may exit 137 — both mean
+    SIGKILL and both classify here (G1).
+    """
+    return rc == 137 or rc == -9
+
+
+def _normalize_rc(raw: int | None, cap_killed: bool) -> int:
+    """Register-row rc contract: never None, never a raw negative signal.
+
+    raw None after kill() means the bounded wait expired: a CAP kill
+    records 124, a forced (signal-handler / straggler) kill records 137.
+    Signal deaths otherwise normalize -9 -> 137 (G1/G3).
+    """
+    if raw is None:
+        return 124 if cap_killed else 137
+    if cap_killed:
+        return 124
+    if _killed(raw):
+        return 137
+    return raw
+
+
+def _signal_group(proc: subprocess.Popen, sig: int) -> None:
+    """Deliver sig to the child's whole process group (G7), falling back to
+    the child alone if the group is already gone."""
+    try:
+        os.killpg(os.getpgid(proc.pid), sig)
+    except (ProcessLookupError, PermissionError, OSError):
+        try:
+            proc.send_signal(sig)
+        except OSError:
+            pass
+
+
+def _cleanup_active() -> None:
+    """Group-terminate, bounded-wait, group-kill every registered child."""
+    live = []
+    for entry in list(_ACTIVE):
+        proc: subprocess.Popen | None = entry.get("proc")
+        if proc is None or proc.poll() is not None:
+            continue
+        live.append(proc)
+        try:
+            _signal_group(proc, signal.SIGTERM)
+        except OSError:
+            pass
+    deadline = time.time() + TERMINATE_GRACE
+    for proc in live:
+        remaining = max(0.0, deadline - time.time())
+        try:
+            proc.wait(timeout=remaining)
+        except subprocess.TimeoutExpired:
+            try:
+                _signal_group(proc, signal.SIGKILL)
+                proc.wait(timeout=TERMINATE_GRACE)
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+    _ACTIVE.clear()
+
+
+def _on_signal(signum, _frame):  # noqa: ANN001 — signal handler signature
+    log(f"signal {signum}: terminating children and releasing leases")
+    _cleanup_active()
+    sys.exit(128 + signum)
+
+
+def _install_signal_handlers() -> None:
+    """Installed exactly once for the process (G8)."""
+    global _HANDLERS_INSTALLED
+    if _HANDLERS_INSTALLED:
+        return
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(sig, _on_signal)
+    atexit.register(_cleanup_active)
+    _HANDLERS_INSTALLED = True
 
 
 def log(msg: str) -> None:
@@ -87,7 +193,12 @@ def log(msg: str) -> None:
 
 def register_row(crate: str, bench: str, rc: int, secs: int, path: str,
                  retried: bool = False) -> None:
-    """Single atomic O_APPEND write under an exclusive register flock."""
+    """Single atomic O_APPEND write under an exclusive register flock.
+
+    rc must be a concrete int (callers normalize through _normalize_rc);
+    signal deaths are recorded as 137, CAP kills as 124 — never None.
+    """
+    assert isinstance(rc, int), f"register rc must be int, got {rc!r}"
     suffix = " retry=1" if retried else ""
     line = f"{crate} BENCH={bench} rc={rc} SECS={secs} log={path}{suffix}\n"
     os.makedirs(LOGS, exist_ok=True)
@@ -157,10 +268,16 @@ def build_env(target_dir: str) -> dict[str, str]:
     env.setdefault("CARGO_BUILD_JOBS", "8")
     env["CARGO_INCREMENTAL"] = "0"
     env["CARGO_NET_OFFLINE"] = "true"
-    if shutil.which("sccache"):
-        env["RUSTC_WRAPPER"] = "sccache"
+    sccache_bin = os.environ.get("SCCACHE_BIN") or shutil.which("sccache")
+    if sccache_bin:
+        env["RUSTC_WRAPPER"] = sccache_bin
     else:
-        env.pop("RUSTC_WRAPPER", None)
+        if env.pop("RUSTC_WRAPPER", None) is not None:
+            print(
+                "run-benches-fast[WARN]: sccache not found "
+                "(SCCACHE_BIN unset, PATH lookup failed); dropping RUSTC_WRAPPER",
+                file=sys.stderr,
+            )
     return env
 
 
@@ -220,12 +337,22 @@ def _find_built_binary(name: str, crate: str, compile_start: float) -> str:
 
 
 def _preflight_binary(crate: str, bench: str, binary: str) -> None:
-    """`<binary> --list` must exit 0 (touches no store) before the real run."""
-    probe = subprocess.run(
-        [binary, "--list"], stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL, env=build_env(lease_env_dir(bench)),
-        timeout=60,
-    )
+    """`<binary> --list` must exit 0 (touches no store) before the real run.
+
+    The probe env pins PURRDF_BENCH_HOME to BENCH_STORE (finding 19: without
+    it a store touch falls back to the baked /tmp/purrdf-fast-target store),
+    and the probe store dir is removed afterwards (finding 20: probe dirs
+    are leases too — never left behind)."""
+    probe_dir = lease_env_dir(bench)
+    env = {**build_env(probe_dir), "PURRDF_BENCH_HOME": BENCH_STORE}
+    try:
+        probe = subprocess.run(
+            [binary, "--list"], stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, env=env,
+            timeout=60, start_new_session=True,
+        )
+    finally:
+        shutil.rmtree(probe_dir, ignore_errors=True)
     if probe.returncode != 0:
         raise BenchError(
             f"pre-flight --list failed for bench {bench!r} of {crate}: "
@@ -235,7 +362,12 @@ def _preflight_binary(crate: str, bench: str, binary: str) -> None:
 
 def lease_env_dir(bench: str) -> str:
     """Store home for pre-flight probes; the worker lease is set at spawn."""
-    return f"/tmp/purrdf-fast-probe-{bench}"
+    return os.path.join(LEASE_ROOT, f"purrdf-fast-probe-{bench}")
+
+
+def _bench_cmd(binary: str, bench_args: list[str] | None) -> list[str]:
+    """Worker argv: `--bench` first, then operator passthrough flags (G12)."""
+    return [binary, "--bench", *(bench_args or [])]
 
 
 def classify_rc101(crate: str, bench: str, log_path: str) -> str:
@@ -287,8 +419,11 @@ def compile_phase(crate: str) -> list[tuple[str, str]]:
     Returns (bench_name, binary_path) tuples keyed by canonical manifest
     names — never names derived from binary filenames. Binary paths come
     from the cargo JSON "executable" fields; the deps glob is a fallback
-    only and requires freshness (mtime postdating compile start).
+    only and requires freshness (mtime postdating compile start). The cargo
+    child runs in its own process group and is registered with the
+    module-level signal registry so a signal group-kills it (G7/G8).
     """
+    _install_signal_handlers()
     manifest = crate_manifest(crate)
     crate_dir = os.path.dirname(manifest)
     targets = bench_names(manifest)
@@ -296,17 +431,30 @@ def compile_phase(crate: str) -> list[tuple[str, str]]:
     log(f"compile {crate} starting ({len(names)} bench targets: {', '.join(names)})")
     log_path = os.path.join(LOGS, f"{crate}.compile.fast.log")
     start = time.time()
+    holder: dict = {"proc": None}
+    _ACTIVE.append(holder)
     try:
         with open(log_path, "wb") as fh:
-            proc = subprocess.run(
+            proc = subprocess.Popen(
                 ["cargo", "bench", "-p", crate, "--no-run",
                  "--message-format=json"],
                 cwd=crate_dir, stdout=fh, stderr=subprocess.STDOUT,
-                env=build_env(SHARED_TARGET), timeout=CAP,
+                env=build_env(SHARED_TARGET), start_new_session=True,
             )
-        rc = proc.returncode
-    except subprocess.TimeoutExpired:
-        rc = 124
+            holder["proc"] = proc  # G9: registered before it can be missed
+            try:
+                proc.communicate(timeout=CAP)
+                rc: int | None = proc.returncode
+            except subprocess.TimeoutExpired:
+                try:
+                    _signal_group(proc, signal.SIGKILL)
+                    proc.wait(timeout=TERMINATE_GRACE)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+                rc = 124
+    finally:
+        if holder in _ACTIVE:
+            _ACTIVE.remove(holder)
     secs = int(time.time() - start)
     if rc != 0:
         register_row(crate, "compile", rc, secs, log_path)
@@ -354,7 +502,10 @@ def _pid_is_live(pid: int) -> bool:
 
 
 def _lease_occupied(lease: str) -> bool:
-    """A lease whose pid file names a live foreign process is occupied."""
+    """A lease whose pid file names a live foreign process is occupied.
+
+    owner.pid records the WORKER pid (G5), so a lease whose worker exited
+    reads as free even before the directory is removed."""
     pid_file = os.path.join(lease, "owner.pid")
     try:
         with open(pid_file) as fh:
@@ -364,29 +515,63 @@ def _lease_occupied(lease: str) -> bool:
     return _pid_is_live(pid)
 
 
-def measure_phase(crate: str, jobs: list[tuple[str, str]], resume: bool = False) -> int:
-    """Mode B: worker pool (max 4) over (name, binary) pairs; 0 iff all green."""
+def _claim_lease(cand: str) -> int | None:
+    """TOCTOU-safe lease claim (G6): take an exclusive non-blocking flock on
+    the lease dir's `.lock` file, then re-check occupancy under the lock.
+
+    Returns the held lock fd (released by the caller after owner.pid names
+    the worker), or None if the lease is taken/occupied."""
+    os.makedirs(cand, exist_ok=True)
+    lock_fd = os.open(os.path.join(cand, ".lock"),
+                      os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        os.close(lock_fd)
+        return None
+    if _lease_occupied(cand):
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        os.close(lock_fd)
+        return None
+    return lock_fd
+
+
+def measure_phase(crate: str, jobs: list[tuple[str, str]], resume: bool = False,
+                  bench_args: list[str] | None = None) -> int:
+    """Mode B: worker pool (max 4) over (name, binary) pairs; 0 iff all green.
+
+    bench_args (G12) are forwarded verbatim to each binary after `--bench`.
+    """
+    _install_signal_handlers()
     if resume:
         queue = [(n, b) for n, b in jobs if not _bench_has_green(crate, n)]
         if len(queue) < len(jobs):
             log(f"measure {crate}: {len(jobs) - len(queue)} already green, skipped")
     else:
         queue = list(jobs)
+    # queue entries: (bench, binary, retried)
+    queue = [(n, b, False) for n, b in queue]
     reds = 0
+    pending_reds: set[str] = set()  # benches awaiting the verdict of a retry
+    pending_retries: list[tuple[str, str, bool]] = []
     workers: list[dict] = []
     leases: set[str] = set()
     terminating = False
 
-    def free_lease() -> str:
+    def free_lease() -> tuple[str, int]:
         live = {w["lease"] for w in workers}
         for i in range(1, MAX_WORKERS + 1):
-            cand = f"/tmp/purrdf-fast-t{i}"
+            cand = os.path.join(LEASE_ROOT, f"purrdf-fast-t{i}")
             if cand in live:
                 continue
-            if os.path.isdir(cand) and _lease_occupied(cand):
-                continue
-            return cand
+            lock_fd = _claim_lease(cand)
+            if lock_fd is not None:
+                return cand, lock_fd
         raise BenchError("no free lease slot")
+
+    def release_lease(lease: str) -> None:
+        leases.discard(lease)
+        shutil.rmtree(lease, ignore_errors=True)
 
     def _cleanup_children_and_leaves() -> None:
         nonlocal terminating
@@ -396,8 +581,9 @@ def measure_phase(crate: str, jobs: list[tuple[str, str]], resume: bool = False)
         for w in workers:
             proc: subprocess.Popen = w["proc"]
             if proc.poll() is None:
+                w["forced"] = True
                 try:
-                    proc.terminate()
+                    _signal_group(proc, signal.SIGTERM)
                 except OSError:
                     pass
         deadline = time.time() + TERMINATE_GRACE
@@ -407,8 +593,9 @@ def measure_phase(crate: str, jobs: list[tuple[str, str]], resume: bool = False)
             try:
                 proc.wait(timeout=remaining)
             except subprocess.TimeoutExpired:
+                w["forced"] = True
                 try:
-                    proc.kill()
+                    _signal_group(proc, signal.SIGKILL)
                     proc.wait(timeout=TERMINATE_GRACE)
                 except (OSError, subprocess.TimeoutExpired):
                     pass
@@ -416,42 +603,51 @@ def measure_phase(crate: str, jobs: list[tuple[str, str]], resume: bool = False)
             shutil.rmtree(lease, ignore_errors=True)
         leases.clear()
 
-    def _on_signal(signum, _frame):  # noqa: ANN001 — signal handler signature
-        log(f"signal {signum}: terminating children and releasing leases")
-        _cleanup_children_and_leaves()
-        sys.exit(128 + signum)
-
-    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
-        signal.signal(sig, _on_signal)
-    atexit.register(_cleanup_children_and_leaves)
-
-    def spawn(bench: str, binary: str) -> None:
+    def spawn(bench: str, binary: str, retried: bool) -> None:
         # finding 12/13: without --bench the binary runs Test mode (no data,
         # exit 0); without PURRDF_BENCH_HOME the store is Unplaced (exit 101).
         _preflight_binary(crate, bench, binary)
-        lease = free_lease()
-        os.makedirs(lease, exist_ok=True)
-        with open(os.path.join(lease, "owner.pid"), "w") as fh:
-            fh.write(f"{os.getpid()}\n")
+        lease, lock_fd = free_lease()
         leases.add(lease)
         log_path = os.path.join(LOGS, f"{crate}.{bench}.fast.log")
         log(f"measure {crate}::{bench} starting (lease {lease}, pid spawn)")
         log_fh = open(log_path, "wb")
         env = build_env(lease)
         env["PURRDF_BENCH_HOME"] = BENCH_STORE
-        workers.append({
+        worker: dict = {
             "bench": bench, "binary": binary, "lease": lease,
-            "start": time.time(), "retried": False, "log_fh": log_fh,
-            "proc": subprocess.Popen(
-                [binary, "--bench"], stdout=log_fh,
-                stderr=subprocess.STDOUT, env=env,
-            ),
-        })
+            "start": time.time(), "retried": retried, "log_fh": log_fh,
+            "proc": None, "cap": False, "forced": False, "entry": None,
+        }
+        # G9: register with the signal registry BEFORE the spawn so a signal
+        # landing inside the spawn window cannot miss this worker.
+        entry: dict = {"proc": None}
+        _ACTIVE.append(entry)
+        worker["entry"] = entry
+        workers.append(worker)
+        proc = subprocess.Popen(
+            _bench_cmd(binary, bench_args), stdout=log_fh,
+            stderr=subprocess.STDOUT, env=env, start_new_session=True,
+        )
+        worker["proc"] = proc
+        entry["proc"] = proc
+        # G5: owner.pid records the WORKER pid (not the orchestrator's),
+        # written under the lease lock claimed in free_lease.
+        with open(os.path.join(lease, "owner.pid"), "w") as fh:
+            fh.write(f"{proc.pid}\n")
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        os.close(lock_fd)
 
     def drain(w: dict) -> None:
-        """Record one finished worker's row; counts reds."""
+        """Record one finished worker's row; per-bench reds accounting (G4):
+        a killed first attempt parks the bench in pending_reds; a green
+        retry unparks it, a red retry (or any other red) counts once."""
         nonlocal reds
-        rc = w["proc"].returncode
+        raw = w["proc"].returncode
+        rc = _normalize_rc(raw, w.get("cap", False))
+        assert rc is not None, "register rc can never be None (G3)"
+        assert not _killed(raw) or rc in (124, 137), \
+            f"signal death must normalize to 137/124, got raw={raw!r} rc={rc!r}"
         secs = int(time.time() - w["start"])
         log_path = os.path.join(LOGS, f"{crate}.{w['bench']}.fast.log")
         register_row(crate, w["bench"], rc, secs, log_path, retried=w["retried"])
@@ -465,7 +661,15 @@ def measure_phase(crate: str, jobs: list[tuple[str, str]], resume: bool = False)
             kind = classify_rc101(crate, w["bench"], log_path)
             log(f"measure {crate}::{w['bench']} rc=101 class={kind} "
                 f"(failed=footer count / refused=error: line)")
-        if rc != 0:
+        entry = w.get("entry")
+        if entry is not None and entry in _ACTIVE:
+            _ACTIVE.remove(entry)
+        if rc == 0:
+            pending_reds.discard(w["bench"])
+        elif rc == 137 and not w["retried"]:
+            pending_reds.add(w["bench"])  # verdict deferred to the retry
+        else:
+            pending_reds.discard(w["bench"])
             reds += 1
 
     def _poll_runnable(w: dict) -> bool:
@@ -475,8 +679,9 @@ def measure_phase(crate: str, jobs: list[tuple[str, str]], resume: bool = False)
             return True
         if time.time() - w["start"] > CAP:
             log(f"measure {crate}::{w['bench']} exceeded CAP={CAP}s; killing")
+            w["cap"] = True
             try:
-                proc.kill()
+                _signal_group(proc, signal.SIGKILL)
             except OSError:
                 pass
             try:
@@ -486,37 +691,35 @@ def measure_phase(crate: str, jobs: list[tuple[str, str]], resume: bool = False)
             return True
         return False
 
+    atexit.register(_cleanup_children_and_leaves)
     try:
         queue = list(queue)
-        while queue or workers:
-            # rc=137 solo retry: while a retry is in flight, no fresh spawns —
-            # the retry must be the only bench running.
-            solo_in_flight = any(w["retried"] for w in workers)
+        while queue or workers or pending_retries:
+            # G2: a retry spawns only once the pool has drained to EMPTY —
+            # the retry is provably the only bench in flight. Spawned
+            # directly (not requeued) so it can never be reordered behind a
+            # queued fresh bench.
+            if pending_retries and not workers:
+                bench_r, binary_r, retried_r = pending_retries.pop(0)
+                spawn(bench_r, binary_r, retried_r)
+            solo_in_flight = (
+                bool(pending_retries)
+                or any(w["retried"] for w in workers))
             while (queue and not solo_in_flight
                    and len(workers) < MAX_WORKERS):
                 spawn(*queue.pop(0))
             time.sleep(POLL)
             for w in [w for w in workers if _poll_runnable(w)]:
                 workers.remove(w)
-                if w["proc"].returncode == 137 and not w["retried"]:
+                raw = w["proc"].returncode
+                if _killed(raw) and not w.get("cap") and not w["retried"]:
                     # Record the SIGKILL'd attempt as its own row BEFORE the
                     # solo retry; the retry gets a second, retry-marked row.
                     drain(w)
+                    release_lease(w["lease"])
                     log(f"measure {crate}::{w['bench']} rc=137 (SIGKILL); "
-                        "retry once solo (no other bench in flight)")
-                    w["retried"] = True
-                    w["start"] = time.time()
-                    w["log_fh"] = open(
-                        os.path.join(LOGS, f"{crate}.{w['bench']}.fast.log"), "wb")
-                    retry_env = build_env(w["lease"])
-                    retry_env["PURRDF_BENCH_HOME"] = BENCH_STORE
-                    w["proc"] = subprocess.Popen(
-                        [w["binary"], "--bench"],
-                        stdout=w["log_fh"],
-                        stderr=subprocess.STDOUT,
-                        env=retry_env,
-                    )
-                    workers.append(w)
+                        "retry once solo (pool drained to empty first)")
+                    pending_retries.append((w["bench"], w["binary"], True))
                 else:
                     drain(w)
     finally:
@@ -524,8 +727,9 @@ def measure_phase(crate: str, jobs: list[tuple[str, str]], resume: bool = False)
             try:
                 w["proc"].wait(timeout=TERMINATE_GRACE)
             except subprocess.TimeoutExpired:
+                w["forced"] = True
                 try:
-                    w["proc"].kill()
+                    _signal_group(w["proc"], signal.SIGKILL)
                     w["proc"].wait(timeout=TERMINATE_GRACE)
                 except (OSError, subprocess.TimeoutExpired):
                     pass
@@ -534,6 +738,8 @@ def measure_phase(crate: str, jobs: list[tuple[str, str]], resume: bool = False)
         for lease in leases:  # lease law: deleted at exit
             shutil.rmtree(lease, ignore_errors=True)
         leases.clear()
+    # a parked bench whose retry never ran is still red — exit honest (G4)
+    reds += len(pending_reds)
     return 1 if reds else 0
 
 
@@ -545,11 +751,13 @@ def _bench_has_green(crate: str, bench: str) -> bool:
     )
 
 
-def compiled_binaries(crate: str) -> list[tuple[str, str]]:
+def compiled_binaries(crate: str, allow_stale: bool = False) -> list[tuple[str, str]]:
     """Re-resolve (name, path) pairs from a prior compile phase (measure
-    standalone). No compile start is known, so neither the JSON resolution
-    nor the glob fallback carries a freshness gate in this mode; JSON
-    resolution by canonical manifest name is authoritative here."""
+    standalone). JSON resolution by canonical manifest name is authoritative.
+    G15: when a bench cannot be resolved from the compile log, this mode has
+    no freshness gate to lean on — refuse with a typed BenchError unless the
+    operator passed --allow-stale-binaries explicitly (the glob fallback then
+    applies with no compile-start gate, i.e. it may be stale)."""
     manifest = crate_manifest(crate)
     targets = bench_names(manifest)
     log_path = os.path.join(LOGS, f"{crate}.compile.fast.log")
@@ -562,6 +770,13 @@ def compiled_binaries(crate: str) -> list[tuple[str, str]]:
     for name, _harness in targets:
         path = json_found.get(name)
         if path is None or not os.path.isfile(path):
+            if not allow_stale:
+                raise BenchError(
+                    f"bench {name!r} of {crate} has no binary from a compile "
+                    f"phase (no JSON executable in {log_path}); run "
+                    f"`compile {crate}` first, or pass --allow-stale-binaries "
+                    f"to accept a possibly-stale deps-glob binary"
+                )
             path = _find_built_binary(name, crate, 0.0)
         owner = claimed.get(path)
         if owner is not None:
@@ -574,7 +789,38 @@ def compiled_binaries(crate: str) -> list[tuple[str, str]]:
     return result
 
 
-def main(argv: list[str] | None = None) -> int:
+def _baseline_flag_values(args: argparse.Namespace) -> list[str]:
+    return [v for v in (args.save_baseline, args.baseline,
+                        args.baseline_lenient) if v]
+
+
+def _bench_forward_args(args: argparse.Namespace) -> list[str]:
+    """Passthrough flags forwarded after `--bench` (G12); validates the
+    exclusive baseline group for direct callers (argparse enforces it for
+    CLI callers)."""
+    conflict = [v for v in (args.save_baseline, args.baseline,
+                            args.baseline_lenient) if v]
+    if len(conflict) > 1:
+        raise BenchError(
+            "--save-baseline/--baseline/--baseline-lenient are mutually "
+            f"exclusive; got {conflict}")
+    out: list[str] = []
+    if args.quick:
+        out.append("--quick")
+    if args.exact:
+        out.append("--exact")
+    for f in args.filter:
+        out += ["--filter", f]
+    if args.save_baseline:
+        out += ["--save-baseline", args.save_baseline]
+    elif args.baseline:
+        out += ["--baseline", args.baseline]
+    elif args.baseline_lenient:
+        out += ["--baseline-lenient", args.baseline_lenient]
+    return out
+
+
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="run_benches_fast.py",
         description="Fast two-phase bench orchestrator (compile then measure).",
@@ -583,8 +829,33 @@ def main(argv: list[str] | None = None) -> int:
                         help="compile (Mode A), measure (Mode B), or both")
     parser.add_argument("--resume", action="store_true",
                         help="skip crates with green register rows")
+    parser.add_argument("--quick", action="store_true",
+                        help="forward --quick to each bench binary")
+    parser.add_argument("--exact", action="store_true",
+                        help="forward --exact to each bench binary")
+    parser.add_argument("--filter", action="append", default=[],
+                        metavar="F",
+                        help="forward --filter F to each bench binary "
+                             "(repeatable)")
+    baseline = parser.add_mutually_exclusive_group()
+    baseline.add_argument("--save-baseline", metavar="NAME",
+                          help="forward --save-baseline NAME (exclusive)")
+    baseline.add_argument("--baseline", metavar="NAME",
+                          help="forward --baseline NAME (exclusive)")
+    baseline.add_argument("--baseline-lenient", metavar="NAME",
+                          help="forward --baseline-lenient NAME (exclusive)")
+    parser.add_argument("--allow-stale-binaries", action="store_true",
+                        help="standalone `measure` only: accept deps-glob "
+                             "binaries with no freshness gate instead of "
+                             "refusing; run `compile` first otherwise")
     parser.add_argument("crates", nargs="+", metavar="CRATE")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
     args = parser.parse_args(argv)
+    bench_args = _bench_forward_args(args)
 
     os.makedirs(LOGS, exist_ok=True)
     crates = list(args.crates)
@@ -601,15 +872,16 @@ def main(argv: list[str] | None = None) -> int:
             log("--resume: all requested crates already green")
             return 0
 
-    log(f"mode={args.mode} crates={crates}")
+    log(f"mode={args.mode} crates={crates} bench_args={bench_args}")
     if args.mode in ("compile", "run"):
         for crate in crates:
             compile_phase(crate)
     if args.mode in ("measure", "run"):
         for crate in crates:
-            jobs = (compiled_binaries(crate) if args.mode == "measure"
-                    else compile_phase(crate))
-            if measure_phase(crate, jobs, resume=args.resume) != 0:
+            jobs = (compiled_binaries(crate, allow_stale=args.allow_stale_binaries)
+                    if args.mode == "measure" else compile_phase(crate))
+            if measure_phase(crate, jobs, resume=args.resume,
+                             bench_args=bench_args) != 0:
                 log(f"measure {crate}: RED")
                 return 1
     log("complete")

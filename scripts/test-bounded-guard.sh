@@ -118,7 +118,13 @@ for cmd in "${MUST_FIRE[@]}"; do
 done
 
 echo "== MUST-PASS cases (hook exit 0) =="
+# Bench carve-out (operator 2026-10-27): serialized batch bench runs are
+# outside the 5s agent-iteration law. Pinned so a CARGO_FAST refactor that
+# drops "bench" flips these from allow to refuse (non-vacuous).
 MUST_PASS=(
+  "cargo bench -p purrdf-lex"
+  "scripts/bounded cargo bench -p purrdf-lex"
+
     "python3 scripts/check-layers.py"
     "cargo fmt --check"
     "cargo metadata --format-version 1"

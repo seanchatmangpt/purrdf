@@ -45,7 +45,11 @@ def log_receipt(command, decision):
 
 
 BLOCK_VERBS = {"cargo", "rustc"}
-CARGO_FAST = {"fmt", "metadata"}  # subcommands allowed bare (no compilation)
+# "bench": benchmarks are outside the 5s law's scope entirely — that law
+# bounds AGENT SOURCE-EDIT ITERATION probes only (operator, 2026-10-27).
+# Bench runs are serialized batch work on this machine: one crate at a time,
+# leased CARGO_TARGET_DIR, jobs=2.
+CARGO_FAST = {"fmt", "metadata", "bench"}
 MAKE_FAST_TARGETS = {
     "help", "doctor", "hooks", "fmt",
     "check-issue-refs", "check-brand-casing", "check-spec-attribution",

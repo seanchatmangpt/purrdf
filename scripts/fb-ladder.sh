@@ -109,7 +109,10 @@ run_t3() {
     local start ms
     start=$(fb_time)
     # Lease OUTER, bounded INNER: the 500ms lease wait never eats cargo's 5s.
-    bash scripts/lane-lease.sh exec --wait 500 "$LANE" -- \
+    # Env law: an ambient RUSTC_WRAPPER export must not turn the leaf probe
+    # into an sccache hit-rate measurement. (Fast-lane follow-up.)
+    env -u RUSTC_WRAPPER -u RUSTC_WRAPPER_BASE \
+        bash scripts/lane-lease.sh exec --wait 500 "$LANE" -- \
         bash scripts/bounded cargo check -p purrdf-branchless --locked \
         >/dev/null 2>&1
     local rc=$?

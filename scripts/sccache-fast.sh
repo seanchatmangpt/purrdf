@@ -20,6 +20,11 @@
 #   Recommendation: RUSTC_WRAPPER for compatibility; it is what this script
 #   sets. Override to CARGO_WRAPPER by exporting it before invoking — this
 #   script does not clear caller-set variables it does not own.
+#
+# Post-run receipt hint: after a wave, run `sccache --show-stats`. A run with
+# 0 hits must be treated as 'lever not engaged' (ambient server, wrong env, or
+# wrapper bypassed), NOT as 'lever working'. Mid-run silent degradations are
+# retrievable from SCCACHE_ERROR_LOG (default /tmp/purrdf-sccache/errors.log).
 
 set -euo pipefail
 
@@ -42,5 +47,21 @@ export RUSTC_WRAPPER="$SCCACHE_BIN"
 export SCCACHE_DIR="${SCCACHE_DIR:-/tmp/purrdf-sccache}"
 export SCCACHE_CACHE_SIZE="${SCCACHE_CACHE_SIZE:-20G}"
 export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-${FAST_JOBS:-8}}"
+export SCCACHE_ERROR_LOG="${SCCACHE_ERROR_LOG:-/tmp/purrdf-sccache/errors.log}"
+mkdir -p "$(dirname "$SCCACHE_ERROR_LOG")"
+
+# SCCACHE_DIR / SCCACHE_CACHE_SIZE are read by the sccache SERVER at startup,
+# not by the client. An ambient server (started outside this wrapper, on the
+# default cache ~/Library/Caches/Mozilla.sccache at 10G) silently ignores them
+# — witnessed 2026-10-27: 24 misses landed in the default cache. Restart the
+# server under this wrapper's env so the scoping actually applies.
+"$SCCACHE_BIN" --stop-server >/dev/null 2>&1 || true
+if ! SCCACHE_DIR="$SCCACHE_DIR" SCCACHE_CACHE_SIZE="$SCCACHE_CACHE_SIZE" \
+        SCCACHE_ERROR_LOG="$SCCACHE_ERROR_LOG" \
+        "$SCCACHE_BIN" --start-server >/dev/null; then
+    echo "SCCACHE-FAST[REFUSED]: sccache --start-server failed under the wrapper env" >&2
+    echo "  (SCCACHE_DIR=$SCCACHE_DIR SCCACHE_CACHE_SIZE=$SCCACHE_CACHE_SIZE)." >&2
+    exit 1
+fi
 
 exec "$@"
