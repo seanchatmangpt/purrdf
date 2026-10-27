@@ -1827,8 +1827,10 @@ One line per suite: what it measures, and the sellable claim it backs.
   raw-SQL sieve number for the pipeline number the `sql_rdf_e2e` bench owns.
 - **arrow `ipc_egress`** (`crates/arrow/benches/ipc_egress.rs`) — encode and
   decode of a 100,000-row canonical Arrow IPC egress frame, GB/s over frame
-  bytes. Sells: the wire-side egress cost is measured at the documented
-  100k-row scale.
+  bytes. Sells: will measure the wire-side egress cost at the documented
+  100k-row scale. STATUS: UNVERIFIED — no measured row exists yet
+  (phase-2 compile red, FQ-09; phase-4 rerun pending); do not cite GB/s
+  numbers for this bench until its register row lands.
 - **columnar 100k + `Throughput` fix** (`crates/columnar/benches/codec.rs`) —
   the five-table codec write/read rows at a 100k-quad fixture (added), with
   per-quad `Throughput` so rows read as quads/s. Sells: codec cost movement

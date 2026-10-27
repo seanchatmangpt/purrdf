@@ -90,7 +90,22 @@ impl ArrowEgressHeader {
         }
         let payload_byte_len = u64::from_le_bytes(bytes[20..28].try_into().unwrap());
         let total_byte_len = u64::from_le_bytes(bytes[28..36].try_into().unwrap());
-        if total_byte_len != payload_byte_len + Self::SIZE as u64 + 64 {
+        // Subtraction order, not addition: a hostile wire header with
+        // payload_byte_len near u64::MAX must overflow-refuse here, not
+        // wrap total_byte_len + SIZE + 64 to a small passing value.
+        let expected = match total_byte_len
+            .checked_sub(Self::SIZE as u64)
+            .and_then(|rest| rest.checked_sub(64))
+        {
+            Some(rest) => rest,
+            None => {
+                return Err(ArrowEgressHeaderError::BadTotalLen {
+                    payload_byte_len,
+                    total_byte_len,
+                })
+            }
+        };
+        if payload_byte_len != expected {
             return Err(ArrowEgressHeaderError::BadTotalLen {
                 payload_byte_len,
                 total_byte_len,
@@ -115,6 +130,17 @@ impl ArrowEgressHeader {
             columnar_digest,
             reserved: [0u8; 24],
         })
+    }
+
+    /// Whether a frame declaring this header fits in `available` bytes.
+    ///
+    /// `from_bytes` validates the header's internal length consistency, but
+    /// the wire cannot prove the payload bytes actually follow — slicing
+    /// `&frame[Self::SIZE..][..self.payload_byte_len]` without this check is
+    /// the caller-side panic surface. Gate the slice on this.
+    #[must_use]
+    pub fn fits_in(&self, available: u64) -> bool {
+        available >= self.total_byte_len
     }
 }
 

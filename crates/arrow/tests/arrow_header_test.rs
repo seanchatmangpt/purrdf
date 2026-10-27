@@ -68,6 +68,70 @@ fn header_refuses_invalid_inputs() {
         ArrowEgressHeader::from_bytes(&bytes2),
         Err(ArrowEgressHeaderError::ReservedNotZero)
     );
+
+    // Bad schema version (bytes 8..10, LE u16)
+    let mut bytes3 = header.to_bytes();
+    bytes3[8] = 0x03;
+    assert_eq!(
+        ArrowEgressHeader::from_bytes(&bytes3),
+        Err(ArrowEgressHeaderError::BadSchemaVersion(0x0003))
+    );
+
+    // Undefined flag bits (bytes 10..12)
+    let mut bytes4 = header.to_bytes();
+    bytes4[10] = 0xff;
+    bytes4[11] = 0xff;
+    assert_eq!(
+        ArrowEgressHeader::from_bytes(&bytes4),
+        Err(ArrowEgressHeaderError::BadFlags(0xffff))
+    );
+
+    // Bad payload offset (bytes 16..20)
+    let mut bytes5 = header.to_bytes();
+    bytes5[16] = 0x40;
+    assert_eq!(
+        ArrowEgressHeader::from_bytes(&bytes5),
+        Err(ArrowEgressHeaderError::BadPayloadOffset(0x40))
+    );
+
+    // Bad total length (bytes 28..36): 64 + 128 + 64 is the contract.
+    let mut bytes6 = header.to_bytes();
+    let wrong_total = (header.total_byte_len + 1).to_le_bytes();
+    bytes6[28..36].copy_from_slice(&wrong_total);
+    assert_eq!(
+        ArrowEgressHeader::from_bytes(&bytes6),
+        Err(ArrowEgressHeaderError::BadTotalLen {
+            payload_byte_len: header.payload_byte_len,
+            total_byte_len: header.total_byte_len + 1,
+        })
+    );
+}
+
+/// Regression: a hostile wire header with payload_byte_len near u64::MAX
+/// must be refused, not admitted by addition wrapping in release builds
+/// (payload = u64::MAX made the old `total != payload + 192` check wrap
+/// the right side down to 191, passing validation for total = 191).
+#[test]
+fn header_refuses_overflowing_lengths() {
+    let header = ArrowEgressHeader {
+        magic: ArrowEgressHeader::MAGIC,
+        schema_version: ArrowEgressHeader::SCHEMA_VERSION,
+        flags: 0,
+        batch_count: 1,
+        payload_offset: 128,
+        payload_byte_len: u64::MAX,
+        total_byte_len: 191, // what MAX + 192 wraps to
+        triples_digest: [0; 32],
+        columnar_digest: [0; 32],
+        reserved: [0; 24],
+    };
+    assert_eq!(
+        ArrowEgressHeader::from_bytes(&header.to_bytes()),
+        Err(ArrowEgressHeaderError::BadTotalLen {
+            payload_byte_len: u64::MAX,
+            total_byte_len: 191,
+        })
+    );
 }
 
 #[test]
