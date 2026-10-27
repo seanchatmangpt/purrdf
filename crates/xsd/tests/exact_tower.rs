@@ -524,6 +524,30 @@ fn inline_decimal_normalization_preserves_boundary_products() {
             assert_eq!(constructed.scale(), product.scale());
         }
     }
+
+    // Exact products cross the signed-word fast path, checked i128 path and
+    // spilled product path without changing canonical coefficient or scale.
+    let min_word = i128::from(i64::MIN);
+    let max_word = i128::from(i64::MAX);
+    for (left, right, scale) in [
+        (min_word, min_word, 0),
+        (min_word, max_word, 1),
+        (max_word, max_word, 20),
+        (min_word - 1, max_word, 38),
+        (max_word + 1, min_word, 2),
+        (i128::MAX, 10, 1),
+    ] {
+        let left = Decimal::new(Integer::from_i128(left), scale);
+        let right = Decimal::from_integer(Integer::from_i128(right));
+        let expected = oracle(&left.canonical_lexical()).mul(&oracle(&right.canonical_lexical()));
+        let product = left.try_mul(&right).expect("representable product scale");
+        assert_same(
+            &product.canonical_lexical(),
+            &expected,
+            "word-width product",
+        )
+        .expect("exact product across the machine-word boundary");
+    }
 }
 
 #[test]
@@ -778,8 +802,13 @@ fn admitted_small_exact_division_uses_one_initial_grant() {
 #[test]
 fn lexical_refusals_have_valid_neighbours() {
     for refused in [
-        "", "+", "-", "1.2.3", "1e5", " 1", "1 ", "0x10", "\u{0661}", "--1", "1/2",
+        "", "+", "-", ".", "1.2.3", "1e5", " 1", "1 ", "0x10", "\u{0661}", "--1", "1/2",
     ] {
+        assert!(!purrdf_xsd::numeric::is_decimal_lexical(refused));
+        assert!(matches!(
+            Decimal::try_from_lexical(refused),
+            Err(purrdf_xsd::exact::ExactParseError::InvalidLexical { .. })
+        ));
         assert!(
             matches!(
                 Decimal::from_str(refused),
@@ -793,13 +822,27 @@ fn lexical_refusals_have_valid_neighbours() {
         );
     }
     for accepted in [".5", "1.", "+0", "-0", "-.0", "007.700", "0000"] {
+        assert!(purrdf_xsd::numeric::is_decimal_lexical(accepted));
         assert!(Decimal::from_str(accepted).is_ok(), "{accepted:?}");
     }
-    assert_eq!(Decimal::from_str("-0.0").expect("valid").to_string(), "0");
-    assert_eq!(
-        Decimal::from_str("007.700").expect("valid").to_string(),
-        "7.7"
-    );
+    for (lexical, expected) in [
+        ("-0.0", "0"),
+        ("007.700", "7.7"),
+        ("+0009999999999999999999.000", "9999999999999999999"),
+        ("99999999999999999999", "99999999999999999999"),
+        ("-99999999999999999999", "-99999999999999999999"),
+        (
+            "-170141183460469231731687303715884105728",
+            "-170141183460469231731687303715884105728",
+        ),
+    ] {
+        let value = Decimal::from_str(lexical).expect("valid");
+        assert_eq!(value.canonical_lexical(), expected);
+        assert_eq!(
+            Decimal::try_from_lexical(lexical).expect("native parse"),
+            value
+        );
+    }
     for refused in ["", "1.0", "+", "1_000", "１"] {
         assert!(Integer::from_str(refused).is_err(), "{refused:?}");
     }
