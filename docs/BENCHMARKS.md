@@ -1825,12 +1825,16 @@ One line per suite: what it measures, and the sellable claim it backs.
   doc-level fix: the suite header now says it measures raw SQL on in-memory
   DuckDB tables, not the SQL-in-RDF pipeline. Sells: no reader mistakes a
   raw-SQL sieve number for the pipeline number the `sql_rdf_e2e` bench owns.
-- **arrow `ipc_egress`** (`crates/arrow/benches/ipc_egress.rs`) — encode and
-  decode of a 100,000-row canonical Arrow IPC egress frame, GB/s over frame
-  bytes. Sells: will measure the wire-side egress cost at the documented
-  100k-row scale. STATUS: UNVERIFIED — no measured row exists yet
-  (phase-2 compile red, FQ-09; phase-4 rerun pending); do not cite GB/s
-  numbers for this bench until its register row lands.
+- **arrow `ipc_egress`** (`crates/arrow/benches/ipc_egress.rs`) — one group,
+  `ipc_egress_100k_rows`, two rows: `encode` (BLAKE3 payload digest, 128-byte
+  header wire form, frame assembly over a seeded 100,000-row x 8-column u64
+  fixture) and `decode` (header parse + payload digest verification). Both
+  report bytes per second over the full wire frame (payload + 128-byte header
+  + 64-byte padding); the fixture asserts header round-trip and digest
+  verification before anything is timed. Sells: the wire-side egress cost is
+  measured at the documented 100k-row scale. STATUS: UNVERIFIED — no measured
+  row exists yet (phase-2 compile red, FQ-09; phase-4 rerun pending); do not
+  cite numbers for this bench until its register row lands.
 - **columnar 100k + `Throughput` fix** (`crates/columnar/benches/codec.rs`) —
   the five-table codec write/read rows at a 100k-quad fixture (added), with
   per-quad `Throughput` so rows read as quads/s. Sells: codec cost movement
@@ -1873,7 +1877,7 @@ One line per suite: what it measures, and the sellable claim it backs.
   elements/s. Sells: the semi-naive engine's derive rate at the million-fact
   scale the name claims, not a smaller proxy.
 - **entail 10^4 rows** (`crates/entail/benches/chase.rs`,
-  `classify.rs`, `consistency.rs`) — chase over 10,000 triples, ontology
+  `classify.rs`, `consistency.rs`) — chase over 2,000 triples, ontology
   classification at 10,000 classes, consistency at the widened case-split
   ladder. Sells: the reasoner stays measured (report-only) at the scale
   where saturation stops being interactive.

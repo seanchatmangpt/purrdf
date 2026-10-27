@@ -3,7 +3,8 @@
 
 [package]
 name = "purrdf-arrow"
-description = "PurRDF zero-dependency canonical Arrow IPC columnar egress"
+description = "PurRDF CanonArrow columnar egress framing (proprietary 128-byte header; not Arrow IPC)"
+documentation = "https://docs.rs/purrdf-arrow"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

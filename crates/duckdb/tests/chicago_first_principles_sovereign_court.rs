@@ -361,16 +361,13 @@ fn test_section_4_canonical_arrow_ipc_and_mermaid_derivation_receipt() {
     let payload_digest = *blake3::hash(&payload_bytes).as_bytes();
 
     let header = ArrowEgressHeader {
-        magic: ArrowEgressHeader::MAGIC,
-        schema_version: ArrowEgressHeader::SCHEMA_VERSION,
         flags: ArrowEgressHeader::FLAG_STRICT_PROJECTION_ORDER,
         batch_count: 1,
-        payload_offset: ArrowEgressHeader::PAYLOAD_OFFSET,
         payload_byte_len: payload_len,
-        total_byte_len: payload_len + 128 + 64, // payload + header (128) + trailing padding (64)
+        total_byte_len: egress_total_len(payload_len), // payload + header (128) + trailing padding (64)
         triples_digest: payload_digest,
         columnar_digest: payload_digest,
-        reserved: [0u8; 24],
+        ..ArrowEgressHeader::default()
     };
 
     let header_bytes = header.to_bytes();
@@ -407,4 +404,9 @@ flowchart TD
     );
     assert!(mermaid_flowchart.contains("Receipt:"));
     assert_eq!(seal_hex.len(), 64);
+}
+
+/// Total framed length: header (128) + payload + 64-byte trailing padding.
+fn egress_total_len(payload_byte_len: u64) -> u64 {
+    payload_byte_len + (ArrowEgressHeader::SIZE as u64) + 64
 }

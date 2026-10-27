@@ -597,16 +597,13 @@ fn test_section_5_zero_dependency_arrow_ipc_payload_integrity() {
     );
 
     let empty_header = ArrowEgressHeader {
-        magic: ArrowEgressHeader::MAGIC,
-        schema_version: ArrowEgressHeader::SCHEMA_VERSION,
         flags: 0,
         batch_count: 0,
-        payload_offset: ArrowEgressHeader::PAYLOAD_OFFSET,
         payload_byte_len: 0,
-        total_byte_len: 192, // 128 header + 0 payload + 64 padding
+        total_byte_len: egress_total_len(0), // 128 header + 0 payload + 64 padding
         triples_digest: *null_digest,
         columnar_digest: *null_digest,
-        reserved: [0u8; 24],
+        ..ArrowEgressHeader::default()
     };
 
     let wire_bytes = empty_header.to_bytes();
@@ -640,16 +637,13 @@ fn test_section_5_zero_dependency_arrow_ipc_payload_integrity() {
     let payload_digest = *blake3::hash(&payload).as_bytes();
 
     let full_header = ArrowEgressHeader {
-        magic: ArrowEgressHeader::MAGIC,
-        schema_version: ArrowEgressHeader::SCHEMA_VERSION,
         flags: ArrowEgressHeader::FLAG_STRICT_PROJECTION_ORDER,
         batch_count: 1,
-        payload_offset: ArrowEgressHeader::PAYLOAD_OFFSET,
         payload_byte_len: payload_len,
-        total_byte_len: payload_len + 128 + 64,
+        total_byte_len: egress_total_len(payload_len),
         triples_digest: payload_digest,
         columnar_digest: payload_digest,
-        reserved: [0u8; 24],
+        ..ArrowEgressHeader::default()
     };
 
     let header_bytes = full_header.to_bytes();
@@ -669,4 +663,9 @@ fn test_section_5_zero_dependency_arrow_ipc_payload_integrity() {
     assert_eq!(parsed_full.batch_count, 1);
     assert_eq!(parsed_full.payload_byte_len, payload_len);
     assert_eq!(parsed_full.columnar_digest, payload_digest);
+}
+
+/// Total framed length: header (128) + payload + 64-byte trailing padding.
+fn egress_total_len(payload_byte_len: u64) -> u64 {
+    payload_byte_len + (ArrowEgressHeader::SIZE as u64) + 64
 }

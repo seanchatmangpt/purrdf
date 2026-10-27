@@ -310,19 +310,16 @@ fn test_eu_ai_act_article12_14_blake3_mermaid_receipt() {
     let digest: [u8; 32] = *hash_result.as_bytes();
 
     // 4. Construct ArrowEgressHeader (128 bytes, 64-byte alignment)
-    let total_byte_len = (payload_bytes as u64) + (ArrowEgressHeader::SIZE as u64) + 64; // Header(128) + Payload + Trailing Padding(64)
+    let total_byte_len = egress_total_len(payload_bytes as u64); // Header(128) + Payload + Trailing Padding(64)
 
     let header = ArrowEgressHeader {
-        magic: ArrowEgressHeader::MAGIC,
-        schema_version: ArrowEgressHeader::SCHEMA_VERSION,
         flags: ArrowEgressHeader::FLAG_STRICT_PROJECTION_ORDER,
         batch_count: 1,
-        payload_offset: ArrowEgressHeader::PAYLOAD_OFFSET,
         payload_byte_len: payload_bytes as u64,
         total_byte_len,
         triples_digest: digest,
         columnar_digest: digest,
-        reserved: [0u8; 24],
+        ..ArrowEgressHeader::default()
     };
 
     // Verify 128-byte framing and layout
@@ -525,4 +522,9 @@ fn test_tpch_tco_cost_collapse_sub_5ms() {
         verified_annual_savings >= 3_500_000.0,
         "demonstrated annual cost savings must exceed $3.5M"
     );
+}
+
+/// Total framed length: header (128) + payload + 64-byte trailing padding.
+fn egress_total_len(payload_byte_len: u64) -> u64 {
+    payload_byte_len + (ArrowEgressHeader::SIZE as u64) + 64
 }

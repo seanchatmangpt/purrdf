@@ -329,6 +329,7 @@ RDF/JS 形态的 API 还暴露 SPARQL、SHACL、推理、投影与静态的 RDF 
 | [`purrdf-deflate`](./crates/deflate/) | 原生、确定性的 DEFLATE/gzip。 |
 | [`purrdf-ed25519`](./crates/ed25519/) | Ed25519 签名与严格验证。 |
 | [`purrdf-stack`](./crates/stack/) | 原生/WASM 栈准入。 |
+| [`purrdf-arrow`](./crates/arrow/) | 缓存行对齐的 128 字节线上协议头与二进制序列化器，用于将查询结果流式输出到 Arrow IPC 缓冲区。 |
 | [`purrdf-wasm`](./crates/rdf-wasm/) | 面向 JavaScript 的引擎与 ESM 绑定。 |
 
 C ABI、CLI、Python 扩展以及测试/基准工具位于同一个工作区，但不作为 Cargo 包发布。

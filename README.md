@@ -374,6 +374,7 @@ federation resolver, and the core ships no HTTP client.
 | [`purrdf-deflate`](./crates/deflate/) | Native deterministic DEFLATE/gzip. |
 | [`purrdf-ed25519`](./crates/ed25519/) | Ed25519 signing and strict verification. |
 | [`purrdf-stack`](./crates/stack/) | Native/WASM stack admission. |
+| [`purrdf-arrow`](./crates/arrow/) | Cache-line aligned 128-byte wire headers and binary serializers for streaming query results into Arrow IPC buffers. |
 | [`purrdf-wasm`](./crates/rdf-wasm/) | Engine and ESM bindings for JavaScript. |
 
 The C ABI, CLI, Python extension and test/benchmark tools live in the same

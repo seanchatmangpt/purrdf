@@ -80,9 +80,9 @@ fn bench_chase(c: &mut Bench) {
     let mut group = c.benchmark_group("rdfs_chase");
     // The 10_000 row is a scale probe, not a regression point: the
     // subClassOf-transitivity + instance-typing rules are quadratic here, so this
-    // row materializes on the order of 10^8 inferred triples and exists to show
+    // row materializes on the order of on the order of n^2 inferred triples (the original 10_000 row was ~10^8 and exceeded this machine's RAM; lowered to 2_000) and exists to show
     // where the semi-naive fixpoint stops being interactive. Report-only.
-    for &n in &[16usize, 64, 10_000] {
+    for &n in &[16usize, 64, 2_000] {
         let ds = hierarchy(n);
         group.bench_with_input(BenchmarkId::from_parameter(n), &ds, |bch, ds| {
             bch.iter(|| black_box(materialize(ds, Materialization::Rdfs).expect("materialize")));

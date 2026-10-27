@@ -179,7 +179,7 @@ fn bench_arrow_egress(c: &mut Bench) {
     for &quad_count in BATCHES {
         let quad_size = 48usize;
         let payload_len = quad_count * quad_size;
-        let total_byte_len = (payload_len as u64) + (ArrowEgressHeader::SIZE as u64) + 64;
+        let total_byte_len = egress_total_len(payload_len as u64);
         let payload = vec![0xABu8; payload_len];
 
         group.throughput(Throughput::Bytes(total_byte_len));
@@ -189,16 +189,13 @@ fn bench_arrow_egress(c: &mut Bench) {
                 let digest = *hash.as_bytes();
 
                 let header = ArrowEgressHeader {
-                    magic: ArrowEgressHeader::MAGIC,
-                    schema_version: ArrowEgressHeader::SCHEMA_VERSION,
                     flags: ArrowEgressHeader::FLAG_STRICT_PROJECTION_ORDER,
                     batch_count: 1,
-                    payload_offset: ArrowEgressHeader::PAYLOAD_OFFSET,
                     payload_byte_len: payload_len as u64,
                     total_byte_len,
                     triples_digest: digest,
                     columnar_digest: digest,
-                    reserved: [0u8; 24],
+                    ..ArrowEgressHeader::default()
                 };
 
                 let header_bytes = header.to_bytes();
@@ -219,3 +216,8 @@ bench_group!(
     bench_arrow_egress
 );
 bench_main!(benches);
+
+/// Total framed length: header (128) + payload + 64-byte trailing padding.
+fn egress_total_len(payload_byte_len: u64) -> u64 {
+    payload_byte_len + (ArrowEgressHeader::SIZE as u64) + 64
+}

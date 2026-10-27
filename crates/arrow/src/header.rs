@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! CanonArrow egress wire protocol — 128-byte framed canonical Arrow IPC header.
+//! CanonArrow egress wire protocol — 128-byte framed CanonArrow columnar-egress header (not Arrow IPC; designed for downstream Arrow IPC encapsulation).
 //!
 //! Layout is fixed: the struct is `#[repr(C, align(64))]` and the field
 //! order is the wire order. `total_byte_len` covers payload + 128 header + 64-byte trailing padding.
@@ -34,12 +34,39 @@ pub struct ArrowEgressHeader {
     pub reserved: [u8; 24],
 }
 
+// Compile-time layout pin: the repr(C) struct must stay identical to the
+// 128-byte wire image `to_bytes`/`from_bytes` slice by explicit offsets.
+// A field add/remove/reorder that desynchronizes the two fails here.
+const _: () = assert!(
+    core::mem::size_of::<ArrowEgressHeader>() == ArrowEgressHeader::SIZE,
+    "struct layout must equal the 128-byte wire image"
+);
+const _: () = assert!(
+    core::mem::align_of::<ArrowEgressHeader>() == 64,
+    "struct alignment must equal the 64-byte wire alignment"
+);
+
 impl ArrowEgressHeader {
     /// Total header size in bytes.
     pub const SIZE: usize = 128;
     /// Wire magic bytes.
     pub const MAGIC: [u8; 8] = *b"GLAWARRW";
     /// Wire schema version.
+    ///
+    /// Version history: `0x0002` is the first and only defined version;
+    /// no `0x0001` archive format and no `0x0003` extension format exist.
+    ///
+    /// Version policy: readers fail closed on any version other than
+    /// `SCHEMA_VERSION` ([`ArrowEgressHeaderError::BadSchemaVersion`]).
+    /// This is deliberate — there is no best-effort decode of unknown
+    /// versions and no migration shim, because a version bump may change
+    /// field widths, offsets, or digest coverage, and guessing would
+    /// silently corrupt reads.
+    ///
+    /// Upgrade path: bump `SCHEMA_VERSION` only when the wire layout
+    /// changes incompatibly. `BadSchemaVersion` carries the observed
+    /// value so migration tooling can classify historical and future
+    /// streams by version without decoding them.
     pub const SCHEMA_VERSION: u16 = 0x0002;
     /// Byte offset of the payload region.
     pub const PAYLOAD_OFFSET: u32 = 128;
@@ -47,6 +74,12 @@ impl ArrowEgressHeader {
     /// Flags bit0: payload contains null values.
     pub const FLAG_HAS_NULLS: u16 = 1 << 0;
     /// Flags bit1: payload encoded big-endian.
+    ///
+    /// Declared on the wire but not interpreted by this reader or writer:
+    /// the writer always emits little-endian payloads with this bit clear,
+    /// and `from_bytes` neither requires nor rejects it. A future writer
+    /// that sets it takes on endianness handling itself; readers that
+    /// cannot honor it must refuse before decoding the payload.
     pub const FLAG_BIG_ENDIAN: u16 = 1 << 1;
     /// Flags bit2: columns follow declared projection order strictly.
     pub const FLAG_STRICT_PROJECTION_ORDER: u16 = 1 << 2;
@@ -71,6 +104,13 @@ impl ArrowEgressHeader {
     }
 
     /// Deserialize from the 128-byte wire form.
+    ///
+    /// Version policy: only [`ArrowEgressHeader::SCHEMA_VERSION`]
+    /// (`0x0002`, the first and only defined version) is accepted; any
+    /// other version fails closed with
+    /// [`ArrowEgressHeaderError::BadSchemaVersion`], which carries the
+    /// observed value so migration tooling can identify the stream
+    /// without decoding it. See that constant for the upgrade path.
     pub fn from_bytes(bytes: &[u8; Self::SIZE]) -> Result<Self, ArrowEgressHeaderError> {
         if bytes[0..8] != Self::MAGIC {
             return Err(ArrowEgressHeaderError::BadMagic);
@@ -89,6 +129,14 @@ impl ArrowEgressHeader {
             return Err(ArrowEgressHeaderError::BadPayloadOffset(payload_offset));
         }
         let payload_byte_len = u64::from_le_bytes(bytes[20..28].try_into().unwrap());
+        // Batch-count consistency: a nonempty payload must belong to at least
+        // one batch; a multi-batch frame cannot carry an empty payload.
+        if batch_count == 0 && payload_byte_len > 0 {
+            return Err(ArrowEgressHeaderError::BadBatchCount(batch_count));
+        }
+        if batch_count > 1 && payload_byte_len == 0 {
+            return Err(ArrowEgressHeaderError::BadBatchCount(batch_count));
+        }
         let total_byte_len = u64::from_le_bytes(bytes[28..36].try_into().unwrap());
         // Subtraction order, not addition: a hostile wire header with
         // payload_byte_len near u64::MAX must overflow-refuse here, not
@@ -102,7 +150,7 @@ impl ArrowEgressHeader {
                 return Err(ArrowEgressHeaderError::BadTotalLen {
                     payload_byte_len,
                     total_byte_len,
-                })
+                });
             }
         };
         if payload_byte_len != expected {
@@ -155,6 +203,8 @@ pub enum ArrowEgressHeaderError {
     BadFlags(u16),
     /// Payload offset was not 128.
     BadPayloadOffset(u32),
+    /// `batch_count` inconsistent with `payload_byte_len`.
+    BadBatchCount(u32),
     /// `total_byte_len` inconsistent with `payload_byte_len`.
     BadTotalLen {
         /// Payload region length.
@@ -174,6 +224,9 @@ impl std::fmt::Display for ArrowEgressHeaderError {
             Self::BadFlags(fl) => write!(f, "canonarrow: undefined flag bits 0x{fl:04x}"),
             Self::BadPayloadOffset(off) => {
                 write!(f, "canonarrow: expected payload offset 128, got {off}")
+            }
+            Self::BadBatchCount(n) => {
+                write!(f, "canonarrow: batch count {n} inconsistent with payload")
             }
             Self::BadTotalLen {
                 payload_byte_len,
@@ -197,11 +250,35 @@ impl purrdf_hash::error::StructuredError for ArrowEgressHeaderError {
         BadSchemaVersion(v) => "canonarrow-bad-schema-version" { "version" => Unsigned(*v as u128) },
         BadFlags(f) => "canonarrow-bad-flags" { "flags" => Unsigned(*f as u128) },
         BadPayloadOffset(o) => "canonarrow-bad-payload-offset" { "offset" => Unsigned(*o as u128) },
+        BadBatchCount(n) => "canonarrow-bad-batch-count" { "batch_count" => Unsigned(*n as u128) },
         BadTotalLen { payload_byte_len, total_byte_len } => "canonarrow-bad-total-len" {
             "payload_len" => Unsigned(*payload_byte_len as u128),
             "total_len" => Unsigned(*total_byte_len as u128),
         },
         ReservedNotZero => "canonarrow-reserved-not-zero" {},
+    }
+}
+
+impl Default for ArrowEgressHeader {
+    /// A valid, parseable canonical header: wire magic, current schema
+    /// version, no flags, one record batch, payload at
+    /// [`ArrowEgressHeader::PAYLOAD_OFFSET`], empty payload (so
+    /// `total_byte_len` is exactly header + 64-byte trailing padding),
+    /// zero digests, zero reserved. `from_bytes(&default.to_bytes())`
+    /// succeeds.
+    fn default() -> Self {
+        Self {
+            magic: Self::MAGIC,
+            schema_version: Self::SCHEMA_VERSION,
+            flags: 0,
+            batch_count: 1,
+            payload_offset: Self::PAYLOAD_OFFSET,
+            payload_byte_len: 0,
+            total_byte_len: (Self::SIZE as u64) + 64,
+            triples_digest: [0; 32],
+            columnar_digest: [0; 32],
+            reserved: [0; 24],
+        }
     }
 }
 

@@ -448,18 +448,14 @@ fn test_vc_scenario_5_defensive_moat_exit_multiple_expansion() {
     let hash_result = blake3::hash(&payload);
     let digest: [u8; 32] = *hash_result.as_bytes();
 
-    let total_byte_len = (payload_bytes as u64) + (ArrowEgressHeader::SIZE as u64) + 64;
     let header = ArrowEgressHeader {
-        magic: ArrowEgressHeader::MAGIC,
-        schema_version: ArrowEgressHeader::SCHEMA_VERSION,
         flags: ArrowEgressHeader::FLAG_STRICT_PROJECTION_ORDER,
         batch_count: 1,
-        payload_offset: ArrowEgressHeader::PAYLOAD_OFFSET,
         payload_byte_len: payload_bytes as u64,
-        total_byte_len,
+        total_byte_len: egress_total_len(payload_bytes as u64),
         triples_digest: digest,
         columnar_digest: digest,
-        reserved: [0u8; 24],
+        ..ArrowEgressHeader::default()
     };
 
     let header_bytes = header.to_bytes();
@@ -477,4 +473,9 @@ fn test_vc_scenario_5_defensive_moat_exit_multiple_expansion() {
     let wrapper_multiple = 6.0f64;
     let deep_tech_multiple = 18.0f64;
     assert_eq!(deep_tech_multiple / wrapper_multiple, 3.0);
+}
+
+/// Total framed length: header (128) + payload + 64-byte trailing padding.
+fn egress_total_len(payload_byte_len: u64) -> u64 {
+    payload_byte_len + (ArrowEgressHeader::SIZE as u64) + 64
 }

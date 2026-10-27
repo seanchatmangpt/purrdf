@@ -694,16 +694,13 @@ fn test_section_5_candidate_envelope_and_arrow_ipc_egress() {
     columnar_digest.copy_from_slice(columnar_hasher.finalize().as_bytes());
 
     let header = ArrowEgressHeader {
-        magic: ArrowEgressHeader::MAGIC,
-        schema_version: ArrowEgressHeader::SCHEMA_VERSION,
         flags: ArrowEgressHeader::FLAG_STRICT_PROJECTION_ORDER,
         batch_count: 1,
-        payload_offset: ArrowEgressHeader::PAYLOAD_OFFSET,
         payload_byte_len: payload_len,
-        total_byte_len: payload_len + 128 + 64,
+        total_byte_len: egress_total_len(payload_len),
         triples_digest,
         columnar_digest,
-        reserved: [0u8; 24],
+        ..ArrowEgressHeader::default()
     };
 
     let header_bytes = header.to_bytes();
@@ -715,4 +712,9 @@ fn test_section_5_candidate_envelope_and_arrow_ipc_egress() {
         ArrowEgressHeader::from_bytes(&header_bytes).expect("parse header wire bytes");
     assert_eq!(parsed_header, header);
     assert_eq!(parsed_header.columnar_digest, columnar_digest);
+}
+
+/// Total framed length: header (128) + payload + 64-byte trailing padding.
+fn egress_total_len(payload_byte_len: u64) -> u64 {
+    payload_byte_len + (ArrowEgressHeader::SIZE as u64) + 64
 }

@@ -66,7 +66,16 @@ No source code was modified by the inspection; tickets are engineering specs onl
 | OPT-56 | `OPT-56-branchless-containers.md` | ticket-writer (bcinr) | branchless — landed, UNVERIFIED |
 | OPT-57 | `OPT-57-leb128-base64-homes.md` | ticket-writer (bcinr) | rdf-core, branchless |
 | OPT-63 | `OPT-63-opt41-followups.md` | ticket-writer (verify) | branchless — T-C landed, UNVERIFIED |
+| OPT-66 | `OPT-66-arrow-batch-count-validation.md` | ticket-writer | arrow — DONE (130fb2f0), residual future |
+| OPT-67 | `OPT-67-arrow-branchless-kernels.md` | ticket-writer (2026-10-27) | branchless, arrow |
+| OPT-68 | `OPT-68-gts-canonarrow-cross-check.md` | ticket-writer (2026-10-27) | gts, arrow |
 | OPT-5S | `../OPT-5s-bounded-ceiling.md` | Agent C14 | bounded wrapper + hook + corpus, ENFORCED |
+
+Note (2026-10-27): `OPT-65-frozen-duckdb-endgame.md` exists on disk but has no
+index row above — pre-existing drift, recorded here rather than silently
+repaired (row owner unknown). OPT-66/67/68 absorb the wave's OPT-18/19/20
+request; those IDs were taken by the Agent 18/19/20 wave tickets, so the next
+free IDs were used (renumbering notes in each file header).
 
 **Renumbering note:** the 16 parallel-writer duplicate-ID files were renumbered to
 OPT-25…OPT-40 (filenames and internal `[OPT-NN]` headings updated); the OPT-01…OPT-24

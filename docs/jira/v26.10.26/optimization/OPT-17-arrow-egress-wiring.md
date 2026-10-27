@@ -28,3 +28,31 @@
 - **Allocation Invariant:** canon-arrow egress performs 0 document-sized heap allocations — header `to_bytes()` returns `[u8; 128]`, slabs are written from existing Arrow buffers.
 - **Benchmark Target:** FFI/JS result egress drops from O(document) allocation to O(slabs); add to the bench suite per OPT-20.
 - **Layer Boundary:** header/escaper consolidation verified via `check-layers.py` (270 edges stay clean); golden-byte coverage for a production writer following the `crates/columnar/tests/golden_bytes.rs` house pattern; byte-determinism compliance (no timestamps/env in the envelope, per AGENTS.md:84 and AGENTS.md:344).
+
+
+---
+
+## Addendum (2026-10-27, arrow 20-lane review): error-payload enrichment
+
+Two refusals are under-specified for diagnosis and belong in this ticket's
+scope (found by the arrow adversarial/error-taxonomy review; not yet
+applied — variant-payload changes are semver-visible and were deferred):
+
+- `BadMagic` (crates/arrow/src/header.rs): carries no observed bytes, so a
+  typo (`GLAWARROW`) is indistinguishable from total corruption. Add the
+  observed 8 bytes (e.g. `BadMagic([u8; 8])`) or a Display-side hexdump.
+- `ReservedNotZero`: names no offset. Add the first offending byte index
+  within 100..128 (e.g. `ReservedNotZero { offset: usize, value: u8 }`).
+
+Both require updating the Display + `error_visit!` arms and every test
+asserting these variants (crates/arrow/tests/arrow_header_test.rs). Note
+for implementers: OPT-66/67/68 are NOT arrow tickets — they are the
+renumbered batch-count/branchless/gts-cross-check tickets; enrichment
+lives here with the rest of the arrow scope.
+
+Related plan of record (2026-10-27 wiring-plan lane): the JSON-escaper
+consolidation in OPT-17 item 3 is already mostly done — gts delegates to
+`purrdf_lex::json_escape` via the purrdf_iri re-export; only n3's
+hand-rolled escaper remains (`crates/n3/src/printing.rs:785-802`), and
+switching it is a public byte change (uppercase -> lowercase `\uXXXX`)
+that must be pinned by a golden fixture before it lands.
