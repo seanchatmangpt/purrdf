@@ -430,3 +430,29 @@ jobs:
             bench-head.log
             target/purrdf-bench/
           if-no-files-found: warn
+
+  # Report-only mirror of the local `make bench-fast` lane (never a gate).
+  bench-fast:
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # v1
+        with:
+          toolchain: "nightly" # keep in sync with rust-toolchain.toml
+
+      - name: Install sccache
+        run: cargo install sccache --locked
+
+      - name: Run the fast bench lane
+        run: |
+          set -euo pipefail
+          scripts/sccache-fast.sh scripts/run_benches_fast.py run purrdf-gts purrdf-core purrdf-columnar purrdf-rdf purrdf-json purrdf-sparql-eval purrdf-geo purrdf-geo-kernel purrdf-text purrdf-shapes purrdf-wasm purrdf-entail purrdf-lex purrdf-iri purrdf-xsd purrdf-sparql-algebra purrdf-sparql-results purrdf-hash-conformance purrdf-deflate purrdf-jsonschema purrdf-arrow purrdf-branchless purrdf-cdt purrdf-datalog purrdf-ed25519 purrdf-glob purrdf-hnsw purrdf-markdown purrdf-mime purrdf-n3 purrdf-shex purrdf-slice purrdf-toml

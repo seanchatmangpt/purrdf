@@ -1096,3 +1096,12 @@ ice:
 	bash scripts/target-hygiene.sh ice $(CRT)
 
 .PHONY: lane target-status target-prune ice
+
+# bench-fast is report-only, like bench: — never a gate (make check never calls it).
+CRATES := purrdf-gts purrdf-core purrdf-columnar purrdf-rdf purrdf-json purrdf-sparql-eval purrdf-geo purrdf-geo-kernel purrdf-text purrdf-shapes purrdf-wasm purrdf-entail purrdf-lex purrdf-iri purrdf-xsd purrdf-sparql-algebra purrdf-sparql-results purrdf-hash-conformance purrdf-deflate purrdf-jsonschema purrdf-arrow purrdf-branchless purrdf-cdt purrdf-datalog purrdf-ed25519 purrdf-glob purrdf-hnsw purrdf-markdown purrdf-mime purrdf-n3 purrdf-shex purrdf-slice purrdf-toml
+
+bench-fast: ## next-wave fast bench lane (sccache + jobs=8 + parallel measurement)
+	@test -f scripts/run_benches_fast.py || { echo "REFUSED: scripts/run_benches_fast.py missing — fast bench lane harness not landed"; exit 1; }
+	scripts/sccache-fast.sh scripts/run_benches_fast.py run $(CRATES)
+
+.PHONY: bench-fast

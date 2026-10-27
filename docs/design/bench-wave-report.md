@@ -268,6 +268,35 @@ Measured logs, red / in-flight — `/tmp/bench-logs/`:
 
 ---
 
+## §13 Fast lane (next wave) — PLANNED, ESTIMATE
+
+What it is: a parallel bench wave — `scripts/run_benches_fast.py` (4-way
+concurrent measurement across crates), `scripts/sccache-fast.sh` (sccache-warmed
+compilation), and the `make bench-fast` entry point. Fast-lane output shares the
+`/tmp/bench-logs` directory but is separated at the register/series level:
+rows append to the distinct `register-fast.txt` (serial appends to
+`register.txt`) and per-bench logs carry the distinct `<crate>.<bench>.fast.log`
+naming, so no row or log is ever mixed between series.
+
+Measured ceiling inputs: 48 GB RAM / 16 cores; sccache 0.16.0 present on PATH;
+mold linker absent and skipped (no lld/mold substitution attempted).
+
+Floor estimates (ESTIMATE — not receipts): cold-wave compile 10-20 min;
+end-to-end (compile + 4-way measurement) 20-30 min. These assume warm sccache
+after the first run; the first run pays full cold compile.
+
+Measurement-validity rule: fast-lane numbers are a **separate series**. They are
+never compared against serial-lane numbers within one claim — any cross-series
+comparison needs both series re-run under the same lane on the same machine
+state, and must be labeled as its own receipt.
+
+First speed receipt (placeholder — to be filled with real numbers): phase-5
+proof run on `lex` and `cdt` vs. serial baselines 243 s (`purrdf-lex`) and
+131 s (`purrdf-cdt`). Expected result: ESTIMATE only until the proof run
+executes; do not round an ESTIMATE into a measured figure.
+
+---
+
 Footer: sections marked REFRESH-PENDING (§1 summary counts, §9 in-flight,
 §10 UNVERIFIED register) stay marked until phase-4 receipts land. As-of:
 2026-10-27 13:08 PDT. All receipts live under `/tmp/bench-logs` (ephemeral —
