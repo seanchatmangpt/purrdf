@@ -1,0 +1,27 @@
+# Local developer-host tuning. CI is NOT affected: CI exports
+# CARGO_BUILD_JOBS=2 in the workflow environment, and an env var beats this
+# file's [build] table (cargo config precedence: env > config.toml).
+#
+# WHY jobs = 2 on the dev host (operator law 2026-10-26):
+# a single [profile.dev] opt-level=3 rustc unit peaks at ~6.3 GiB RSS. Two-way
+# parallelism (2 x 6.3 GiB ≈ 13 GB resident worst case) prevents memory-bus
+# saturation / thermal throttling on Apple Silicon; beyond two-way the host
+# loses wall-clock to contention. CI parity: the workflow exports
+# CARGO_BUILD_JOBS=2, so local [build].jobs=2 now matches CI exactly — this
+# also kills feature-resolution drift between local probes and CI.
+#
+# Deliberately NOT here either:
+#   * no `-C incremental=false` rustflag — that flag does not exist (rustc has
+#     no such flag; incremental is a cargo profile/config setting). The
+#     incremental policy lives in the Makefile recipes (CARGO_INCREMENTAL=0)
+#     and scripts/bounded, which kill stalls mechanically;
+#   * no global `-C debuginfo=line-tables-only` rustflag — [profile.dev]
+#     already sets debug=1 (line tables) and scripts/check-build-profiles.py
+#     gates profile keys; a duplicate global rustflag is drift the Makefile
+#     comments warn about.
+#
+# Deliberately NOT here:
+#   * no wasm32 rustflags — crates/rdf-wasm owns its own target flags;
+#   * no sccache — caching policy lives at the recipe level, not config.
+[build]
+jobs = 2

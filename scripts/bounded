@@ -1,0 +1,165 @@
+#!/bin/bash
+# bounded — hard 5-second wall-clock lease for build/test commands.
+# No argument may extend the limit; the operator law is not parameterizable.
+# On breach: SIGTERM, short grace (0.05s where the coreutils build supports
+# fractional -k, else 1s), then SIGKILL to the whole PROCESS GROUP so cargo's
+# rustc/cc/ld children die too. Emits a typed stderr line plus the SLA
+# diagnosis; exits 124 on BOTH paths (coreutils and perl fallback).
+#
+# Receipt: every exit emits one line in the one-home FB grammar
+# (scripts/fb-receipt.sh — scripts/bounded is a sanctioned emitter; the perl
+# path prints the identical grammar from inside the interpreter because the
+# wrapper execs and its shell never returns):
+#   FB t3 bounded 1 <duration_ms> PASS|TIMEOUT|exit-<rc>
+#
+# RESIDUAL (documented, not fixable here): a payload that double-forks and
+# calls setsid() creates a NEW session and escapes the process group we kill.
+# No pure process-level wrapper can detect that without cgroups/PID-namespace
+# accounting (not portable to macOS). The PreToolUse hook
+# (.claude/hooks/bounded_build_guard.py) is the second layer of defense: it
+# refuses unbounded build/test commands before the wrapper is ever reached.
+# Children that merely background themselves (`sleep 6 &`) stay in the group
+# and are reaped by the group-wide SIGKILL (verified in test-bounded-guard).
+set -u
+
+LIMIT=5
+GRACE=1
+
+if [ "$#" -eq 0 ]; then
+    printf 'bounded: usage: bounded <command> [args...]\n' >&2
+    exit 64
+fi
+
+BOUND_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -f "$BOUND_DIR/fb-receipt.sh" ]; then
+    # shellcheck disable=SC1091
+    . "$BOUND_DIR/fb-receipt.sh"
+fi
+
+# Milliseconds since the epoch. EPOCHREALTIME is bash >= 5; date +%s%N is the
+# fallback (BSD date without %N would print a literal N — guard by length).
+now_ms() {
+    if [ -n "${EPOCHREALTIME:-}" ]; then
+        printf '%s\n' "${EPOCHREALTIME%%.*}${EPOCHREALTIME#*.}" | cut -c1-13
+    else
+        local ns
+        ns=$(date +%s%N)
+        case "$ns" in
+            *[!0-9]*) printf '%s000\n' "$(date +%s)" ;;
+            *)        printf '%s\n' "$((ns / 1000000))" ;;
+        esac
+    fi
+}
+
+bounded_receipt() {  # $1 = duration_ms, $2 = status
+    if command -v fb_emit >/dev/null 2>&1; then
+        fb_emit t3 bounded 1 "$1" "$2" >&2
+    else
+        printf 'BOUNDED-RECEIPT t3 bounded 1 %s %s\n' "$1" "$2" >&2
+    fi
+}
+
+sla_diagnose() {  # $1 = rc — the typed probe-wrong diagnosis (PRD contract)
+    printf '%s\n' "BOUNDED-SLA-DIAGNOSIS[rc=$1]: probe wrong, not machine slow. Likely: (1) un-isolated dependency traversal (whole-workspace rebuild instead of one leaf); (2) unbounded loop/wait in the probe; (3) non-leaf probe — escalate tier (static <100ms, oracle <1s, leaf <5s) instead of retrying." >&2
+}
+
+# Probe for a coreutils timeout implementation.
+TIMEOUT_BIN=""
+for candidate in timeout gtimeout /opt/homebrew/bin/timeout /opt/homebrew/bin/gtimeout /usr/local/bin/timeout /usr/local/bin/gtimeout; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+        TIMEOUT_BIN=$(command -v "$candidate")
+        break
+    fi
+done
+
+# Deadline precision: prefer a 0.05s SIGKILL grace after SIGTERM so the
+# worst-case overshoot is LIMIT + 0.05s. Probed once at startup because
+# fractional -k durations require a recent coreutils; fall back to 1s.
+KILL_GRACE="$GRACE"
+if [ -n "$TIMEOUT_BIN" ] && "$TIMEOUT_BIN" -k 0.05 0.05 true >/dev/null 2>&1; then
+    KILL_GRACE=0.05
+fi
+
+run_coreutils() {
+    # timeout sends SIGTERM at LIMIT and SIGKILL after KILL_GRACE (-k).
+    # GNU timeout puts the child in its own process group by default, so the
+    # -k SIGKILL hits the group: backgrounded children (`sleep 6 &`) die too
+    # and are reaped (verified: pgrep empty after a `sh -c 'sleep 6 & wait'`
+    # breach). Only a setsid/double-fork escapee survives — see RESIDUAL above.
+    local t0 t1 rc ms
+    t0=$(now_ms)
+    "$TIMEOUT_BIN" -k "$KILL_GRACE" "$LIMIT" "$@"
+    rc=$?
+    t1=$(now_ms)
+    ms=$((t1 - t0))
+    if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+        printf 'BOUNDED-TIMEOUT[%ss]: %s\n' "$LIMIT" "$*" >&2
+        sla_diagnose "$rc"
+        bounded_receipt "$ms" TIMEOUT
+    else
+        bounded_receipt "$ms" "exit-$rc"
+    fi
+    return "$rc"
+}
+
+# Fallback: perl fork+alarm+setpgrp, killing the whole process group.
+# Exit 124 on breach (normalized with the coreutils path so courts assert 124
+# unconditionally). The wrapper execs perl, so the receipt and diagnosis are
+# emitted from inside the interpreter, in the same FB grammar.
+run_perl() {
+    exec perl -e '
+        use POSIX qw(:sys_wait_h);
+        use Time::HiRes qw(time);
+        my $limit = shift @ARGV;
+        my $grace = shift @ARGV;
+        my $pid = fork();
+        die "bounded: fork failed: $!\n" unless defined $pid;
+        if ($pid == 0) {
+            setpgrp(0, 0);
+            exec(@ARGV) or die "bounded: exec failed: $!\n";
+        }
+        setpgrp($pid, $pid);
+        my $t0 = time();
+        my $deadline = $t0 + $limit;
+        while (time() < $deadline) {
+            my $r = waitpid($pid, WNOHANG);
+            if ($r == $pid) {
+                my $status = $?;
+                my $ms = int((time() - $t0) * 1000);
+                if (WIFEXITED($status)) {
+                    printf STDERR "FB t3 bounded 1 %d exit-%d\n", $ms, WEXITSTATUS($status);
+                    exit(WEXITSTATUS($status));
+                }
+                if (WIFSIGNALED($status))  {
+                    printf STDERR "FB t3 bounded 1 %d exit-%d\n", $ms, 128 + WTERMSIG($status);
+                    exit(128 + WTERMSIG($status));
+                }
+                printf STDERR "FB t3 bounded 1 %d exit-1\n", $ms;
+                exit(1);
+            }
+            select(undef, undef, undef, 0.05);
+        }
+        my $ms = int((time() - $t0) * 1000);
+        print STDERR "BOUNDED-TIMEOUT[${limit}s]: @ARGV\n";
+        print STDERR "BOUNDED-SLA-DIAGNOSIS[rc=124]: probe wrong, not machine slow. Likely: (1) un-isolated dependency traversal (whole-workspace rebuild instead of one leaf); (2) unbounded loop/wait in the probe; (3) non-leaf probe — escalate tier (static <100ms, oracle <1s, leaf <5s) instead of retrying.\n";
+        printf STDERR "FB t3 bounded 1 %d TIMEOUT\n", $ms;
+        kill "TERM", -$pid;
+        my $grace_end = time() + $grace;
+        while (time() < $grace_end) {
+            my $r = waitpid($pid, WNOHANG);
+            if ($r == $pid || $r == -1) { exit 124; }
+            select(undef, undef, undef, 0.05);
+        }
+        kill "KILL", -$pid;
+        waitpid($pid, 0);
+        exit 124;
+    ' "$LIMIT" "$GRACE" "$@"
+}
+
+# T0 is taken HERE (late) so the probe loops above never inflate a receipt.
+T0_MS=$(now_ms)
+if [ -n "$TIMEOUT_BIN" ]; then
+    run_coreutils "$@"
+else
+    run_perl "$@"
+fi

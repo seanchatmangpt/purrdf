@@ -82,6 +82,8 @@ workflow, the bootstrap script and the crates.io preflight all source, and which
 `scripts/check-doc-claims.py` checks this list against:
 
 - `purrdf-hash`
+- `purrdf-branchless`
+- `purrdf-arrow`
 - `purrdf-stack`
 - `purrdf-lex`
 - `purrdf-events`
@@ -104,12 +106,15 @@ workflow, the bootstrap script and the crates.io preflight all source, and which
 - `purrdf-text`
 - `purrdf-retrieval`
 - `purrdf-rdf`
+- `purrdf-n3`
 - `purrdf-markdown`
 - `purrdf-mime`
 - `purrdf-json`
 - `purrdf-toml`
 - `purrdf-slice`
 - `purrdf-shapes`
+- `purrdf-sql`
+- `purrdf-duckdb`
 - `purrdf-geo`
 - `purrdf-shex`
 - `purrdf-validate`
@@ -193,13 +198,18 @@ first tagged run can publish the complete workspace in dependency order.
    records; deleting a crate would undo the setup. Yank can be reversed with
    `cargo yank --undo --version 0.0.0 "$new_crate"`.
 
-### Outstanding bootstrap: `purrdf-geo-kernel`, `purrdf-mime`, `purrdf-toml` and `purrdf-glob`
+### Outstanding bootstrap: `purrdf-branchless`, `purrdf-arrow`, `purrdf-geo-kernel`, `purrdf-mime`, `purrdf-toml`, `purrdf-sql`, `purrdf-duckdb` and `purrdf-glob`
 
-Four crates are in the release set above and require new records before tagging.
-`purrdf-geo-kernel` is the **thirteenth** crate in publish order;
-`purrdf-mime` is the **twenty-fifth** crate in publish order;
-`purrdf-toml` is the **twenty-seventh** crate in publish order;
-`purrdf-glob` is the **thirty-third** crate in publish order. Their implementations
+Eight crates are in the release set above and require new records before tagging.
+The heading restates `PURRDF_UNBOOTSTRAPPED_CRATES` in publish order.
+`purrdf-branchless` is the **second** crate in publish order;
+`purrdf-arrow` is the **third** crate in publish order;
+`purrdf-geo-kernel` is the **fifteenth** crate in publish order;
+`purrdf-mime` is the **twenty-eighth** crate in publish order;
+`purrdf-toml` is the **thirtieth** crate in publish order;
+`purrdf-sql` is the **thirty-third** crate in publish order;
+`purrdf-duckdb` is the **thirty-fourth** crate in publish order;
+`purrdf-glob` is the **thirty-eighth** crate in publish order. Their implementations
 are part of the workspace; the registry's public index has no records for them.
 Create the isolated empty bootstrap package, configure its Trusted Publisher
 entry and lock, then reconcile the ledger after the public preflight verifies
@@ -362,7 +372,7 @@ git push origin rust-v0.1.5
 
 The workflow refuses before packaging if any release crate lacks its record
 or publishing lock, or the bootstrap ledger has not been reconciled with the
-registry; see [bootstrap status](#outstanding-bootstrap-purrdf-geo-kernel-purrdf-mime-purrdf-toml-and-purrdf-glob). It publishes
+registry; see [bootstrap status](#outstanding-bootstrap-purrdf-branchless-purrdf-arrow-purrdf-geo-kernel-purrdf-mime-purrdf-toml-purrdf-sql-purrdf-duckdb-and-purrdf-glob). It publishes
 functional crates in the declared dependency order and skips a version already
 present. A partially completed release resumes with `gh run rerun <run-id>`.
 

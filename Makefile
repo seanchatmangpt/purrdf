@@ -47,12 +47,38 @@ ifeq ($(strip $(CARGO_TARGET_DIR)),)
 $(error unable to resolve CARGO_TARGET_DIR; set it explicitly or ensure cargo metadata and python3 are available)
 endif
 CAPI_HEADER := crates/rdf-capi/include/purrdf.h
+
+# ---- Bounded-execution preflight (parse-time, so EVERY target is guarded) ----
+#
+# scripts/bounded is the hard 5-second ceiling wrapper for cargo invocations.
+# It accepts NO seconds argument: "No argument may extend the limit". The
+# parse-time $(error) below means a missing wrapper fails every `make`
+# invocation at read time, before any recipe runs; the `bounded-preflight`
+# phony target re-checks executability as an ordinary prerequisite so the
+# failure is also typed (exit 1) in make output.
+ifeq ($(wildcard scripts/bounded),)
+$(error FAIL: scripts/bounded is missing — the bounded-execution preflight cannot be wired)
+endif
+ifneq ($(shell test -x scripts/bounded && echo ok),ok)
+$(error FAIL: scripts/bounded exists but is not executable — chmod +x scripts/bounded)
+endif
+
+# CI note: CI runners set PURRDF_BOUNDED_LOCAL=0 to skip the wrap where the
+# recipe legitimately runs longer than the hard local 5s ceiling. Locally the
+# wrap is ON by default; a local run dying at 5s is the law, not a bug.
+PURRDF_BOUNDED_LOCAL ?= 1
+BOUNDED := $(if $(filter 1,$(PURRDF_BOUNDED_LOCAL)),bash scripts/bounded,)
+
+.PHONY: bounded-preflight
+bounded-preflight: ## Require scripts/bounded to exist and be executable (typed exit 1 otherwise).
+	@test -f scripts/bounded || { echo "FAIL: scripts/bounded is missing" >&2; exit 1; }
+	@test -x scripts/bounded || { echo "FAIL: scripts/bounded is not executable; run: chmod +x scripts/bounded" >&2; exit 1; }
 # The integration branch the non-Rust ratchet compares against: its BASE is the
 # merge-base of this ref with HEAD. The pre-commit hook reads the same variable.
 PURRDF_RATCHET_BASE ?= origin/main
 
 .PHONY: help doctor metadata fmt hooks check test-shard simd-asm book book-samples book-pot book-po-update book-zh check-i18n check-issue-refs check-brand-casing check-spec-attribution changelog bump release-tags w3c-earl test doc bench bench-prepared-reuse bench-python scale-corpus columnar-oracle csvw-conformance csvw-oracle obographs-oracle projection-oracles pydantic-oracle linkml-oracle typescript-oracle graphql-oracle jsonschema-pattern-oracle pytest conformance iri-resolver-hygiene layer-hygiene helpers-hygiene serializer-rewind-hygiene terminal-hygiene thread-local-hygiene build-profile-hygiene rdf-core-hygiene python-binding-hygiene wasm wasm-test wasm-pkg wasm-pkg-test wasm-pkg-bench playground playground-smoke \
-	capi-build capi-header capi-check capi-install test-gts-selected-blobs lint-gts-selected-blobs doc-gts-selected-blobs node-prerequisite binaryen-prerequisite cnschema-probe benchmark-acquire lubm watdiv miri geo-determinism geodtest
+	capi-build capi-header capi-check capi-install test-gts-selected-blobs lint-gts-selected-blobs doc-gts-selected-blobs node-prerequisite binaryen-prerequisite cnschema-probe benchmark-acquire lubm watdiv miri geo-determinism geodtest fb-static fb-oracles fb-probe fb fb-lane
 
 # The changelog generator is pinned so the detailed CHANGELOG.md history stays
 # byte-reproducible across machines. GitHub uses a separately reviewed summary.
@@ -77,24 +103,24 @@ MDBOOK_I18N_HELPERS_VERSION := 0.4.0
 help: ## Show this help.
 	@grep -E '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
 
-metadata: ## Regenerate + verify workspace metadata and generated artifacts.
-	cargo metadata --no-deps --format-version 1 >/dev/null
+metadata: bounded-preflight ## Regenerate + verify workspace metadata and generated artifacts.
+	$(BOUNDED) cargo metadata --no-deps --format-version 1 >/dev/null
 	bash scripts/check-generated.sh --write
 	$(MAKE) license-bundles
 
-fmt: ## Auto-format the workspace.
-	cargo fmt --all
+fmt: bounded-preflight ## Auto-format the workspace.
+	$(BOUNDED) cargo fmt --all
 
 hooks: ## Install the pre-commit and pre-merge-commit hooks: the quick subset of `make check`, run on the staged snapshot.
 	git config core.hooksPath .githooks
 
-check: node-prerequisite binaryen-prerequisite ## The full local gate: fmt, clippy, build, tests, hygiene.
-	cargo fmt --all --check
-	cargo fmt --manifest-path crates/jsonschema/tests/preserve_order_consumer/Cargo.toml --check
-	cargo clippy --workspace --all-targets --locked -- -D warnings
-	cargo clippy --manifest-path crates/jsonschema/tests/preserve_order_consumer/Cargo.toml --all-targets --locked -- -D warnings
-	cargo check --workspace --lib --tests --locked
-	cargo run -q --locked -p helper-census -- --no-features
+check: node-prerequisite binaryen-prerequisite bounded-preflight ## The full local gate: fmt, clippy, build, tests, hygiene.
+	$(BOUNDED) cargo fmt --all --check
+	$(BOUNDED) cargo fmt --manifest-path crates/jsonschema/tests/preserve_order_consumer/Cargo.toml --check
+	$(BOUNDED) cargo clippy --workspace --all-targets --locked -- -D warnings
+	$(BOUNDED) cargo clippy --manifest-path crates/jsonschema/tests/preserve_order_consumer/Cargo.toml --all-targets --locked -- -D warnings
+	$(BOUNDED) cargo check --workspace --lib --tests --locked
+	$(BOUNDED) cargo run -q --locked -p helper-census -- --no-features
 	python3 scripts/check-toolchain-pin.py
 	python3 scripts/check-toolchain-pin.py --self-test
 	python3 scripts/check-gate-parity.py --self-test
@@ -106,7 +132,7 @@ check: node-prerequisite binaryen-prerequisite ## The full local gate: fmt, clip
 	python3 scripts/check-iri-resolver-singleton.py
 	python3 scripts/check-serializer-rewinds.py --self-test
 	python3 scripts/check-serializer-rewinds.py
-	cargo run -q --locked -p helper-census -- --python-binding-tests
+	$(BOUNDED) cargo run -q --locked -p helper-census -- --python-binding-tests
 	python3 scripts/check-terminal-predicates.py --self-test
 	python3 scripts/check-terminal-predicates.py
 	python3 scripts/check-thread-locals.py --self-test
@@ -127,8 +153,8 @@ check: node-prerequisite binaryen-prerequisite ## The full local gate: fmt, clip
 	python3 scripts/check-banned-deps.py --ledger-complete
 	python3 scripts/check-layers.py --self-test
 	python3 scripts/check-layers.py
-	cargo run -q --locked -p helper-census -- --self-test
-	cargo run -q --locked -p helper-census -- --non-rust-ratchet --merge-base-with $(PURRDF_RATCHET_BASE) --target worktree
+	$(BOUNDED) cargo run -q --locked -p helper-census -- --self-test
+	$(BOUNDED) cargo run -q --locked -p helper-census -- --non-rust-ratchet --merge-base-with $(PURRDF_RATCHET_BASE) --target worktree
 	python3 scripts/check-shared-helpers.py --self-test
 	python3 scripts/check-shared-helpers.py
 	python3 scripts/check-hash-domains.py --self-test
@@ -139,7 +165,7 @@ check: node-prerequisite binaryen-prerequisite ## The full local gate: fmt, clip
 	python3 scripts/check-brand-casing.py
 	python3 scripts/check-spec-attribution.py --self-test
 	python3 scripts/check-doc-claims.py
-	cargo run -q --locked -p helper-census -- --glossary-gate
+	$(BOUNDED) cargo run -q --locked -p helper-census -- --glossary-gate
 	python3 scripts/check-versions.py
 	python3 scripts/check-release-notes.py --self-test
 	python3 scripts/check-release-notes.py
@@ -169,8 +195,8 @@ check: node-prerequisite binaryen-prerequisite ## The full local gate: fmt, clip
 	python3 scripts/watdiv-queries.py --offline-self-test
 	python3 scripts/lubm-queries.py --offline-self-test
 	python3 crates/text/tests/reference/bm25f.py --check
-	cargo test --workspace --locked --no-fail-fast
-	cargo test --manifest-path crates/jsonschema/tests/preserve_order_consumer/Cargo.toml --locked
+	$(BOUNDED) cargo test --workspace --locked --no-fail-fast
+	$(BOUNDED) cargo test --manifest-path crates/jsonschema/tests/preserve_order_consumer/Cargo.toml --locked
 	$(MAKE) rdf-core-hygiene
 	$(MAKE) wasm
 
@@ -183,11 +209,11 @@ check-brand-casing: ## Reject bare lowercase 'purrdf' in prose (project is PurRD
 check-spec-attribution: ## Reject attributing a first-party extension (the quad template) to a SPARQL spec.
 	python3 scripts/check-spec-attribution.py --self-test
 
-check-i18n: ## Gate the zh-Hans translation: the glossary, then render it and run the prose gates + the SPARQL fence parser over the rendering (needs mdbook + the pinned mdbook-i18n-helpers).
-	cargo run -q --locked -p helper-census -- --glossary-gate
+check-i18n: bounded-preflight ## Gate the zh-Hans translation: the glossary, then render it and run the prose gates + the SPARQL fence parser over the rendering (needs mdbook + the pinned mdbook-i18n-helpers).
+	$(BOUNDED) cargo run -q --locked -p helper-census -- --glossary-gate
 	python3 scripts/check-i18n-render.py --self-test
 
-changelog: ## Regenerate the deterministic CHANGELOG.md from conventional-commit history.
+changelog: bounded-preflight ## Regenerate the deterministic CHANGELOG.md from conventional-commit history.
 	@# git-cliff regenerates the WHOLE file from commit SUBJECTS and has no
 	@# keep-region, so hand-authored release notes — in particular the prose that
 	@# tells a consumer what to DO about a breaking change — are destroyed rather
@@ -270,42 +296,42 @@ node-prerequisite: ## Require Node for the native Unicode ECMAScript conformance
 		exit 1; \
 	}
 
-test: node-prerequisite binaryen-prerequisite ## Run the workspace test suite.
-	cargo test --workspace --locked
+test: node-prerequisite binaryen-prerequisite bounded-preflight ## Run the workspace test suite.
+	$(BOUNDED) cargo test --workspace --locked
 
-test-shard: node-prerequisite ## Run one CI shard of `make test` (SHARD=lib|doc|integration-1..5).
+test-shard: node-prerequisite bounded-preflight ## Run one CI shard of `make test` (SHARD=lib|doc|integration-1..5).
 	@case "$(SHARD)" in \
-		lib) $(MAKE) binaryen-prerequisite || exit $$?; set -x; cargo test --workspace --exclude purrdf-python --locked --lib --bins ;; \
-		doc) set -x; cargo test --workspace --locked --doc \
-			&& cargo build --workspace --locked --examples --profile test \
-			&& cargo test --workspace --locked --example graphql_oracle_fixture --example typescript_oracle_fixture --example text_relevance ;; \
-		integration-1) set -x; cargo test --workspace --locked --test '[a-d]*' -- --exact --skip c_abi_smoke ;; \
-		integration-2) set -x; cargo test --workspace --locked --test '[e-j]*' ;; \
-		integration-3) set -x; cargo test --workspace --locked --test '[p-r]*' ;; \
-		integration-4) set -x; cargo test --workspace --locked --test '[!a-r]*' ;; \
-		integration-5) set -x; cargo test --workspace --locked --test '[k-o]*' ;; \
+		lib) $(MAKE) binaryen-prerequisite || exit $$?; set -x; $(BOUNDED) cargo test --workspace --exclude purrdf-python --locked --lib --bins ;; \
+		doc) set -x; $(BOUNDED) cargo test --workspace --locked --doc \
+			&& $(BOUNDED) cargo build --workspace --locked --examples --profile test \
+			&& $(BOUNDED) cargo test --workspace --locked --example graphql_oracle_fixture --example typescript_oracle_fixture --example text_relevance ;; \
+		integration-1) set -x; $(BOUNDED) cargo test --workspace --locked --test '[a-d]*' -- --exact --skip c_abi_smoke ;; \
+		integration-2) set -x; $(BOUNDED) cargo test --workspace --locked --test '[e-j]*' ;; \
+		integration-3) set -x; $(BOUNDED) cargo test --workspace --locked --test '[p-r]*' ;; \
+		integration-4) set -x; $(BOUNDED) cargo test --workspace --locked --test '[!a-r]*' ;; \
+		integration-5) set -x; $(BOUNDED) cargo test --workspace --locked --test '[k-o]*' ;; \
 		*) echo "FAIL: unknown SHARD '$(SHARD)'; expected lib, doc or integration-1..5" >&2; exit 1 ;; \
 	esac
 
 lint-gts-selected-blobs: ## Lint the selected native-import production and test surfaces only.
-	cargo clippy -p purrdf-gts --lib --test bounded_keyed_blobs --locked -- -D warnings
-	cargo clippy -p purrdf-rdf --lib --test gts_selected_blobs --locked -- -D warnings
-	cargo clippy -p purrdf-shapes --lib --locked -- -D warnings
+	$(BOUNDED) cargo clippy -p purrdf-gts --lib --test bounded_keyed_blobs --locked -- -D warnings
+	$(BOUNDED) cargo clippy -p purrdf-rdf --lib --test gts_selected_blobs --locked -- -D warnings
+	$(BOUNDED) cargo clippy -p purrdf-shapes --lib --locked -- -D warnings
 
 doc-gts-selected-blobs: ## Check the native-import and shared shape-dataset public API documentation.
-	RUSTDOCFLAGS="-D warnings" cargo doc -p purrdf-gts -p purrdf-rdf -p purrdf-shapes --no-deps --locked
+	RUSTDOCFLAGS="-D warnings" $(BOUNDED) cargo doc -p purrdf-gts -p purrdf-rdf -p purrdf-shapes --no-deps --locked
 
 test-gts-selected-blobs: ## Check bounded selected-blob import and native scope contracts only.
-	cargo test -p purrdf-gts --lib codec::tests:: --locked
-	cargo test -p purrdf-gts --test bounded_keyed_blobs --locked
-	cargo test -p purrdf-rdf --lib gts_import_sink::tests:: --locked
-	cargo test -p purrdf-rdf --test gts_selected_blobs --locked
-	cargo test -p purrdf-shapes --test shared_shapes_dataset --locked
+	$(BOUNDED) cargo test -p purrdf-gts --lib codec::tests:: --locked
+	$(BOUNDED) cargo test -p purrdf-gts --test bounded_keyed_blobs --locked
+	$(BOUNDED) cargo test -p purrdf-rdf --lib gts_import_sink::tests:: --locked
+	$(BOUNDED) cargo test -p purrdf-rdf --test gts_selected_blobs --locked
+	$(BOUNDED) cargo test -p purrdf-shapes --test shared_shapes_dataset --locked
 
-doc: ## Build docs for the 35 publishable crates with rustdoc warnings denied.
-	RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --exclude purrdf-capi --exclude purrdf-python --exclude purrdf-sparql-conformance --exclude purrdf-cli
+doc: bounded-preflight ## Build docs for the 40 publishable crates with rustdoc warnings denied.
+	RUSTDOCFLAGS="-D warnings" $(BOUNDED) cargo doc --workspace --no-deps --exclude purrdf-capi --exclude purrdf-python --exclude purrdf-sparql-conformance --exclude purrdf-cli
 
-book-samples: ## Regenerate deterministic SVG visualization samples embedded in The PurRDF Book.
+book-samples: bounded-preflight ## Regenerate deterministic SVG visualization samples embedded in The PurRDF Book.
 	@set -eu; \
 		target=docs/book/src/assets/visualization; \
 		tmp=$$(mktemp -d docs/book/src/assets/.visualization.XXXXXX); \
@@ -317,7 +343,7 @@ book-samples: ## Regenerate deterministic SVG visualization samples embedded in 
 			exit $$status; \
 		}; \
 		trap cleanup EXIT; \
-		cargo run -p purrdf-rdf --example viz_samples --locked -- "$$tmp" --svg-only; \
+		$(BOUNDED) cargo run -p purrdf-rdf --example viz_samples --locked -- "$$tmp" --svg-only; \
 		if [ -d "$$target" ]; then mv "$$target" "$$previous"; fi; \
 		mv "$$tmp" "$$target"; \
 		rm -rf "$$previous"; \
@@ -347,14 +373,14 @@ book-pot: ## Extract the translation template docs/book/po/messages.pot (ignored
 book-po-update: book-pot ## Refresh docs/book/po/zh-Hans.po against the current English source (msgmerge; fuzzy/obsolete entries render as English until retranslated).
 	msgmerge --quiet --update --backup=none docs/book/po/zh-Hans.po docs/book/po/messages.pot
 
-bench-prepared-reuse: ## Measure cold/warm preparation and prepared execution on O3/full-LTO code (report-only).
+bench-prepared-reuse: bounded-preflight ## Measure cold/warm preparation and prepared execution on O3/full-LTO code (report-only).
 	CARGO_PROFILE_RELEASE_OPT_LEVEL=3 CARGO_PROFILE_RELEASE_LTO=fat \
 	CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_INCREMENTAL=false \
 	CARGO_PROFILE_RELEASE_DEBUG=false \
-	cargo bench --locked --profile release -p purrdf-sparql-eval --bench prepared_reuse -- $(BENCH_ARGS)
+	$(BOUNDED) cargo bench --locked --profile release -p purrdf-sparql-eval --bench prepared_reuse -- $(BENCH_ARGS)
 
-bench: ## Run the purrdf_testkit::bench suites (report-only; never a gate).
-	cargo bench -p purrdf-gts -p purrdf-core -p purrdf-columnar -p purrdf-rdf -p purrdf-json -p purrdf-sparql-eval -p purrdf-geo -p purrdf-geo-kernel -p purrdf-text -p purrdf-shapes -p purrdf-wasm -p purrdf-entail -p purrdf-lex -p purrdf-iri -p purrdf-xsd -p purrdf-sparql-algebra -p purrdf-sparql-results -p purrdf-hash-conformance -p purrdf-deflate -p purrdf-jsonschema
+bench: bounded-preflight ## Run the purrdf_testkit::bench suites (report-only; never a gate).
+	$(BOUNDED) cargo bench -p purrdf-gts -p purrdf-core -p purrdf-columnar -p purrdf-rdf -p purrdf-json -p purrdf-sparql-eval -p purrdf-geo -p purrdf-geo-kernel -p purrdf-text -p purrdf-shapes -p purrdf-wasm -p purrdf-entail -p purrdf-lex -p purrdf-iri -p purrdf-xsd -p purrdf-sparql-algebra -p purrdf-sparql-results -p purrdf-hash-conformance -p purrdf-deflate -p purrdf-jsonschema
 
 # HOW A LANE KNOB REACHES ITS SCRIPT: as environment bytes, unparsed.
 #
@@ -417,13 +443,13 @@ $(foreach knob,SCALE_QUADS SCALE_IRIS SCALE_SEED SCALE_SHARDS SCALE_MODE SCALE_O
 W3C_EARL_DIR ?= target/w3c-earl
 $(eval $(call lane-env,W3C_EARL_DIR))
 
-w3c-earl: ## Write the two W3C SHACL EARL reports for the current clean HEAD under W3C_EARL_DIR (default target/w3c-earl).
+w3c-earl: bounded-preflight ## Write the two W3C SHACL EARL reports for the current clean HEAD under W3C_EARL_DIR (default target/w3c-earl).
 	@test -z "$$(git status --porcelain)" || { echo "ERROR: working tree is dirty — the EARL reports must name a committed HEAD:"; git status --porcelain; exit 1; }
 	@# The test binaries run from their crate directory, so hand them an absolute path.
 	@mkdir -p -- "$$W3C_EARL_DIR" && dir=$$(cd -- "$$W3C_EARL_DIR" && pwd) && \
 		rm -f -- "$$dir/purrdf-shacl12-earl.ttl" "$$dir/purrdf-shacl-earl.ttl" && \
 		PURRDF_W3C_EARL_DIR="$$dir" PURRDF_W3C_EARL_COMMIT="$$(git rev-parse HEAD)" \
-		cargo test --locked -p purrdf-shapes --test w3c12_conformance --test w3c_conformance && \
+		$(BOUNDED) cargo test --locked -p purrdf-shapes --test w3c12_conformance --test w3c_conformance && \
 		for f in purrdf-shacl12-earl.ttl purrdf-shacl-earl.ttl; do \
 			test -s "$$dir/$$f" || { echo "ERROR: $$dir/$$f is missing or empty after the run"; exit 1; }; \
 		done && \
@@ -435,8 +461,8 @@ scale-corpus: ## Generate the deterministic scale corpus across shards (streams 
 columnar-oracle: ## Verify production Parquet files through the dev-only DuckDB oracle.
 	bash scripts/check-columnar-oracle.sh
 
-csvw-conformance: ## Run every pinned W3C CSVW RDF and validation manifest case.
-	cargo test -p purrdf-rdf --test csvw_w3c --locked
+csvw-conformance: bounded-preflight ## Run every pinned W3C CSVW RDF and validation manifest case.
+	$(BOUNDED) cargo test -p purrdf-rdf --test csvw_w3c --locked
 
 csvw-oracle: ## Validate canonical CSVW output with the locked independent csvw 4.1.0 implementation.
 	bash scripts/check-csvw-oracle.sh
@@ -468,12 +494,12 @@ jsonschema-pattern-oracle: node-prerequisite ## Re-ask JavaScript's RegExp for e
 bench-python: ## Compare the rdflib compat shim vs. real rdflib (report-only; NOT a test gate). See docs/BENCHMARKS.md.
 	cd bindings/python && uv run maturin develop && uv run python benchmarks/bench_compat.py
 
-pytest: ## Build the native module + run the Python binding test suite (own gate, NOT part of `check`).
-	cargo run -q --locked -p helper-census -- --python-binding-tests
+pytest: bounded-preflight ## Build the native module + run the Python binding test suite (own gate, NOT part of `check`).
+	$(BOUNDED) cargo run -q --locked -p helper-census -- --python-binding-tests
 	cd bindings/python && uv sync --locked --group dev && uv run --locked pytest tests
-	cd bindings/python && PURRDF_TEST_REQUIRE_EXACT=1 uv run --locked cargo test --manifest-path ../../Cargo.toml --locked -p purrdf-cli --test python_empty_graphs -- --ignored --exact installed_empty_graph_modes
+	cd bindings/python && PURRDF_TEST_REQUIRE_EXACT=1 uv run --locked bash ../../scripts/bounded cargo test --manifest-path ../../Cargo.toml --locked -p purrdf-cli --test python_empty_graphs -- --ignored --exact installed_empty_graph_modes
 
-miri: ## Check SmallVec storage and BLAKE3 streaming under Miri (own lane, NOT part of `check`).
+miri: bounded-preflight ## Check SmallVec storage and BLAKE3 streaming under Miri (own lane, NOT part of `check`).
 	@# `purrdf_core::SmallVec` keeps its inline elements in uninitialised
 	@# storage and moves them with raw pointer copies; its tests pin ownership
 	@# (no double drop, no leak, no uninitialised read) but only an interpreter
@@ -482,20 +508,20 @@ miri: ## Check SmallVec storage and BLAKE3 streaming under Miri (own lane, NOT p
 	@# Tree Borrows, strict provenance (no integer-to-pointer casts), and a
 	@# 32-bit target, where `usize` arithmetic and layout differ.
 	@# Select the unsafe storage module, not unrelated semantic test names.
-	cargo miri test -p purrdf-core --lib small::tests::
-	MIRIFLAGS=-Zmiri-tree-borrows cargo miri test -p purrdf-core --lib small::tests::
-	MIRIFLAGS=-Zmiri-strict-provenance cargo miri test -p purrdf-core --lib small::tests::
-	cargo miri test -p purrdf-core --lib small::tests:: --target i686-unknown-linux-gnu
+	$(BOUNDED) cargo miri test -p purrdf-core --lib small::tests::
+	MIRIFLAGS=-Zmiri-tree-borrows $(BOUNDED) cargo miri test -p purrdf-core --lib small::tests::
+	MIRIFLAGS=-Zmiri-strict-provenance $(BOUNDED) cargo miri test -p purrdf-core --lib small::tests::
+	$(BOUNDED) cargo miri test -p purrdf-core --lib small::tests:: --target i686-unknown-linux-gnu
 	@# Bounded streaming vectors cover buffer/tree boundaries and snapshots.
 	@# The scalar rotation uses Rust under Miri; native lowering is checked separately.
-	MIRIFLAGS=-Zmiri-strict-provenance cargo miri test --locked -p purrdf-hash-conformance --test blake3 streaming_boundary_answers
+	MIRIFLAGS=-Zmiri-strict-provenance $(BOUNDED) cargo miri test --locked -p purrdf-hash-conformance --test blake3 streaming_boundary_answers
 
 # CI runs the matrix split across runners through CONFORMANCE_ARGS: one
 # `--shard NAME --emit-results FILE` per shard, then one `--from-results DIR` that
 # judges the whole matrix exactly as a single run does. Empty is the full run.
 CONFORMANCE_ARGS ?=
-conformance: ## Umbrella conformance matrix: native Rust W3C suites + the Python rdflib drop-in gate, one scoreboard (see docs/CONFORMANCE.md).
-	python3 scripts/conformance-matrix.py $(CONFORMANCE_ARGS)
+conformance: bounded-preflight ## Umbrella conformance matrix: native Rust W3C suites + the Python rdflib drop-in gate, one scoreboard (see docs/CONFORMANCE.md).
+	$(BOUNDED) python3 scripts/conformance-matrix.py $(CONFORMANCE_ARGS)
 
 iri-resolver-hygiene: ## Prove the resolver ring-fence: RFC 3986 reference resolution only in crates/iri/src.
 	python3 scripts/check-iri-resolver-singleton.py
@@ -505,7 +531,7 @@ layer-hygiene: ## Prove every first-party crate edge is one layers.toml allows, 
 	python3 scripts/check-layers.py
 
 helpers-hygiene: ## Prove helpers-ledger.toml holds (one home per job, no forbidden copy, no stale exemption, no cross-crate #[path]) and every hash domain is a unique, prefix-free purrdf_hash::Domain.
-	cargo run -q --locked -p helper-census -- --self-test
+	$(BOUNDED) cargo run -q --locked -p helper-census -- --self-test
 	python3 scripts/check-shared-helpers.py --self-test
 	python3 scripts/check-shared-helpers.py
 	python3 scripts/check-hash-domains.py --self-test
@@ -516,8 +542,8 @@ serializer-rewind-hygiene: ## Prove no serializer takes back output it already p
 	python3 scripts/check-serializer-rewinds.py
 
 python-binding-hygiene: ## Prove no Rust test module hides in the PyO3 extension crate (it would never compile or run).
-	cargo run -q --locked -p helper-census -- --self-test
-	cargo run -q --locked -p helper-census -- --python-binding-tests
+	$(BOUNDED) cargo run -q --locked -p helper-census -- --self-test
+	$(BOUNDED) cargo run -q --locked -p helper-census -- --python-binding-tests
 
 terminal-hygiene: ## Prove no scanner decides a token boundary with a Unicode property.
 	python3 scripts/check-terminal-predicates.py --self-test
@@ -532,7 +558,7 @@ build-profile-hygiene: ## Prove the gate really compiles at opt-level 3 with deb
 	python3 scripts/check-build-profiles.py
 
 rdf-core-hygiene: ## Prove the kernel ring-fence: no PyO3 in purrdf-core; the root and the ring-fenced crates depend only on what layers.toml lists.
-	@tree=$$(cargo tree --color never -p purrdf-core --edges normal -f "{p}") || { echo "FAIL: cargo tree errored"; exit 1; }; \
+	@tree=$$($(BOUNDED) cargo tree --color never -p purrdf-core --edges normal -f "{p}") || { echo "FAIL: cargo tree errored"; exit 1; }; \
 	if echo "$$tree" | grep -q 'pyo3 v'; then \
 		echo "FAIL: purrdf-core pulls PyO3 as a NORMAL dependency"; \
 		echo "$$tree" | grep 'pyo3 v'; exit 1; \
@@ -611,9 +637,10 @@ watdiv: ## Run the WatDiv comparison workload end to end - acquire the frozen da
 # by hand. Only the LIBRARY is built here (this recipe passes `--lib`); the
 # `bench-corpus` binary is std-only — files, process arguments, an exit code —
 # and stays deliberately out of the wasm surface.
-wasm: ## Build the release crates for wasm32-unknown-unknown (SKIP locally if target absent; CI hard-fails).
+# CI/async only — not a feedback probe; use make fb.
+wasm: bounded-preflight ## Build the release crates for wasm32-unknown-unknown (SKIP locally if target absent; CI hard-fails).
 	@if rustup target list --installed 2>/dev/null | grep -qx wasm32-unknown-unknown; then \
-		cargo build --locked --release --target wasm32-unknown-unknown --lib \
+		$(BOUNDED) cargo build --locked --release --target wasm32-unknown-unknown --lib \
 			-p purrdf-events -p purrdf-lex -p purrdf-iri -p purrdf-xsd -p purrdf-cdt -p purrdf-jsonschema -p purrdf-hash -p purrdf-deflate -p purrdf-stack -p purrdf-ed25519 -p purrdf-gts -p purrdf-core -p purrdf-columnar \
 			-p purrdf-datalog -p purrdf-n3 \
 			-p purrdf-sparql-algebra -p purrdf-sparql-results -p purrdf-sparql-eval -p purrdf-hnsw \
@@ -628,8 +655,10 @@ wasm: ## Build the release crates for wasm32-unknown-unknown (SKIP locally if ta
 		echo "      This is NOT the same as 'target not installed': with no rustup, rust-toolchain.toml's"; \
 		echo "      pinned toolchain is also unenforced locally, and this gate is silently inert."; \
 		echo "      Run 'make doctor' for the full list of pins this machine does not enforce."; \
+		echo "WASM_TEST_RESULT=SKIP:no-rustup"; \
 	else \
 		echo "SKIP: wasm32-unknown-unknown target not installed — 'rustup target add wasm32-unknown-unknown' to enable"; \
+		echo "WASM_TEST_RESULT=SKIP:target-not-installed"; \
 	fi
 
 doctor: ## Report which build pins this machine actually enforces (never gates; run it when a gate SKIPs).
@@ -699,7 +728,7 @@ doctor: ## Report which build pins this machine actually enforces (never gates; 
 # `--merge-reports DIR` that requires seven matching successful reports and
 # checks the document against them. Empty measures the complete matrix.
 geo-determinism: node-prerequisite ## Compare frozen numerical, geometry and cell transcripts on native and both actual WASM builds.
-	cargo run --locked --profile release -p purrdf-geo-kernel --example qualify_determinism
+	$(BOUNDED) cargo run --locked --profile release -p purrdf-geo-kernel --example qualify_determinism
 
 GEODTEST_INPUT ?=
 GEODTEST_WORK ?= standard
@@ -709,7 +738,7 @@ export GEODTEST_WORK := $(value GEODTEST_WORK)
 export GEODTEST_BACKEND := $(value GEODTEST_BACKEND)
 geodtest: ## Qualify every distance/inverse/direct record in the pinned 500,000-row public corpus (GEODTEST_INPUT is the uncompressed input).
 	@: "$${GEODTEST_INPUT:?geodtest requires GEODTEST_INPUT}"; \
-		cargo run --locked --profile release -p purrdf-geo-kernel --example geodesic_corpus -- \
+		$(BOUNDED) cargo run --locked --profile release -p purrdf-geo-kernel --example geodesic_corpus -- \
 			500000 "$${GEODTEST_WORK}" all "$${GEODTEST_BACKEND}" \
 			c1cabdddbcd7d5cfc6e6111db4608fa55be292b15ba2c5bcd6372a178848c692 \
 			< "$${GEODTEST_INPUT}"
@@ -718,7 +747,8 @@ SIMD_ASM_ARGS ?=
 simd-asm: ## Count the vector work in emitted asm on seven target configurations (own gate, NOT part of `check`).
 	python3 scripts/check-simd-asm.py --doc $(SIMD_ASM_ARGS)
 
-wasm-test: ## Execute WASM dispatch, SIMD kernels, shadow-stack, host-interface and numeric byte-identity probes in Node.
+# CI/async only — not a feedback probe; use make fb.
+wasm-test: bounded-preflight ## Execute WASM dispatch, SIMD kernels, shadow-stack, host-interface and numeric byte-identity probes in Node.
 	@# Native Rust owns semantic/conformance corpora. This lane executes only the
 	@# named WASM behaviors documented in docs/WASM_TESTING.md: actual dispatch,
 	@# SIMD kernels, shadow-stack floors and host clock/storage refusal. Full test
@@ -734,102 +764,106 @@ wasm-test: ## Execute WASM dispatch, SIMD kernels, shadow-stack, host-interface 
 		if [ -n "$${CI:-}" ]; then echo "FAIL: wasm32-unknown-unknown target absent in CI"; exit 1; fi; \
 		if ! command -v rustup >/dev/null 2>&1; then \
 			echo "SKIP: rustup is not on PATH — the wasm32 target cannot be detected or installed ('make doctor')"; \
+			echo "WASM_TEST_RESULT=SKIP:no-rustup"; \
 		else \
 			echo "SKIP: wasm32-unknown-unknown target not installed — 'rustup target add wasm32-unknown-unknown' to enable"; \
+			echo "WASM_TEST_RESULT=SKIP:target-not-installed"; \
 		fi; \
 	elif ! command -v wasm-bindgen >/dev/null 2>&1; then \
 		if [ -n "$${CI:-}" ]; then echo "FAIL: the wasm-bindgen CLI is absent in CI"; exit 1; fi; \
 		echo "SKIP: the wasm-bindgen CLI is not on PATH — install wasm-bindgen-cli $$(sed -n 's/^wasm-bindgen = \"=\([0-9][0-9.]*\)\"$$/\1/p' Cargo.toml) to enable"; \
+		echo "WASM_TEST_RESULT=SKIP:no-wasm-bindgen"; \
 	elif ! command -v node >/dev/null 2>&1; then \
 		if [ -n "$${CI:-}" ]; then echo "FAIL: node absent in CI"; exit 1; fi; \
 		echo "SKIP: node not on PATH — the wasm test harness runs the module in Node"; \
+		echo "WASM_TEST_RESULT=SKIP:no-node"; \
 	else \
 		bash scripts/check-wasm-test-runner.sh \
 		&& export PURRDF_TEST_REQUIRE_EXACT=1 \
 		&& CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-gts --test mmr_preimages -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-gts --test mmr_preimages -- --exact \
 				streamed_mmr_roots_preserve_frozen_proofs_and_variable_frame_ids \
 		&& CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-rdf --test turtle_chains -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-rdf --test turtle_chains -- --exact \
 				blank_chains_at_one_hundred_thousand \
 				blank_chains_at_one_million \
 		&& CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-sparql-eval --test knn_wasm_reassociated -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-sparql-eval --test knn_wasm_reassociated -- --exact \
 				the_reassociated_path_is_the_one_this_build_was_made_for \
 		&& CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-sparql-eval --test stack_refusal -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-sparql-eval --test stack_refusal -- --exact \
 				prepared_evaluation_refuses_the_actual_smaller_stack_without_poisoning_the_caller \
 		&& CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-core --test model_traits -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-core --test model_traits -- --exact \
 				owned_term_walks_stay_inside_the_wasm_shadow_stack_floor \
 		&& CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-hnsw --test wasm_reassociated -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-hnsw --test wasm_reassociated -- --exact \
 				an_image_recorded_on_another_wasm_path_is_refused_by_name \
 				the_image_records_the_path_and_shape_this_build_was_made_for \
 		&& CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-columnar --test golden_bytes -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-columnar --test golden_bytes -- --exact \
 				seeded_files_are_the_pinned_bytes \
 		&& CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-hash-conformance --test blake3 -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-hash-conformance --test blake3 -- --exact \
 				required_backends_are_available \
 		&& CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-testkit --test bench -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-testkit --test bench -- --exact \
 				the_store_options_are_refused_on_wasm32 \
 				a_measured_run_reports_its_estimates \
 		&& CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-stack --test on_stack -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-stack --test on_stack -- --exact \
 				an_in_floor_request_runs \
 				a_scoped_in_floor_request_borrows_the_caller_s_locals \
 				an_over_floor_request_is_refused \
 				an_over_floor_scoped_request_is_refused \
 		&& CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-deflate --test deflate_conformance -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-deflate --test deflate_conformance -- --exact \
 				selected_backend_is_reported \
 		&& CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-xsd --test exact_wasm_determinism -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-xsd --test exact_wasm_determinism -- --exact \
 				the_transcript_digest_is_reproduced_on_this_target \
 				large_binary_products_match_the_schoolbook_oracle \
 		&& CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-sparql-eval --test query_coordinates -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-sparql-eval --test query_coordinates -- --exact \
 				supplied_inputs_repeat_complete_results_without_host_reads \
 				supplied_large_fraction_and_timezone_survive_repeated_now \
 				prepared_executions_select_fresh_inputs_without_changing_the_plan \
 				bounded_coordinate_owners_price_real_allocations_and_release_after_last_output \
 		&& CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-sparql-eval --test numeric_wasm_determinism -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-sparql-eval --test numeric_wasm_determinism -- --exact \
 				the_hand_answers_are_reproduced_on_this_target \
 				the_numeric_transcript_digest_is_reproduced_on_this_target \
 		&& CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-text --test wasm_determinism -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-text --test wasm_determinism -- --exact \
 				the_sentence_boundaries_are_reproduced_on_this_target \
 		&& CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-shapes --test rule_coordinates -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-shapes --test rule_coordinates -- --exact \
 				shacl_queries_keep_time_and_distinct_reproducible_seeds_across_focus_nodes \
 				parsed_rl_keeps_coordinates_on_both_carriers_and_restores_after_refusal \
 		&& CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-mime --test lossless -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-mime --test lossless -- --exact \
 				production_rdf_round_trip_is_deterministic_for_original_and_broken_messages \
 		&& env -u RUSTFLAGS \
 			CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS="$${RUSTFLAGS:-} $${CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS:-} -D warnings -C target-feature=+simd128" \
 			CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-sparql-eval --test knn_wasm_reassociated -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-sparql-eval --test knn_wasm_reassociated -- --exact \
 				the_reassociated_path_is_the_one_this_build_was_made_for \
 				the_reassociated_distance_is_within_the_error_bound_of_the_exact_one \
 		&& env -u RUSTFLAGS \
 			CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS="$${RUSTFLAGS:-} $${CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS:-} -D warnings -C target-feature=+simd128" \
 			CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-hnsw --test wasm_reassociated -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-hnsw --test wasm_reassociated -- --exact \
 				an_image_recorded_on_another_wasm_path_is_refused_by_name \
 				the_image_records_the_path_and_shape_this_build_was_made_for \
 		&& env -u RUSTFLAGS \
 			CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS="$${RUSTFLAGS:-} $${CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS:-} -D warnings -C target-feature=+simd128" \
 			CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-hash-conformance --test hex -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-hash-conformance --test hex -- --exact \
 				every_path_matches_portable \
 		&& env -u RUSTFLAGS \
 			CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS="$${RUSTFLAGS:-} $${CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS:-} -D warnings -C target-feature=+simd128" \
 			CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-hash-conformance --test blake3 -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-hash-conformance --test blake3 -- --exact \
 				required_backends_are_available \
 				official_modes_and_extended_output \
 				xof_large_output_and_seek_boundaries \
@@ -838,14 +872,14 @@ wasm-test: ## Execute WASM dispatch, SIMD kernels, shadow-stack, host-interface 
 		&& env -u RUSTFLAGS \
 			CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS="$${RUSTFLAGS:-} $${CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS:-} -D warnings -C target-feature=+simd128" \
 			CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-core --test csv_scan_wasm -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-core --test csv_scan_wasm -- --exact \
 				every_kernel_agrees_with_the_per_byte_scan_at_every_alignment_and_length \
 				every_kernel_agrees_with_the_per_byte_scan_over_seeded_inputs \
 				the_target_explicit_kernel_is_among_those_compared \
 		&& env -u RUSTFLAGS \
 			CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS="$${RUSTFLAGS:-} $${CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS:-} -D warnings -C target-feature=+simd128" \
 			CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=$(CURDIR)/scripts/wasm-test-runner.sh \
-			cargo test --locked --target wasm32-unknown-unknown -p purrdf-deflate --test deflate_conformance -- --exact \
+			$(BOUNDED) cargo test --locked --target wasm32-unknown-unknown -p purrdf-deflate --test deflate_conformance -- --exact \
 				selected_backend_is_reported \
 				every_kernel_path_encodes_and_decodes_the_same_bytes \
 				copy_kernels_match_portable \
@@ -912,7 +946,7 @@ wasm-pkg: ## Build the purrdf npm/ESM package (release wasm + wasm-bindgen web b
 	@# top its caller passes and returns with the idle pointer restored, and puts
 	@# every exported function behind the poison gate (crates/wasm-link). It validates
 	@# the module it writes and refuses one it does not recognize or has already linked.
-	cargo run -p wasm-link --release --locked -- crates/rdf-wasm/js/pkg/purrdf_wasm_bg.wasm
+	$(BOUNDED) cargo run -p wasm-link --release --locked -- crates/rdf-wasm/js/pkg/purrdf_wasm_bg.wasm
 	@# Durable proof that +simd128 actually produced SIMD codegen: a green
 	@# wasm-pkg-test round-trip only proves the module runs correctly, not that
 	@# it is vectorized — a memchr/RUSTFLAGS/dependency regression could ship a
@@ -970,19 +1004,19 @@ playground-smoke: playground ## Smoke the assembled console's worker dispatch an
 	PLAYGROUND_OUT="$(abspath $(PLAYGROUND_OUT))" node --test docs/playground/smoke/*.test.mjs
 
 capi-build: ## Build libpurrdf (cdylib + staticlib + header + pkg-config) via cargo-c.
-	cargo capi build -p purrdf-capi
+	$(BOUNDED) cargo capi build -p purrdf-capi
 
 capi-header: ## Regenerate the committed purrdf.h ABI contract from the crate.
 	python3 scripts/capi-header.py --write $(CAPI_HEADER)
 
-capi-check: ## Verify the committed purrdf.h is current + the C smoke links and runs.
+capi-check: bounded-preflight ## Verify the committed purrdf.h is current + the C smoke links and runs.
 	python3 scripts/capi-header.py --self-test
 	python3 scripts/capi-header.py --check $(CAPI_HEADER)
-	cargo test -p purrdf-capi --test c_smoke --locked
+	$(BOUNDED) cargo test -p purrdf-capi --test c_smoke --locked
 
 capi-install: ## Install libpurrdf + purrdf.pc + header to PREFIX (default /usr/local).
 	python3 scripts/package-licenses.py --profile c --check
-	cargo capi install -p purrdf-capi --prefix="$(if $(PREFIX),$(PREFIX),/usr/local)"
+	$(BOUNDED) cargo capi install -p purrdf-capi --prefix="$(if $(PREFIX),$(PREFIX),/usr/local)"
 	install -d "$(if $(PREFIX),$(PREFIX),/usr/local)/share/purrdf/licenses"
 	cp -R crates/rdf-capi/licenses/. "$(if $(PREFIX),$(PREFIX),/usr/local)/share/purrdf/licenses/"
 
@@ -996,3 +1030,66 @@ license-bundles: ## Regenerate recipient license texts, notice inventories and d
 
 capi-bundle: ## Build and audit the native C distribution, including all recipient notices.
 	python3 scripts/build-capi-bundle.py
+
+## fb-static: ladder tier 1 (static gates, bounded, no court).
+fb-static: ## Tier 1: rustfmt --check + fast Python static gates (no court).
+	bash scripts/fb-ladder.sh --tier 1 --no-court
+
+## fb-oracles: ladder tier 2 (Chicago oracles, no court).
+fb-oracles: ## Tier 2: crates/branchless/oracles pytest run (no court).
+	bash scripts/fb-ladder.sh --tier 2 --no-court
+
+## fb-probe: ladder tier 3 (leaf compile probe under lane lease, no court).
+fb-probe: ## Tier 3: bounded leaf cargo check under lease lane $(PURRDF_LANE) (no court).
+	PURRDF_FB_LANE=$(PURRDF_LANE) bash scripts/fb-ladder.sh --tier 3 --no-court
+
+## fb: full ladder (tiers 1-3) then the receipt court append+check.
+fb: bounded-preflight ## Full ladder tiers 1-3, then court append+check (inside the ladder).
+	bash scripts/fb-ladder.sh
+
+## fb-lane: run `make fb` under a named lane; typed usage error when LANE is empty.
+fb-lane: ## Run the full ladder as `make fb` under LANE=<name> (typed error if LANE empty).
+	@test -n "$(LANE)" || { echo "FAIL: fb-lane requires a lane name; usage: make fb-lane LANE=<lane>" >&2; exit 1; }
+	$(MAKE) fb PURRDF_LANE=$(LANE)
+
+# ---- Lane L20: bounded per-crate builds/tests under per-lane target leases ----
+#
+# NOTE ON THE SECONDS VARIABLES: the operator law is a HARD 5-second ceiling.
+# scripts/bounded enforces LIMIT=5 internally and by design accepts NO seconds
+# argument ("No argument may extend the limit"). These variables therefore
+# document the ceiling and are intentionally NOT forwarded to bounded; there is
+# no local way to raise it. Long-leasing (900s-class budgets) is a CI /
+# other-box idiom and is carried by the workflow environment, not here.
+PURRDF_LEASE_SECS ?= 5
+PURRDF_TEST_SECS  ?= 5
+PURRDF_LANE ?= dev
+CARGO_TEST_FILTER ?=
+
+## bt-<crate>: bounded 5s per-crate test run inside lane $(PURRDF_LANE)'s target dir.
+## MUST be declared BEFORE b%: GNU make resolves bt-<crate> to whichever of
+## b%/bt% appears FIRST (first-match wins, not shortest-stem), so a later bt%
+## would be shadowed by b% with the bogus stem t-<crate>.
+bt-%:
+	CARGO_INCREMENTAL=1 bash scripts/lane-lease.sh exec $(PURRDF_LANE) -- bash scripts/bounded cargo test -p $* --locked $(CARGO_TEST_FILTER)
+
+## b-<crate>: bounded 5s per-crate check (hot loop, no incremental).
+b-%:
+	CARGO_INCREMENTAL=0 bash scripts/bounded cargo check -p $* --locked
+
+## lane: show each per-lane target dir (HELD/idle + on-disk size).
+lane:
+	bash scripts/lane-lease.sh list
+
+## target-status: report target/ + target-lane-* disk state.
+target-status:
+	bash scripts/target-hygiene.sh status
+
+## target-prune: reclaim disk from stale target dirs (DRY=1 passthrough for dry run).
+target-prune:
+	bash scripts/target-hygiene.sh prune $(if $(DRY),--dry-run,)
+
+## ice: diagnose a stale/broken incremental cache for CRT=<crate>.
+ice:
+	bash scripts/target-hygiene.sh ice $(CRT)
+
+.PHONY: lane target-status target-prune ice

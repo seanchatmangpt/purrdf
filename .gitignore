@@ -24,3 +24,15 @@ __pycache__/
 .baseline
 .agents
 target-*
+# ...but NOT the hygiene tool itself (the target-* rule for lane dirs was
+# swallowing it; an unversioned hygiene tool is an unversioned gate).
+!scripts/target-hygiene.sh
+
+# runtime artifacts (never-commit; lane F4 recommendation, v26.10.26)
+scripts/.target-hygiene-state
+scripts/.target-hygiene-drift
+.claude/hooks/bounded-guard-receipts.log
+scripts/fb-receipts.jsonl.lock
+rustc-ice-*.txt
+texput.log
+.DS_Store

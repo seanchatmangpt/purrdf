@@ -513,7 +513,7 @@ _SPELLED = {
     1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven",
     8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve", 13: "thirteen",
     14: "fourteen", 15: "fifteen", 16: "sixteen", 17: "seventeen", 18: "eighteen",
-    19: "nineteen", 20: "twenty", 21: "twenty-one", 22: "twenty-two", 23: "twenty-three", 24: "twenty-four", 25: "twenty-five", 26: "twenty-six", 27: "twenty-seven", 33: "thirty-three",
+    19: "nineteen", 20: "twenty", 21: "twenty-one", 22: "twenty-two", 23: "twenty-three", 24: "twenty-four", 25: "twenty-five", 26: "twenty-six", 27: "twenty-seven", 28: "twenty-eight", 29: "twenty-nine", 30: "thirty", 31: "thirty-one", 32: "thirty-two", 33: "thirty-three", 34: "thirty-four", 35: "thirty-five", 36: "thirty-six", 37: "thirty-seven", 38: "thirty-eight", 39: "thirty-nine", 40: "forty",
 }
 
 # The same table read backwards, for `_int`. Derived rather than written out, so a
@@ -524,8 +524,9 @@ _CARDINAL = {word: value for value, word in _SPELLED.items()}
 # else does (four -> fourth, thirteen -> thirteenth), so the ordinals are derived
 # from the one cardinal table rather than written out a second time.
 _IRREGULAR_ORDINAL = {1: "first", 2: "second", 3: "third", 5: "fifth", 8: "eighth",
-                      9: "ninth", 12: "twelfth", 20: "twentieth",
-                      21: "twenty-first", 22: "twenty-second", 23: "twenty-third", 25: "twenty-fifth", 33: "thirty-third"}
+                      9: "ninth", 12: "twelfth", 20: "twentieth", 30: "thirtieth", 40: "fortieth",
+                      21: "twenty-first", 22: "twenty-second", 23: "twenty-third", 25: "twenty-fifth", 33: "thirty-third",
+                      31: "thirty-first", 32: "thirty-second", 28: "twenty-eighth", 38: "thirty-eighth"}
 
 
 def _ordinal(value: int) -> str | None:

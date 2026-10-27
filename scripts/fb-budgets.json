@@ -1,0 +1,7 @@
+{
+  "_comment": "Feedback-SLA p95 budgets. DOWNWARD-ONLY ratchet (governance shape of scripts/conformance-baseline.json): loosening a budget is a reviewed diff, never a local knob. tier-N: budget_s is the ceiling for that tier's wall clock; 'total' bounds the whole ladder. window/breaches: the drift alarm fires when >= breaches of the last window receipts exceed budget_s (sustained drift, not jitter). Operator law: scripts/bounded kills any single probe at 5s; these budgets are strictly tighter than the law.",
+  "tier-1": { "budget_s": 0.5, "window": 5, "breaches": 3 },
+  "tier-2": { "budget_s": 0.8, "window": 5, "breaches": 3 },
+  "tier-3": { "budget_s": 1.5, "window": 5, "breaches": 3 },
+  "total": { "budget_s": 2.5, "window": 5, "breaches": 3 }
+}

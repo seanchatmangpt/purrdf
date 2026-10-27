@@ -1,0 +1,197 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+name: Bounded gates
+
+# CI mirror of the local 5-second bounded-build law: every bounded stage runs
+# under `timeout -k 1 5`, so a stage that exceeds the SLA fails here exactly as
+# it fails locally. There is no rust cache and no build beyond the leaf probe:
+# this workflow is the gate, not the test suite (ci.yaml owns that).
+#
+# The fb-ladder job is the tiered receipt mirror of the same law: every stage
+# runs under `timeout -k 1 <sla>` and prints
+# `RECEIPT tier=N stage=<name> status=PASS|TIMEOUT|FAIL ms=<ms> sla=<ms>`, so a
+# CI log reads as a receipt log. TIMEOUT (rc 124/137) and FAIL both fail their
+# step; there is no continue-on-error and no unbounded stage.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "crates/branchless/**"
+      - "scripts/bounded*"
+      - "scripts/check-*"
+      - "scripts/test-bounded-guard.sh"
+      - ".claude/hooks/*"
+      - "helpers-ledger.toml"
+      - "layers.toml"
+      - ".github/workflows/bounded-gates.yml"
+
+# A newer run supersedes a stale one; PR runs only, never main.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  bounded:
+    name: Bounded gates (5s law)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        # Pinned SHA discipline: same revision ci.yaml pins.
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      # Stage 1 — leaf compile probe. The script is C7's; if it is absent at
+      # run time the step fails with a typed MISSING, never an inline substitute.
+      - name: Leaf compile probe
+        run: |
+          if [ ! -x scripts/check-leaf-compile.sh ]; then
+            echo "MISSING: scripts/check-leaf-compile.sh (C7 leaf-compile probe)" >&2
+            exit 1
+          fi
+          timeout -k 1 5 bash scripts/check-leaf-compile.sh
+
+      # The layers gate lives in the fb-ladder job below (tier 1), where it
+      # runs bounded and fail-closed. The old `--fast || default` fallback and
+      # the unbounded default-gate stage are deleted — the SLA is the SLA: a
+      # layer analysis that cannot fit its ceiling fails its step loudly rather
+      # than escaping the law it is supposed to enforce.
+
+      # Stage 2 — no_std audit. Typed MISSING if C17's script is absent.
+      - name: no_std audit
+        run: |
+          if [ ! -f scripts/check-no-std.py ]; then
+            echo "MISSING: scripts/check-no-std.py (C17 no_std audit)" >&2
+            exit 1
+          fi
+          timeout -k 1 5 python3 scripts/check-no-std.py
+
+      # Stage 3 — python oracles. The suite runs in 0.07s locally; the 5s ceiling
+      # is the CI budget it must fit.
+      - name: Python oracles (5s ceiling)
+        run: |
+          cd crates/branchless/oracles
+          timeout -k 1 5 python3 -m pytest -q
+
+      # Stage 4 — bounded-guard corpus. Not darwin-locked (no gtimeout paths;
+      # it feeds the hook via python3 and kills payloads via GNU timeout, both
+      # portable). Its own declared budget is 8s (it verifies wrapper kills), so
+      # it gets an 8s ceiling — a real regression still fails the step, this is
+      # not a continue-on-error pass. (The fb-ladder job below carries the same
+      # corpus at the measured 8.9s budget's 10s SLA.)
+      - name: Bounded-guard corpus (8s self-declared budget)
+        run: timeout -k 1 8 bash scripts/test-bounded-guard.sh
+
+  fb-ladder:
+    name: Feedback ladder (bounded tiers, receipted)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        # Pinned SHA discipline: same revision ci.yaml pins.
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      # Tier 1 — static python gates. Each stage is one bounded process with one
+      # receipt; a stage that outlives its SLA is killed and named TIMEOUT,
+      # never retried unbounded. check-layers runs here full (no --fast, no
+      # fallback): the SLA is the SLA.
+      - name: Tier 1a — static gates (toolchain pin, no_std)
+        run: |
+          bounded() {
+            local tier="$1" stage="$2" secs="$3" sla="$4"; shift 4
+            local rc=0 started ended ms status
+            started="$(date +%s%N)"
+            timeout -k 1 "${secs}" "$@" || rc=$?
+            ended="$(date +%s%N)"
+            ms=$(( (ended - started) / 1000000 ))
+            if [ "${rc}" -eq 0 ]; then
+              status=PASS
+            elif [ "${rc}" -eq 124 ] || [ "${rc}" -eq 137 ]; then
+              status=TIMEOUT
+            else
+              status=FAIL
+            fi
+            echo "RECEIPT tier=${tier} stage=${stage} status=${status} ms=${ms} sla=${sla}"
+            [ "${rc}" -eq 0 ] || exit 1
+          }
+          bounded 1 check-toolchain-pin 5 5000 python3 scripts/check-toolchain-pin.py
+          bounded 1 check-no-std 5 5000 python3 scripts/check-no-std.py
+
+      - name: Tier 1b — static gates (layers, serializer rewinds)
+        run: |
+          bounded() {
+            local tier="$1" stage="$2" secs="$3" sla="$4"; shift 4
+            local rc=0 started ended ms status
+            started="$(date +%s%N)"
+            timeout -k 1 "${secs}" "$@" || rc=$?
+            ended="$(date +%s%N)"
+            ms=$(( (ended - started) / 1000000 ))
+            if [ "${rc}" -eq 0 ]; then
+              status=PASS
+            elif [ "${rc}" -eq 124 ] || [ "${rc}" -eq 137 ]; then
+              status=TIMEOUT
+            else
+              status=FAIL
+            fi
+            echo "RECEIPT tier=${tier} stage=${stage} status=${status} ms=${ms} sla=${sla}"
+            [ "${rc}" -eq 0 ] || exit 1
+          }
+          bounded 1 check-layers 5 5000 python3 scripts/check-layers.py
+          bounded 1 check-serializer-rewinds 5 5000 python3 scripts/check-serializer-rewinds.py
+
+      # Tier 2 — python oracles. The suite runs in 0.07s locally; the 5s ceiling
+      # is the CI budget it must fit.
+      - name: Tier 2 — python oracles
+        run: |
+          bounded() {
+            local tier="$1" stage="$2" secs="$3" sla="$4"; shift 4
+            local rc=0 started ended ms status
+            started="$(date +%s%N)"
+            timeout -k 1 "${secs}" "$@" || rc=$?
+            ended="$(date +%s%N)"
+            ms=$(( (ended - started) / 1000000 ))
+            if [ "${rc}" -eq 0 ]; then
+              status=PASS
+            elif [ "${rc}" -eq 124 ] || [ "${rc}" -eq 137 ]; then
+              status=TIMEOUT
+            else
+              status=FAIL
+            fi
+            echo "RECEIPT tier=${tier} stage=${stage} status=${status} ms=${ms} sla=${sla}"
+            [ "${rc}" -eq 0 ] || exit 1
+          }
+          bounded 2 python-oracles 5 5000 bash -c 'cd crates/branchless/oracles && python3 -m pytest -q'
+
+      # Tier 3 — bounded-guard corpus and the leaf compile probe. The corpus
+      # verifies wrapper kills and measured 8.9s against its own budget, so it
+      # carries the one 10s SLA on this ladder; the leaf probe keeps the 5s law.
+      - name: Tier 3 — bounded-guard corpus and leaf compile probe
+        run: |
+          bounded() {
+            local tier="$1" stage="$2" secs="$3" sla="$4"; shift 4
+            local rc=0 started ended ms status
+            started="$(date +%s%N)"
+            timeout -k 1 "${secs}" "$@" || rc=$?
+            ended="$(date +%s%N)"
+            ms=$(( (ended - started) / 1000000 ))
+            if [ "${rc}" -eq 0 ]; then
+              status=PASS
+            elif [ "${rc}" -eq 124 ] || [ "${rc}" -eq 137 ]; then
+              status=TIMEOUT
+            else
+              status=FAIL
+            fi
+            echo "RECEIPT tier=${tier} stage=${stage} status=${status} ms=${ms} sla=${sla}"
+            [ "${rc}" -eq 0 ] || exit 1
+          }
+          bounded 3 bounded-guard-corpus 10 10000 bash scripts/test-bounded-guard.sh
+          bounded 3 leaf-compile-probe 5 5000 bash scripts/check-leaf-compile.sh

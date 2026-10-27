@@ -46,6 +46,8 @@
 # shellcheck disable=SC2034  # consumed by the sourcing script.
 PURRDF_RELEASE_CRATES=(
   purrdf-hash
+  purrdf-branchless
+  purrdf-arrow
   purrdf-stack
   purrdf-lex
   purrdf-events
@@ -60,7 +62,6 @@ PURRDF_RELEASE_CRATES=(
   purrdf-geo-kernel
   purrdf-columnar
   purrdf-datalog
-  purrdf-n3
   purrdf-entail
   purrdf-sparql-algebra
   purrdf-sparql-results
@@ -69,12 +70,15 @@ PURRDF_RELEASE_CRATES=(
   purrdf-text
   purrdf-retrieval
   purrdf-rdf
+  purrdf-n3
   purrdf-markdown
   purrdf-mime
   purrdf-json
   purrdf-toml
   purrdf-slice
   purrdf-shapes
+  purrdf-sql
+  purrdf-duckdb
   purrdf-geo
   purrdf-shex
   purrdf-validate
@@ -104,4 +108,13 @@ PURRDF_RELEASE_CRATES=(
 # refuses any entry that has a record, by name.
 
 # shellcheck disable=SC2034  # consumed by the sourcing script.
-PURRDF_UNBOOTSTRAPPED_CRATES=(purrdf-geo-kernel purrdf-mime purrdf-toml purrdf-glob)
+PURRDF_UNBOOTSTRAPPED_CRATES=(
+  purrdf-branchless
+  purrdf-arrow
+  purrdf-geo-kernel
+  purrdf-mime
+  purrdf-toml
+  purrdf-sql
+  purrdf-duckdb
+  purrdf-glob
+)

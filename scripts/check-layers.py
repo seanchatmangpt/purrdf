@@ -9,7 +9,8 @@ decides where one implementation of a job may go. Left undeclared, that graph
 grows by whatever edge was convenient on the day, and the lowest common crate of
 two callers drifts upward until the only place a helper fits is a crate that
 half its callers must not depend on. ``layers.toml`` is the declaration; this gate
-compares it with the graph ``cargo metadata`` resolves, and fails on:
+compares it with the resolved graph — static manifest resolution by default,
+``cargo metadata`` under ``--via-cargo`` — and fails on:
 
 * a first-party NORMAL edge no row allows (an edge to the declared root is
   always allowed, and is listed like any other so the table stays exact);
@@ -29,20 +30,42 @@ all, and a row carrying ``external`` is ring-fenced — each of its normal
 dependencies is one of its listed first-party ``deps`` or one of the external
 packages ``external`` names, and a listed external it no longer has is STALE.
 
+The DEFAULT mode is the exact static resolver: it reads every member manifest's
+``[dependencies]`` and ``[target.*.dependencies]`` sections (dev and build
+dependencies are excluded — layering is normal-only), resolves first-party
+entries the way cargo does (workspace aliases, ``package =`` renames, path
+dependencies into members), intersects with the member set exactly as the
+cargo path does, and diffs the edge set against ``layers.toml`` — no cargo
+subprocess, no Cargo.lock, the whole gate in tens of milliseconds. The only
+things it cannot see live in features and workspace resolver behavior; the
+``--via-cargo`` flag runs the identical diff through the authoritative
+``cargo metadata`` graph, asserts the static and cargo member and edge sets
+are IDENTICAL (printing both sides of any symmetric difference), and prints
+both counts — the standing cross-check that keeps the static resolver honest.
+
+``--fast`` is a NECESSARY-NOT-SUFFICIENT pre-check that touches no Cargo.lock
+and runs no cargo at all (a sub-200ms developer loop, not a gate). It reads
+``layers.toml`` and each ``crates/*/Cargo.toml`` top-level ``[dependencies]``
+section only — target tables, dev/build sections and rename subtleties are its
+known blind spots, by design — and requires the declared set and the row's
+present edges to be exactly equal, both ways.
+
 ``--home-for A B …`` answers the placement question: over the declared graph
 (pending edges included), the crates every one of ``A``, ``B``, … reaches,
 directly or transitively (each crate reaches itself), minus any that another of
 them reaches — the common dependency closest to the callers. When the callers
 share nothing else it is the root, which every crate may depend on.
 
-The resolved graph comes from ``check-banned-deps.py``'s ``cargo_metadata`` and
-``graph_from_metadata``; this script imports them rather than restating them.
+The ``--via-cargo`` and ``--ring-fence`` graphs come from
+``check-banned-deps.py``'s ``cargo_metadata`` and ``graph_from_metadata``; this
+script imports them rather than restating them.
 """
 
 from __future__ import annotations
 
 import importlib.util
 import sys
+from time import perf_counter
 import tempfile
 import tomllib
 from dataclasses import dataclass, field
@@ -488,6 +511,76 @@ def self_test() -> int:
         (crates / "gts" / "src" / "lib.rs").write_text(f"{FORBID_UNSAFE_ATTRIBUTE}\n", encoding="utf-8")
         (crates / "slice" / "src" / "lib.rs").unlink()
         cases.append(("a crate with no lib.rs is reported", len(forbid_unsafe_failures(crates)) == 1))
+    mini_layers = parse_layers(
+        tomllib.loads(
+            'root = "r"\n[[crate]]\nname = "r"\ndeps = []\n[[crate]]\nname = "a"\ndeps = ["r"]\n'
+            '[[crate]]\nname = "b"\ndeps = []\n'
+        )
+    )
+    with tempfile.TemporaryDirectory() as scratch:
+        root = Path(scratch)
+        (root / "Cargo.toml").write_text('[workspace]\nmembers = ["r", "a", "b"]\n', encoding="utf-8")
+        for crate, deps in (("r", ""), ("a", 'r = { workspace = true }\nbogus = "1"\n')):
+            crate_dir = root / crate
+            crate_dir.mkdir()
+            (crate_dir / "Cargo.toml").write_text(
+                f'[package]\nname = "{crate}"\n[dependencies]\n{deps}', encoding="utf-8"
+            )
+        (root / "b").mkdir()
+        (root / "b" / "Cargo.toml").write_text('[package]\nname = "b"\n', encoding="utf-8")
+        cases.append(("the fast pre-check passes an agreeing mini-tree", fast_failures(mini_layers, root) == []))
+        (root / "a" / "Cargo.toml").write_text(
+            '[package]\nname = "a"\n[dependencies]\nr = { workspace = true }\nb = { workspace = true }\n',
+            encoding="utf-8",
+        )
+        wrong = fast_failures(mini_layers, root)
+        cases.append(
+            ("a wrong first-party edge fails the fast pre-check (exit-1 class)", any("`a` -> `b`" in line for line in wrong))
+        )
+        (root / "a" / "Cargo.toml").write_text(
+            '[package]\nname = "a"\n[dependencies]\nb = { workspace = true }\n', encoding="utf-8"
+        )
+        wrong = fast_failures(mini_layers, root)
+        cases.append(
+            (
+                "a missing first-party edge is reported both ways by the fast pre-check",
+                any("`a` -> `r` is listed in layers.toml but not declared" in line for line in wrong)
+                and any("`a` -> `b` is declared" in line for line in wrong),
+            )
+        )
+        (root / "a" / "Cargo.toml").write_text(
+            '[package]\nname = "a"\n[dependencies]\nrs = { workspace = true }\n', encoding="utf-8"
+        )
+        (root / "Cargo.toml").write_text(
+            '[workspace]\nmembers = ["r", "a", "b"]\n[workspace.dependencies]\nrs = { package = "r" }\n',
+            encoding="utf-8",
+        )
+        cases.append(("an aliased workspace dependency resolves to its package", fast_failures(mini_layers, root) == []))
+        (root / "a" / "Cargo.toml").write_text(
+            '[package]\nname = "a"\n[dependencies]\n'
+            "[target.'cfg(unix)'.dependencies]\nr = { workspace = true }\n",
+            encoding="utf-8",
+        )
+        cases.append(("a target-table first-party edge enters the static graph", ("a", "r") in static_graph(root)[1]))
+        (root / "a" / "Cargo.toml").write_text(
+            '[package]\nname = "a"\n[dev-dependencies]\nb = { workspace = true }\n',
+            encoding="utf-8",
+        )
+        cases.append(
+            ("a dev-only first-party edge stays out of the static graph", ("a", "b") not in static_graph(root)[1])
+        )
+        (root / "a" / "Cargo.toml").write_text(
+            '[package]\nname = "a"\n[dependencies]\nrr = { workspace = true }\n',
+            encoding="utf-8",
+        )
+        (root / "Cargo.toml").write_text(
+            '[workspace]\nmembers = ["r", "a", "b"]\n[workspace.dependencies]\nrr = { package = "r" }\n',
+            encoding="utf-8",
+        )
+        cases.append(("a renamed workspace dependency resolves to its package", ("a", "r") in static_graph(root)[1]))
+    real_edges = static_graph(REPO_ROOT)[1]
+    cases.append(("the static resolver finds a known real edge", ("purrdf-core", "purrdf-hash") in real_edges))
+    cases.append(("the static resolver invents no reversed edge", ("purrdf-hash", "purrdf-core") not in real_edges))
     failed = 0
     for name, held in cases:
         print(f"{'PASS' if held else 'FAIL'}: {name}")
@@ -510,6 +603,161 @@ def _without(edge: tuple[str, str]):
 def load_layers() -> Layers:
     with LAYERS_PATH.open("rb") as handle:
         return parse_layers(tomllib.load(handle))
+
+
+def workspace_members(repo_root: Path) -> tuple[dict[str, Path], dict[str, str]]:
+    """Every workspace member's package name -> its manifest, read from the root
+    manifest's ``[workspace]`` table (globs expanded); plus the
+    ``[workspace.dependencies]`` alias table (key -> package name) so a member's
+    ``x = { workspace = true }`` entry resolves to the package it really names.
+    A member whose manifest is unreadable or has no name is skipped."""
+    try:
+        document = tomllib.loads((repo_root / "Cargo.toml").read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}, {}
+    table = document.get("workspace", {})
+    aliases = {
+        key: entry["package"]
+        for key, entry in table.get("dependencies", {}).items()
+        if isinstance(entry, dict) and isinstance(entry.get("package"), str)
+    }
+    names: dict[str, Path] = {}
+    for pattern in table.get("members", []):
+        if not isinstance(pattern, str):
+            continue
+        candidates = [repo_root / pattern / "Cargo.toml"] if not any(c in pattern for c in "*?[") else sorted(repo_root.glob(pattern))
+        for found in candidates:
+            manifest = found if found.name == "Cargo.toml" else found / "Cargo.toml"
+            try:
+                name = tomllib.loads(manifest.read_text(encoding="utf-8"))["package"]["name"]
+            except (OSError, tomllib.TOMLDecodeError, KeyError, TypeError):
+                continue
+            names[name] = manifest
+    return names, aliases
+
+
+def resolved_first_party(
+    section: dict, manifest: Path, names: dict[str, Path], aliases: dict[str, str]
+) -> set[str]:
+    """The first-party workspace packages one dependency section declares: a
+    ``workspace = true`` entry resolves through the alias table (``x = { package
+    = "…" }`` resolves to the package it names), a ``path`` entry resolving to a
+    member manifest resolves to that member's name, a plain string resolves
+    through the aliases too; anything else keeps its key and is kept only if it
+    names a member."""
+    found: set[str] = set()
+    for key, value in section.items():
+        if isinstance(value, dict):
+            if "workspace" in value:
+                name = aliases.get(key, key)
+            else:
+                name = value.get("package", key)
+                if "path" in value:
+                    target = (manifest.parent / value["path"] / "Cargo.toml").resolve()
+                    name = next((n for n, m in names.items() if m.resolve() == target), name)
+        else:
+            name = aliases.get(key, key)
+        if name in names:
+            found.add(name)
+    return found
+
+
+def manifest_first_party_deps(
+    manifest: Path, names: dict[str, Path], aliases: dict[str, str]
+) -> set[str]:
+    """The first-party workspace packages a member's top-level ``[dependencies]``
+    section declares. NECESSARY-NOT-SUFFICIENT (the ``--fast`` pre-check's
+    resolver): reads only that section — ``[dev-dependencies]``,
+    ``[build-dependencies]`` and ``[target.*]`` tables are not layering or are
+    not read; features and workspace resolution are the full gate's job. The
+    DEFAULT mode uses ``static_graph`` below, which reads the normal sections
+    on every target."""
+    try:
+        document = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return set()
+    section = document.get("dependencies")
+    if not isinstance(section, dict):
+        return set()
+    return resolved_first_party(section, manifest, names, aliases)
+
+
+def normal_sections(document: dict) -> list[dict]:
+    """Every table of a parsed manifest that declares NORMAL dependencies: the
+    top-level ``[dependencies]`` plus each ``[target.<spec>.dependencies]``.
+    ``[dev-dependencies]`` and ``[build-dependencies]`` never enter the edge
+    set — layering is normal-only."""
+    sections: list[dict] = []
+    top = document.get("dependencies")
+    if isinstance(top, dict):
+        sections.append(top)
+    for spec, table in document.get("target", {}).items():
+        if isinstance(table, dict):
+            section = table.get("dependencies")
+            if isinstance(section, dict):
+                sections.append(section)
+    return sections
+
+
+def static_graph(repo_root: Path) -> tuple[dict[str, Path], set[tuple[str, str]]]:
+    """(member name -> manifest, first-party NORMAL edges) resolved statically
+    from the manifests — no cargo subprocess, no Cargo.lock. Each member's
+    ``[dependencies]`` and ``[target.*.dependencies]`` tables are resolved
+    against the member set (dev and build dependencies excluded, layering being
+    normal-only), and the result is intersected with the members — identical
+    semantics to ``resolved_edges`` over cargo's graph. ``failures()`` diffs
+    this edge set against the layers.toml rows exactly as it does the cargo
+    one; ``--via-cargo`` asserts the two resolvers agree."""
+    names, aliases = workspace_members(repo_root)
+    edges: set[tuple[str, str]] = set()
+    for source, manifest in names.items():
+        try:
+            document = tomllib.loads(manifest.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        for section in normal_sections(document):
+            for target in resolved_first_party(section, manifest, names, aliases):
+                edges.add((source, target))
+    return names, edges
+
+
+def fast_failures(layers: Layers, repo_root: Path) -> list[str]:
+    """Every exact disagreement between each member's declared first-party
+    ``[dependencies]`` and its row's present edges — the fast pre-check."""
+    names, aliases = workspace_members(repo_root)
+    found: list[str] = []
+    for name in sorted(set(names) - set(layers.deps)):
+        found.append(
+            f"FAIL: crate `{name}` has no [[crate]] row in layers.toml (fast pre-check; "
+            "the full gate gives the authoritative verdict)"
+        )
+    for name in sorted(set(layers.deps) - set(names) - layers.pending_crates):
+        found.append(f"FAIL: layers.toml row `{name}` names no workspace member (STALE; fast pre-check)")
+    for source in sorted(set(names) & set(layers.deps) - layers.pending_crates):
+        row = layers.deps[source]
+        present = {dep for dep, pending in row.items() if not pending}
+        declared = manifest_first_party_deps(names[source], names, aliases)
+        for target in sorted(declared - present):
+            if target in row and row[target]:
+                found.append(
+                    f"FAIL: `{source}` -> `{target}` is declared in Cargo.toml but its row "
+                    "still marks it pending; flip it to present"
+                )
+            else:
+                found.append(
+                    f"FAIL: `{source}` -> `{target}` is declared in Cargo.toml but layers.toml "
+                    "does not list it as a present edge (fast pre-check)"
+                )
+        for target in sorted(present - declared):
+            found.append(
+                f"FAIL: `{source}` -> `{target}` is listed in layers.toml but not declared in "
+                "the crate's [dependencies] (STALE or feature/target-resolved; fast pre-check, "
+                "the full gate decides)"
+            )
+    loop = cycle(layers)
+    if loop:
+        found.append(f"FAIL: the declared graph has a cycle: {' -> '.join(loop)}")
+    return found
 
 
 def main() -> int:
@@ -538,6 +786,20 @@ def main() -> int:
             f"{fenced} is listed in its layers.toml row"
         )
         return 0
+    if arguments == ["--fast"]:
+        started = perf_counter()
+        found = fast_failures(layers, REPO_ROOT)
+        elapsed_ms = (perf_counter() - started) * 1000.0
+        if found:
+            for line in found:
+                print(line)
+            return 1
+        print(
+            f"OK (fast pre-check): every workspace member's declared [dependencies] match "
+            f"layers.toml ({sum(name not in layers.pending_crates for name in layers.deps)} non-pending rows); necessary-not-sufficient, "
+            f"run the full gate for the authoritative verdict; {elapsed_ms:.1f} ms"
+        )
+        return 0
     if arguments[:1] == ["--home-for"]:
         callers = arguments[1:]
         if not callers:
@@ -551,25 +813,59 @@ def main() -> int:
         for name in homes:
             print(name)
         return 0
+    if arguments == ["--via-cargo"]:
+        started = perf_counter()
+        s_names, s_edges = static_graph(REPO_ROOT)
+        try:
+            graph = BANNED_DEPS.graph_from_metadata(BANNED_DEPS.cargo_metadata(REPO_ROOT / "Cargo.toml"))
+        except BANNED_DEPS.MetadataError as exc:
+            print(f"FAIL: {exc}")
+            return 1
+        c_members, c_edges = resolved_edges(graph)
+        elapsed_ms = (perf_counter() - started) * 1000.0
+        member_diff = sorted(set(s_names) ^ c_members)
+        edge_diff = sorted(s_edges ^ c_edges)
+        if member_diff or edge_diff:
+            print("FAIL: the static and cargo resolutions of the workspace graph disagree:")
+            for name in member_diff:
+                side = "static only" if name in s_names else "cargo only"
+                print(f"FAIL: member `{name}` ({side})")
+            for source, target in edge_diff:
+                side = "static only" if (source, target) in s_edges else "cargo only"
+                print(f"FAIL: edge `{source}` -> `{target}` ({side})")
+            return 1
+        found = failures(layers, c_members, c_edges) + forbid_unsafe_failures(REPO_ROOT / "crates")
+        if found:
+            for line in found:
+                print(line)
+            return 1
+        print(
+            f"OK: static {len(s_edges)} edges / {len(s_names)} members; "
+            f"cargo {len(c_edges)} edges / {len(c_members)} members — IDENTICAL; "
+            f"layers.toml agrees; {elapsed_ms:.0f} ms"
+        )
+        return 0
     if arguments:
-        print("usage: check-layers.py [--self-test | --ring-fence | --home-for CRATE [CRATE ...]]", file=sys.stderr)
+        print(
+            "usage: check-layers.py [--self-test | --fast | --via-cargo | --ring-fence"
+            " | --home-for CRATE [CRATE ...]]",
+            file=sys.stderr,
+        )
         return 2
-    try:
-        graph = BANNED_DEPS.graph_from_metadata(BANNED_DEPS.cargo_metadata(REPO_ROOT / "Cargo.toml"))
-    except BANNED_DEPS.MetadataError as exc:
-        print(f"FAIL: {exc}")
-        return 1
-    members, edges = resolved_edges(graph)
-    found = failures(layers, members, edges) + forbid_unsafe_failures(REPO_ROOT / "crates")
+    started = perf_counter()
+    names, edges = static_graph(REPO_ROOT)
+    elapsed_ms = (perf_counter() - started) * 1000.0
+    found = failures(layers, set(names), edges) + forbid_unsafe_failures(REPO_ROOT / "crates")
     if found:
         for line in found:
             print(line)
         return 1
     pending = sum(pending for deps in layers.deps.values() for pending in deps.values())
     print(
-        f"OK: {len(edges)} first-party normal edges across {len(members)} members match "
-        f"layers.toml ({pending} planned edges, {len(layers.pending_crates)} planned crates); "
-        f"{len(FORBID_UNSAFE_CRATES)} crates forbid unsafe_code"
+        f"OK: {len(edges)} first-party normal edges across {len(names)} members match "
+        f"layers.toml (static manifest resolution, no cargo; {pending} planned edges, "
+        f"{len(layers.pending_crates)} planned crates); "
+        f"{len(FORBID_UNSAFE_CRATES)} crates forbid unsafe_code; {elapsed_ms:.0f} ms"
     )
     return 0
 

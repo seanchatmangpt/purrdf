@@ -447,7 +447,41 @@ Release lanes (`release-cargo`, `release-npm`, `release-pypi`) build on
 consumer installs, and shipping one from an unreleased compiler is risk without
 upside.
 
-## 4. Performance discipline
+## 4. Feedback-loop SLA (5 seconds)
+
+Every verification probe on this machine runs inside a tiered feedback-loop SLA
+with one hard law: `scripts/bounded` kills any single probe at 5s wall clock, no
+exceptions and no parameter to extend it. Inside that law the fb ladder
+(`scripts/fb-ladder.sh`, entry point `make fb`) runs three tiers, each with a
+downward-only budget ceiling (`scripts/fb-budgets.json`; loosening a budget is a
+reviewed diff, never a local knob):
+
+| Tier | Ceiling | Typical | Probes |
+|---|---|---|---|
+| t1 static | 0.5s | <100ms each | rustfmt --check + fast Python gates |
+| t2 oracle | 0.8s | ~0.6s | branchless pytest over the frozen JSON vectors |
+| t3 leaf probe | 1.5s | — | warm `cargo check -p purrdf-branchless --locked` |
+| ladder total | 2.5s | — | all rungs in one `scripts/fb-ladder.sh` pass |
+
+The t1 gates are `check-layers.py`, `check-no-std.py` and `bounded-fmt.sh`; the
+t2 oracles live in `crates/branchless/oracles` (10ms per test, 1s per session);
+the t3 lease comes from `scripts/lane-lease.sh`.
+
+Diagnosis rule: a breached bound means the probe is wrong, not the machine — shrink
+it or re-tier it, never retry blind. Anything colder than the t3 ceiling is CI-only
+or async: `.github/workflows/bounded-gates.yml` owns those stages (the Makefile
+guard flips via `PURRDF_BOUNDED_LOCAL=0`, owned by CI).
+
+Receipts are the register of truth for this SLA. `scripts/bounded` emits a typed
+`BOUNDED-TIMEOUT` line plus its exit status; the PreToolUse guard
+(`.claude/hooks/bounded_build_guard.py`) refuses unbounded builds before the wrapper
+runs, with `scripts/test-bounded-guard.sh` as its non-vacuity corpus; every ladder
+rung emits the one-home receipt line (`scripts/fb-receipt.sh` grammar
+`FB <tier> <name> <count> <ms> <status>`; sole sanctioned variant
+`scripts/fb-receipt.py`), appended to `scripts/fb-receipts.jsonl` and checked
+against `scripts/fb-budgets.json` by the fail-closed court `scripts/fb-court.py`.
+
+## 5. Performance discipline
 
 This library is a hot-path backbone. The IR is an immutable, value-interned
 dataset (`TermId` = niche-optimized `NonZeroU32`, string arena, store-once
@@ -493,7 +527,7 @@ values — and neither it nor `[profile.dev]` may set `lto` or
 `codegen-units = 1`: both serialize codegen and inflate link memory, which is
 what a constantly-rebuilt, cold-in-CI gate wants least.
 
-## 5. Brand & naming
+## 6. Brand & naming
 
 The project name is written **PurRDF** in prose (never PurrDF/PURRDF); all
 package/crate/binary identifiers are lowercase `purrdf`. See
@@ -501,7 +535,7 @@ package/crate/binary identifiers are lowercase `purrdf`. See
 black-cat family system — `#cat-head-core` is shared verbatim; only the
 `#service-triple` group is purrdf-specific.
 
-## 6. Releases
+## 7. Releases
 
 Tag-driven trusted publishing: `rust-v*` → crates.io (35 crates, ordered),
 `py-v*` → PyPI (`purrdf`). See [`docs/RELEASE.md`](./docs/RELEASE.md). Version
@@ -516,7 +550,7 @@ dev-dependencies of published crates, so their root `[workspace.dependencies]` e
 the only way `cargo publish`'s dev-dependency-resolving verification step can
 succeed.
 
-## 7. Provenance
+## 8. Provenance
 
 This repo was extracted from `gmeow-ontology` and `gmeow-gts` — see
 [`PROVENANCE.md`](./PROVENANCE.md) for source commits. PurRDF's replacement
