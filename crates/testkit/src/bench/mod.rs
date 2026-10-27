@@ -34,7 +34,13 @@
 //!    samples together last the measurement time (5 s by default); there are
 //!    100 samples by default and never fewer than 10. A routine too slow for
 //!    that budget still gets its samples, with a printed warning naming the
-//!    time they will take.
+//!    time they will take. The whole benchmark is bounded by a wall-clock
+//!    ceiling ([`MAX_BENCH_WALL`], 30 s, lowerable with `--wall-max` or
+//!    [`Bench::wall_max`], never raiseable): warm-up is capped at half the
+//!    ceiling, sampling at the rest, and sampling stops early — reporting the
+//!    samples it took, still printing and recording normally — when the
+//!    budget is spent. A `measurement_time` above the ceiling is therefore
+//!    truncated by it: the ceiling wins.
 //! 3. **Analysis** ([`stats`]). The median time per iteration, its median
 //!    absolute deviation, and a 95% bootstrap percentile interval of the median
 //!    over 10 000 resamples seeded from the benchmark's id through
@@ -53,8 +59,8 @@
 //!
 //! See [`USAGE`] and [`Arguments`]: a filter, `--exact`, `--bench`, `--test`,
 //! `--list`, `--quick`, `--save-baseline`, `--baseline`, `--baseline-lenient`,
-//! `--noplot` and `--help`. Every other option is refused by name, with exit
-//! status 101.
+//! `--wall-max`, `--noplot` and `--help`. Every other option is refused by
+//! name, with exit status 101.
 //!
 //! # Output
 //!
@@ -106,6 +112,12 @@ pub const NOISE_THRESHOLD: f64 = 0.01;
 
 /// The fewest samples a benchmark may take.
 pub const MIN_SAMPLE_SIZE: usize = 10;
+
+/// The wall-clock ceiling for one benchmark's warm-up plus sampling. A
+/// benchmark that reaches it stops sampling early and reports the samples it
+/// took — it still prints and records normally, and the summary names the
+/// actual sample count. `--wall-max` may lower the ceiling, never raise it.
+pub const MAX_BENCH_WALL: Duration = Duration::from_secs(30);
 
 /// The work one iteration of a benchmark does, for a rate beside its time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -224,6 +236,7 @@ struct Config {
     sample_size: usize,
     warm_up_time: Duration,
     measurement_time: Duration,
+    wall_max: Duration,
 }
 
 impl Config {
@@ -231,6 +244,7 @@ impl Config {
         sample_size: 100,
         warm_up_time: Duration::from_secs(3),
         measurement_time: Duration::from_secs(5),
+        wall_max: MAX_BENCH_WALL,
     };
 
     /// `--quick`'s caps.
@@ -239,6 +253,18 @@ impl Config {
             sample_size: MIN_SAMPLE_SIZE,
             warm_up_time: self.warm_up_time.min(Duration::from_millis(500)),
             measurement_time: self.measurement_time.min(Duration::from_secs(1)),
+            ..self
+        }
+    }
+
+    /// Cap the wall-clock ceiling at `wall_max` (a ceiling is only ever
+    /// lowered: [`MAX_BENCH_WALL`] always wins over a larger request).
+    fn with_wall_max(self, wall_max: Duration) -> Self {
+        Self {
+            sample_size: self.sample_size,
+            warm_up_time: self.warm_up_time,
+            measurement_time: self.measurement_time,
+            wall_max: self.wall_max.min(wall_max),
         }
     }
 }
@@ -404,8 +430,9 @@ pub struct Bench {
 }
 
 impl Default for Bench {
-    /// The default timing (100 samples, 3 s warm-up, 5 s measurement) with
-    /// `cargo bench`'s default arguments, reporting to the process's run.
+    /// The default timing (100 samples, 3 s warm-up, 5 s measurement) under
+    /// the [`MAX_BENCH_WALL`] wall-clock ceiling, with `cargo bench`'s default
+    /// arguments, reporting to the process's run.
     fn default() -> Self {
         Self {
             config: Config::DEFAULT,
@@ -473,6 +500,24 @@ impl Bench {
     #[must_use]
     pub fn measurement_time(mut self, duration: Duration) -> Self {
         self.config.measurement_time = checked_duration("measurement time", duration);
+        self
+    }
+
+    /// Lower the per-benchmark wall-clock ceiling to `duration` (at least one
+    /// second, at most [`MAX_BENCH_WALL`]). Warm-up is capped at half the
+    /// ceiling and sampling at the rest; a benchmark that reaches the ceiling
+    /// stops sampling early, reports the samples it took, and still prints
+    /// and records normally — it is not a failure.
+    ///
+    /// # Contract
+    ///
+    /// No benchmark this run measures may run longer than [`MAX_BENCH_WALL`]
+    /// (30 s) of wall clock, whatever `warm_up_time` and `measurement_time`
+    /// ask for — those shape the run inside the ceiling, the ceiling wins.
+    #[must_use]
+    pub fn wall_max(mut self, duration: Duration) -> Self {
+        assert!(!duration.is_zero(), "the wall-clock ceiling must be longer than zero");
+        self.config.wall_max = MAX_BENCH_WALL.min(duration);
         self
     }
 
@@ -597,11 +642,14 @@ impl Bench {
         throughput: Option<Throughput>,
         routine: &mut dyn FnMut(&mut Bencher),
     ) {
+        // `--quick` caps the timing, `--wall-max` (and [`MAX_BENCH_WALL`]) the
+        // wall clock; the operator ceiling always wins.
         let config = if self.arguments.quick {
             config.quick()
         } else {
             config
-        };
+        }
+        .with_wall_max(self.arguments.wall_max);
         let baseline = match self.load_baseline(id) {
             Ok(baseline) => baseline,
             Err(message) => return self.fail(text, message),
@@ -899,10 +947,14 @@ struct Sampled {
     warning: Option<String>,
 }
 
-/// Warm `routine` up, then take `config.sample_size` samples of it.
+/// Warm `routine` up, then take `config.sample_size` samples of it, stopping
+/// early when the wall-clock ceiling (`config.wall_max`) is reached.
 fn sample(config: Config, routine: &mut dyn FnMut(&mut Bencher)) -> Sampled {
+    // Warm-up is capped at half the ceiling so warm-up plus sampling stays
+    // inside it, whatever the configured warm-up time asks for.
+    let warm_up_budget = config.warm_up_time.min(config.wall_max / 2);
     let warm_up = platform::Stopwatch::start();
-    let warm_up_seconds = config.warm_up_time.as_secs_f64();
+    let warm_up_seconds = warm_up_budget.as_secs_f64();
     let mut iterations = 1_u64;
     let mut total_iterations = 0_u64;
     let mut total_nanos = 0.0;
@@ -914,27 +966,49 @@ fn sample(config: Config, routine: &mut dyn FnMut(&mut Bencher)) -> Sampled {
         }
         iterations = iterations.saturating_mul(2);
     }
+    let warm_up_elapsed = warm_up.seconds();
     // The timed estimate, or the wall clock's when the routine timed below
     // the clock's resolution.
     let per_iteration = if total_nanos > 0.0 {
         total_nanos / total_iterations as f64
     } else {
-        warm_up.seconds() * 1e9 / total_iterations as f64
+        warm_up_elapsed * 1e9 / total_iterations as f64
     };
     let measurement_nanos = config.measurement_time.as_secs_f64() * 1e9;
     let sample_count = config.sample_size;
     let iterations_per_sample =
         ((measurement_nanos / sample_count as f64 / per_iteration).ceil() as u64).max(1);
     let expected_seconds = iterations_per_sample as f64 * per_iteration * sample_count as f64 / 1e9;
-    let warning = (expected_seconds > config.measurement_time.as_secs_f64() * 1.5).then(|| {
+    let mut warning = (expected_seconds > config.measurement_time.as_secs_f64() * 1.5).then(|| {
         format!(
             "{sample_count} samples cannot finish in {:.1} s; they will take about {expected_seconds:.1} s",
             config.measurement_time.as_secs_f64()
         )
     });
-    let samples = (0..sample_count)
-        .map(|_| time_iterations(routine, iterations_per_sample) / iterations_per_sample as f64)
-        .collect();
+    // Sampling gets whatever wall time the ceiling leaves; each sample is
+    // checked against the remaining budget before it starts, so a benchmark
+    // never runs past `wall_max` by more than one sample.
+    let budget_seconds = (config.wall_max.as_secs_f64() - warm_up_elapsed).max(0.0);
+    let per_sample_seconds = iterations_per_sample as f64 * per_iteration / 1e9;
+    let sampling = platform::Stopwatch::start();
+    let mut samples = Vec::with_capacity(sample_count);
+    for _ in 0..sample_count {
+        let remaining = budget_seconds - sampling.seconds();
+        // Below the minimum sample size the estimate is not worth reporting,
+        // so the first `MIN_SAMPLE_SIZE` samples always run unless the budget
+        // is already spent (and at least one sample always runs).
+        if (samples.len() >= MIN_SAMPLE_SIZE && per_sample_seconds > remaining)
+            || (sampling.seconds() >= budget_seconds && !samples.is_empty())
+        {
+            warning = Some(format!(
+                "stopped after {} of {sample_count} samples at the {:.0} s wall-clock ceiling",
+                samples.len(),
+                config.wall_max.as_secs_f64(),
+            ));
+            break;
+        }
+        samples.push(time_iterations(routine, iterations_per_sample) / iterations_per_sample as f64);
+    }
     Sampled {
         samples,
         iterations_per_sample,

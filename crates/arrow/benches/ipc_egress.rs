@@ -52,7 +52,7 @@ fn fixture() -> (ArrowEgressHeader, Vec<u8>, Vec<u8>) {
         columnar_digest: digest,
         ..Default::default()
     };
-    let frame = frame_from(&header, &payload);
+    let frame = frame_from(&header, &payload, FRAME_LEN);
     assert_eq!(frame.len(), FRAME_LEN);
     assert_eq!(
         ArrowEgressHeader::from_bytes(
@@ -163,7 +163,7 @@ fn bench_ipc_egress_header_flags(c: &mut Bench) {
 /// it on the error path; asserted once before timing.
 fn bad_magic_frame() -> [u8; ArrowEgressHeader::SIZE] {
     let mut header = ArrowEgressHeader::default();
-    header.magic = *b"BADARRW";
+    header.magic = *b"BADARRW!";
     let wire = header.to_bytes();
     assert!(
         ArrowEgressHeader::from_bytes(&wire).is_err(),
@@ -235,7 +235,7 @@ fn bench_ipc_egress_size_sweep(c: &mut Bench) {
                         columnar_digest: digest,
                         ..*header
                     };
-                    std::hint::black_box(frame_from(header, payload, frame_len))
+                    std::hint::black_box(frame_from(&header, payload, frame_len))
                 });
             },
         );

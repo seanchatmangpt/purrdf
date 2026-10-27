@@ -5,7 +5,9 @@
 
 use std::collections::VecDeque;
 use std::fmt;
+use std::time::Duration;
 
+use crate::bench::MAX_BENCH_WALL;
 use crate::harness::platform;
 
 /// What the invocation asks for.
@@ -52,6 +54,9 @@ pub struct Arguments {
     pub save_baseline: Option<String>,
     /// `--baseline <name>` or `--baseline-lenient <name>`.
     pub baseline: Option<Comparison>,
+    /// `--wall-max <secs>`: the wall-clock ceiling per benchmark. Values above
+    /// [`MAX_BENCH_WALL`] are capped at it (the operator ceiling always wins).
+    pub wall_max: Duration,
 }
 
 impl Default for Arguments {
@@ -64,6 +69,7 @@ impl Default for Arguments {
             quick: false,
             save_baseline: None,
             baseline: None,
+            wall_max: MAX_BENCH_WALL,
         }
     }
 }
@@ -108,6 +114,12 @@ Options:
                         fails the run
         --baseline-lenient NAME
                         Compare against baseline NAME where it exists
+        --wall-max SECS Per-benchmark wall-clock ceiling in seconds (default
+                        30, from MAX_BENCH_WALL; larger values are capped at
+                        it). A benchmark that reaches the ceiling stops
+                        sampling early and reports the samples it took; it
+                        still prints and records normally. Warm-up is capped
+                        so warm-up plus sampling stays inside the ceiling.
         --noplot        Accepted: this harness draws no plots
     -h, --help          Display this message
 ";
@@ -172,6 +184,27 @@ impl Arguments {
                 "quick" => flag(&mut parsed.quick)?,
                 // No plot is ever drawn, so the request is already met.
                 "noplot" => flag(&mut bool::default())?,
+                "wall-max" => {
+                    let value = match inline.or_else(|| rest.pop_front()) {
+                        Some(value) => value,
+                        None => {
+                            return Err(ArgumentError(
+                                "option `--wall-max` requires a number of seconds".to_owned(),
+                            ));
+                        }
+                    };
+                    let seconds: u64 = value.parse().map_err(|_| {
+                        ArgumentError(format!(
+                            "option `--wall-max`: `{value}` must be a whole number of seconds"
+                        ))
+                    })?;
+                    if seconds == 0 {
+                        return Err(ArgumentError(
+                            "option `--wall-max` must be longer than zero".to_owned(),
+                        ));
+                    }
+                    parsed.wall_max = Duration::from_secs(seconds).min(MAX_BENCH_WALL);
+                }
                 "save-baseline" => {
                     let value = baseline_name(name, inline, &mut rest)?;
                     if parsed.save_baseline.replace(value).is_some() {
