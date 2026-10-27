@@ -217,11 +217,12 @@ phase-2 re-run (done, red again) |
 | purrdf-sparql-eval | 101 | 105s | 1x E0599, lib test compile (`FastMap::new`
 on the alias) | **FQ-01 APPLIED** (`solution.rs:1965` ->
 `FastMap::default()`) | phase-3 re-run (done, terminal below) |
-| purrdf-sparql-eval | 101 | 2006s | stack overflow (SIGABRT) in
-`benches/deep_nesting.rs` (16007-deep optional_spine, recursive build/drop on
-main thread); 2 binaries had already measured green (4+8 rows,
-`purrdf-sparql-eval.phase3.log:1698,1717`) | **FQ-08 APPLIED** — large-stack
-thread wrapper (repair lane); rerun pending | phase-4 |
+| purrdf-sparql-eval | 101 | 2006s | COMPILE break, not a stack overflow:
+purrdf-sparql-results lib failed — 50 errors in `canon_arrow.rs` (47x E0753
+stray `///` in the `//!` block, 2x E0499, 1x E0277); the deep_nesting wrapper
+was never exercised; 2 binaries had already measured green (4+8 rows,
+`purrdf-sparql-eval.phase3.log:1698,1717`) | **FQ-08 FIXED** — `canon_arrow.rs`
+fix landed 612bba89; rerun pending | phase-4b rerun post-612bba89 |
 | purrdf-duckdb | 101 | 1000s | 2x E0599, bench `sql_rdf_e2e` (`dir.path()`
 where `&Path` is taken) | **FQ-10 APPLIED** (`sql_rdf_e2e.rs:149,169`
 `dir.path()` -> `dir`); rerun pending | phase-4 |
@@ -377,7 +378,7 @@ al. |
 | sparql-algebra | 6 | PRE+MEASURED | rc=0, 140 benches measured across 6
 binaries (section 1b) |
 | sparql-eval | 24 | PRE+COMPILE-FAIL->IN-FLIGHT | phase-1 rc=101 (12x
-E0425), phase-2 rc=101 (1x E0599, FQ-01 applied); phase-3 re-run measuring at
+E0425), phase-2 rc=101 (1x E0599; FQ-01 is the phase-1 E0425-class fix, applied before phase-2 ran — the phase-2 red was a distinct E0599 at the same site, closed by the same edit); phase-3 re-run measuring at
 refresh (section 4) |
 | sparql-results | 1 | PRE+MEASURED | rc=0, 14 benches measured (section 1) |
 | text | 7 | PRE | analysis/dictionaries/emoji/phonetic/physical_shapes/
@@ -505,9 +506,12 @@ command + rc; UNVERIFIED otherwise.
   1717`). Row standing stays UNVERIFIED until the register carries the
   phase-3 line with a rc.
 - **Update (final sync, 2026-10-27 ~13:05):** the phase-3 run is terminal —
-  register rc=101, 2006s: stack overflow (SIGABRT) in `deep_nesting.rs`
-  (16007-deep optional_spine). **FQ-08 applied** (large-stack thread
-  wrapper); phase-4 rerun pending. Section 4 carries the terminal standing.
+  register rc=101, 2006s: a COMPILE break, not the stack overflow —
+  purrdf-sparql-results lib failed with 50 errors in `canon_arrow.rs`
+  (47x E0753 stray `///` in the `//!` block, 2x E0499, 1x E0277); the
+  deep_nesting wrapper was never exercised. **FQ-08 FIXED** — fix landed
+  612bba89; phase-4b rerun post-612bba89 queued. Section 4 carries the
+  terminal standing.
 
 ## 4. Standing (final sync 2026-10-27 ~13:05 — register + logs re-read from
    disk)
@@ -557,12 +561,14 @@ its log does not show.
   benchmarks measured; 0 failed` (`/tmp/bench-logs/purrdf-cdt.phase2.log`
   tail; register row). Sampled medians: cdt_render/list/32768 1.334 ms,
   cdt_render/map/32768 2.696 ms. |
-| purrdf-sparql-eval | all 24 bench files | **RED, fix applied (FQ-08)** —
-  phase-3 terminal rc=101, 2006s (register row): stack overflow (SIGABRT) in
-  `benches/deep_nesting.rs` (16007-deep optional_spine). Two binaries
+| purrdf-sparql-eval | all 24 bench files | **RED, FIXED (FQ-08)** —
+  phase-3 terminal rc=101, 2006s (register row) was a COMPILE break, not the
+  stack overflow: purrdf-sparql-results lib failed — 50 errors in
+  `canon_arrow.rs` (47x E0753 stray `///` in the `//!` block, 2x E0499,
+  1x E0277); the deep_nesting wrapper was never exercised. Two binaries
   measured green before the abort: 4 + 8 = 12 rows / 0 failed
-  (`purrdf-sparql-eval.phase3.log:1698,1717`). Fix: large-stack thread
-  wrapper; phase-4 rerun pending. Prior reds: phase-1 12x E0425 (1118s),
+  (`purrdf-sparql-eval.phase3.log:1698,1717`). Fix landed 612bba89; phase-4b
+  rerun post-612bba89 queued. Prior reds: phase-1 12x E0425 (1118s),
   phase-2 1x E0599 (105s, FQ-01 applied). |
 | purrdf-duckdb | sql_rdf_e2e.rs (NEW) + sieve_bench.rs | **RED, fix applied
   (FQ-10)** — rc=101, 1000s: 2x E0599 compiling bench `sql_rdf_e2e`
@@ -601,8 +607,9 @@ its log does not show.
 | purrdf-retrieval | on_demand_read + fusion_frontier_alloc | **GREEN** —
   rc=0, 455s, 18 measured / 0 failed (register row;
   `/tmp/bench-logs/purrdf-retrieval.phase3.log`). |
-| purrdf-text | 7 bench files | **GREEN** — rc=0, 1365s, 32+ measured / 0
-  failed (register row; `/tmp/bench-logs/purrdf-text.phase3.log`). |
+| purrdf-text | 7 bench files | **GREEN** — rc=0, 1365s, 299 measured / 0
+  failed (7 footers; register row;
+  `/tmp/bench-logs/purrdf-text.phase3.log`). |
 | purrdf-datalog | seminaive.rs (PRE) | **RED** — rc=101 (register row);
   needs a SIGKILL diagnosis owner before rerun (section 5). |
 | purrdf-entail | chase/classify/consistency/schema_scan | **RED** — rc=101
@@ -645,6 +652,11 @@ Any may fail E0425-style until their row lands.
   disk; the remaining queue follows it. The phase-4 run is split — the
   **phase-4b split re-run** (`/tmp/run_benches_phase4b.py`) supersedes the
   earlier phase-4 table (it owns the authoritative hnsw rows, section 4).
+  sparql-eval deep_nesting's phase-4 rc=101 51s was a COMPILE break, not the
+  stack overflow: purrdf-sparql-results lib failed — 50 errors in
+  `canon_arrow.rs` (47x E0753 stray `///` in the `//!` block, 2x E0499,
+  1x E0277); the wrapper was never exercised. Fix landed 612bba89; close
+  condition is a **phase-4b rerun post-612bba89** register row with a rc.
   n3 / entail / datalog each need a **SIGKILL diagnosis owner** before their
   reruns; rdf-core's red is an **offline-manifest** failure that needs a
   **vendoring fix owner, not a bench fix**. Close condition for each: a
@@ -763,11 +775,13 @@ rows fall under the same REFRESH-PENDING promotion rule.
 
 | crate | blocker |
 |---|---|
-| sparql-eval | terminal red at phase-3: rc=101, 2006s — stack overflow in
-`benches/deep_nesting.rs` (FQ-08, large-stack wrapper applied). 12 rows green
-before the abort (2 binaries, `purrdf-sparql-eval.phase3.log:1698,1717`).
+| sparql-eval | terminal red at phase-3: rc=101, 2006s — a COMPILE break, not
+the stack overflow: purrdf-sparql-results lib failed — 50 errors in
+`canon_arrow.rs` (FQ-08; fix landed 612bba89), wrapper never exercised.
+12 rows green before the abort (2 binaries,
+`purrdf-sparql-eval.phase3.log:1698,1717`).
 Prior reds: phase-1 12x E0425, phase-2 1x E0599 (FQ-01). Not sellable until
-the phase-4 rerun carries a green register rc |
+the phase-4b rerun post-612bba89 carries a green register rc |
 | arrow / duckdb / branchless | phase-2 rc=101 each (FQ-09 / FQ-10 /
 lib-test repair, all fixes applied) — phase-4 reruns pending; zero measured
 rows |

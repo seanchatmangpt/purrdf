@@ -46,7 +46,7 @@ fn bench(c: &mut Bench) {
 }
 /// Run admission benchmarks with the harness's command-line configuration.
 pub fn benches() {
-    let mut criterion = Bench::default().configure_from_args();
-    bench(&mut criterion);
+    let mut bencher = Bench::default().configure_from_args();
+    bench(&mut bencher);
 }
 bench_main!(benches);

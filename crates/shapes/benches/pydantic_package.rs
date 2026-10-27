@@ -55,8 +55,8 @@ fn bench_pydantic_package(c: &mut Bench) {
 
 /// Run the Pydantic package benchmark group.
 pub fn benches() {
-    let mut criterion = Bench::default().configure_from_args();
-    bench_pydantic_package(&mut criterion);
+    let mut bencher = Bench::default().configure_from_args();
+    bench_pydantic_package(&mut bencher);
 }
 
 bench_main!(benches);

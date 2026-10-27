@@ -61,7 +61,7 @@ DRIFT_WARN_KB="${PURRDF_DRIFT_WARN_KB:-262144}"
 # the per-run measurement lease dirs, and the sccache cache live in /tmp,
 # outside the repo-root scope above.
 FAST_TARGET_DIR="/tmp/purrdf-fast-target"
-FAST_LEASE_GLOB="/tmp/purrdf-fast-t[0-3]"
+FAST_LEASE_GLOB="/tmp/purrdf-fast-t[1-4]"
 SCCACHE_DIR="/tmp/purrdf-sccache"
 FAST_BUDGET_GB="${PURRDF_FAST_BUDGET_GB:-30}"
 FAST_LEASE_MAX_AGE_DAYS=1

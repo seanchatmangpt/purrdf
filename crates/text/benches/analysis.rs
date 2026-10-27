@@ -68,8 +68,8 @@ fn classes() -> [(&'static str, String); 4] {
     ]
 }
 
-fn unicode_layer(criterion: &mut Bench) {
-    let mut group = criterion.benchmark_group("purrdf_text_unicode");
+fn unicode_layer(bencher: &mut Bench) {
+    let mut group = bencher.benchmark_group("purrdf_text_unicode");
     let mut scratch = String::new();
     for (class, text) in classes() {
         group.throughput(Throughput::Bytes(text.len() as u64));

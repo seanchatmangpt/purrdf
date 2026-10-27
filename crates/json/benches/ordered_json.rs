@@ -13,9 +13,9 @@ use std::hint::black_box;
 #[path = "support/fixture.rs"]
 mod fixture;
 
-fn benchmarks(criterion: &mut Bench) {
+fn benchmarks(bencher: &mut Bench) {
     let profile = fixture::profile();
-    let mut group = criterion.benchmark_group("ordered_json");
+    let mut group = bencher.benchmark_group("ordered_json");
     for rows in fixture::SIZES {
         let text = fixture::document(rows);
         let source = SourceDocument {

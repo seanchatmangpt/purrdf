@@ -57,8 +57,8 @@ fn coordinate_lexicals(count: u64, fraction_digits: u32) -> Vec<String> {
         .collect()
 }
 
-fn benchmark(criterion: &mut Bench) {
-    let mut group = criterion.benchmark_group("purrdf_geo");
+fn benchmark(bencher: &mut Bench) {
+    let mut group = bencher.benchmark_group("purrdf_geo");
     group.throughput(Throughput::Elements(COORDINATES));
 
     // Coordinate ingest at three precisions. The point of the sweep is that the

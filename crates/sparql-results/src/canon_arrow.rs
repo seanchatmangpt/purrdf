@@ -170,6 +170,11 @@ fn encode_batch(variables: &[String], batch: &[Vec<Option<TermValue>>]) -> Resul
         slab.resize(offsets_at + (batch.len() + 1) * 4, 0);
         let mut offset: u32 = 0;
         for (row_index, row) in batch.iter().enumerate() {
+            debug_assert_eq!(
+                row.len(),
+                variables.len(),
+                "rows must be rectangular: measure pass indexes cells by column, so a ragged row silently drifts measure/emit"
+            );
             // Kinds and offset bytes are written by index, never through a
             // held sub-slice: a held `&mut slab[...]` would overlap the other
             // region's write (E0499) and split the slab into two live borrows.
@@ -670,6 +675,56 @@ mod tests {
         };
         let result = select_result(vec!["s".to_string()], vec![vec![Some(bad)]]);
         let error = to_canon_arrow(&result).expect_err("malformed term refused");
+        assert!(matches!(error, Error::MalformedTerm(_)));
+    }
+
+    #[test]
+    fn a_nested_triple_term_non_iri_predicate_is_refused_through_the_eager_frame() {
+        let bad = TermValue::Triple {
+            s: purrdf_core::TermBox::new(TermValue::Iri("http://example.org/s".to_string())),
+            p: purrdf_core::TermBox::new(TermValue::Triple {
+                s: purrdf_core::TermBox::new(TermValue::Iri(
+                    "http://example.org/is".to_string(),
+                )),
+                p: purrdf_core::TermBox::new(TermValue::Blank {
+                    label: "bp".to_string(),
+                    scope: purrdf_core::BlankScope(0),
+                }),
+                o: purrdf_core::TermBox::new(TermValue::Iri(
+                    "http://example.org/io".to_string(),
+                )),
+            }),
+            o: purrdf_core::TermBox::new(TermValue::Iri("http://example.org/o".to_string())),
+        };
+        let result = select_result(vec!["s".to_string()], vec![vec![Some(bad)]]);
+        let error = to_canon_arrow(&result).expect_err("nested non-IRI predicate refused");
+        assert!(matches!(error, Error::MalformedTerm(_)));
+    }
+
+    #[test]
+    fn a_nested_triple_term_non_iri_predicate_is_refused_through_the_streaming_lane() {
+        let bad = TermValue::Triple {
+            s: purrdf_core::TermBox::new(TermValue::Iri("http://example.org/s".to_string())),
+            p: purrdf_core::TermBox::new(TermValue::Triple {
+                s: purrdf_core::TermBox::new(TermValue::Iri(
+                    "http://example.org/is".to_string(),
+                )),
+                p: purrdf_core::TermBox::new(TermValue::Blank {
+                    label: "bp".to_string(),
+                    scope: purrdf_core::BlankScope(0),
+                }),
+                o: purrdf_core::TermBox::new(TermValue::Iri(
+                    "http://example.org/io".to_string(),
+                )),
+            }),
+            o: purrdf_core::TermBox::new(TermValue::Iri("http://example.org/o".to_string())),
+        };
+        let result = select_result(vec!["s".to_string()], vec![vec![Some(bad)]]);
+        let mut bytes = Vec::new();
+        let mut drain = purrdf_core::sink::WriterDrain(&mut bytes);
+        let mut out = TextSink::to_drain(&mut drain);
+        let error = write_canon_arrow(&result, &crate::ResultProvenance::default(), &mut out)
+            .expect_err("nested non-IRI predicate refused while streaming");
         assert!(matches!(error, Error::MalformedTerm(_)));
     }
 }

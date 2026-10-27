@@ -88,8 +88,10 @@ bench row is UNRUN (no receipt, not counted green).
 ### Phase-4b / phase-5 planned lanes (PLANNED, not executed at receipt time)
 
 Phase-4 partial (one terminal row): `purrdf-hnsw` rc=124 at the 3600s cap
-(`/tmp/bench-logs/purrdf-hnsw.phase4.log`) — a timeout, not a green row; the partial log is
-preserved (`purrdf-hnsw.phase4.partial.log`) and the subject requeued to phase-4b. Remaining
+(`/tmp/bench-logs/purrdf-hnsw.phase4.log`) — a timeout, not a green row; the full phase-4 hnsw
+log (418 lines, content-complete: build table + 72 recall rows + epilogue) is the receipt, with
+a byte-identical copy persisted at `~/purrdf-bench-keep/bench-logs/`; the subject requeued to
+phase-4b. Remaining
 register rows: not yet present — absence is not a pass. Phase-4b (`/tmp/run_benches_phase4b.py`):
 hnsw build ~550s / recall 5k+50k ~2700s / recall 200k 5400s (own entry, last), arrow post-FQ-09,
 branchless post lib-test fixes, n3 + datalog solo reruns, entail post ladder fix (10_000 ->
@@ -193,8 +195,9 @@ remote CI run (`.github/workflows/bounded-gates.yml`) receipts it. Nothing below
 Phase-4 partial (BLOCKED, 2026-10-27): the phase-4 runner's only terminal row is `purrdf-hnsw
 rc=124 3600s` (`/tmp/bench-logs/register.txt`, log `/tmp/bench-logs/purrdf-hnsw.phase4.log`) —
 a 3600s-cap timeout, not a green row, and not rounded up. `purrdf-core` was in flight at
-receipt time (no terminal rc row). The partial hnsw log is preserved
-(`purrdf-hnsw.phase4.partial.log`); the remaining queue requeues to phase-4b with per-subject
+receipt time (no terminal rc row). The full phase-4 hnsw log (418 lines, content-complete:
+build table + 72 recall rows + epilogue) is the receipt; byte-identical copy persisted at
+`~/purrdf-bench-keep/bench-logs/`; the remaining queue requeues to phase-4b with per-subject
 budgets per the cap-strategy spec (hnsw build ~550s / recall 5k+50k ~2700s / recall 200k 5400s
 own-entry-last; arrow post-FQ-09, branchless post lib-test fixes, n3 + datalog solo reruns,
 entail post ladder fix, duckdb post FQ-10, sparql-eval deep_nesting post FQ-08).
@@ -214,11 +217,15 @@ entail post ladder fix, duckdb post FQ-10, sparql-eval deep_nesting post FQ-08).
 ```
 COMMIT-1-SHA: 15269ce4  # feat(branchless): land constant-time algebraic kernels (wave v26.10.26) — 126 files, 137454 insertions
 COMMIT-2-SHA: c1731de0  # infra(gate): enforce 5-second wall-clock feedback SLA and bounded harness — 26 files, 3476 insertions
-COMMIT-3-SHA: 130fb2f0  # feat(arrow): finish the crate — validation, golden wire, docs truth, tickets
-COMMIT-4-SHA: 6258a0f8  # fix(arrow): refuse overflowing length headers; add fits_in guard + refusal matrix
+COMMIT-3-SHA: 6258a0f8  # fix(arrow): refuse overflowing length headers; add fits_in guard + refusal matrix
+COMMIT-4-SHA: 130fb2f0  # feat(arrow): finish the crate — validation, golden wire, docs truth, tickets
 COMMIT-5-SHA: 6e93aca3  # feat(sparql-results): wire canon-arrow egress through capi, wasm, and the escaper law (OPT-17)
 COMMIT-6-SHA: dc8f5709  # fix(sparql-results): close the wiring-wave review gaps
 COMMIT-7-SHA: 868329d0  # fix(wiring): close the 20-lane gap review findings
+COMMIT-8-SHA: a21550a7  # fix(wiring): breakage-fix batch + ticket re-pins from the 20-lane gap review
+COMMIT-9-SHA: 18911794  # infra(claude): add the five named agent lanes advertised by ban_generic_agents
+COMMIT-10-SHA: f45c66d2  # fix(wiring): fill-gaps wave — 20-lane review implementations + verifications
+COMMIT-11-SHA: 612bba89  # fix(sparql-results): canon_arrow.rs 50-error compile — stray doc marker + borrows
 REMOTE-CI-RUN: <pending> # flips every UNVERIFIED row above or stamps it RED
 ```
 

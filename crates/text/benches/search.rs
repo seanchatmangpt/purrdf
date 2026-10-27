@@ -217,7 +217,7 @@ fn configuration() -> TextIndexConfig {
     .expect("one IRI predicate is a well-formed configuration")
 }
 
-fn benchmark(criterion: &mut Bench) {
+fn benchmark(bencher: &mut Bench) {
     let dataset = corpus();
     let config = configuration();
     let index = TextIndex::from_dataset(&*dataset, &config).expect("the corpus index must build");
@@ -231,7 +231,7 @@ fn benchmark(criterion: &mut Bench) {
     let partition = PartitionKey::new(None, None);
     let filter = PartitionFilter::unconstrained();
 
-    let mut group = criterion.benchmark_group("purrdf_text");
+    let mut group = bencher.benchmark_group("purrdf_text");
     group.throughput(Throughput::Elements(u64::from(DOCUMENTS)));
 
     group.bench_function("build_index", |bencher| {
@@ -364,7 +364,7 @@ fn benchmark(criterion: &mut Bench) {
 
 /// Compare preparation with the hot scoring path; IDF work is measured once,
 /// outside the per-document measurement, just as the production index hoists it.
-fn fielded_arithmetic(criterion: &mut Bench) {
+fn fielded_arithmetic(bencher: &mut Bench) {
     let profile = RankingProfile::new(
         (0..16)
             .map(|at| RankingField::new(format!("field-{at}"), Fixed::ONE, B).expect("field"))
@@ -387,7 +387,7 @@ fn fielded_arithmetic(criterion: &mut Bench) {
         ];
         8
     ];
-    let mut group = criterion.benchmark_group("bm25f");
+    let mut group = bencher.benchmark_group("bm25f");
     group.bench_function("prepare_eight_idfs", |bencher| {
         bencher.iter(|| corpus.prepare_query(black_box(&terms)).expect("prepare"));
     });

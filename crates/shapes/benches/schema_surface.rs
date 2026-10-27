@@ -460,11 +460,11 @@ fn bench_input_width_scaling(c: &mut Bench) {
 
 /// Run the schema-surface benchmark groups.
 pub fn benches() {
-    let mut criterion = Bench::default().configure_from_args();
-    bench_schema_surface(&mut criterion);
-    bench_ontology_emitters(&mut criterion);
-    bench_linkml_import_scaling(&mut criterion);
-    bench_input_width_scaling(&mut criterion);
+    let mut bencher = Bench::default().configure_from_args();
+    bench_schema_surface(&mut bencher);
+    bench_ontology_emitters(&mut bencher);
+    bench_linkml_import_scaling(&mut bencher);
+    bench_input_width_scaling(&mut bencher);
 }
 
 bench_main!(benches);

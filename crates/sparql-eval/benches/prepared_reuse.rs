@@ -185,9 +185,9 @@ fn typed_materialization(c: &mut Bench) {
 
 /// Run the prepared-query comparison group with the harness's command-line configuration.
 pub fn benches() {
-    let mut criterion = Bench::default().configure_from_args();
-    bench(&mut criterion);
-    canonical_reuse(&mut criterion);
-    typed_materialization(&mut criterion);
+    let mut bencher = Bench::default().configure_from_args();
+    bench(&mut bencher);
+    canonical_reuse(&mut bencher);
+    typed_materialization(&mut bencher);
 }
 bench_main!(benches);

@@ -133,8 +133,8 @@ fn execute(c: &mut Bench) {
 
 /// Run both groups with the harness's command-line configuration.
 pub fn benches() {
-    let mut criterion = Bench::default().configure_from_args();
-    rewrite(&mut criterion);
-    execute(&mut criterion);
+    let mut bencher = Bench::default().configure_from_args();
+    rewrite(&mut bencher);
+    execute(&mut bencher);
 }
 bench_main!(benches);

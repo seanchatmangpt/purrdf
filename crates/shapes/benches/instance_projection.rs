@@ -37,7 +37,7 @@ fn dataset(nodes: usize, lists: bool) -> std::sync::Arc<purrdf_rdf::RdfDataset> 
         .expect("benchmark data Turtle")
 }
 
-fn bench_instance_projection(criterion: &mut Bench) {
+fn bench_instance_projection(bencher: &mut Bench) {
     let namespaces = Namespaces::new(
         "ex",
         &[(
@@ -48,7 +48,7 @@ fn bench_instance_projection(criterion: &mut Bench) {
     .expect("benchmark namespaces");
     let plain = dataset(2_000, false);
     let listed = dataset(2_000, true);
-    let mut group = criterion.benchmark_group("instance_projection");
+    let mut group = bencher.benchmark_group("instance_projection");
     group.bench_function("no_lists_2000_nodes", |bencher| {
         bencher.iter(|| black_box(project_graph(&plain, &namespaces)));
     });
@@ -60,8 +60,8 @@ fn bench_instance_projection(criterion: &mut Bench) {
 
 /// Run the instance-projection benchmark group.
 pub fn benches() {
-    let mut criterion = Bench::default().configure_from_args();
-    bench_instance_projection(&mut criterion);
+    let mut bencher = Bench::default().configure_from_args();
+    bench_instance_projection(&mut bencher);
 }
 
 bench_main!(benches);

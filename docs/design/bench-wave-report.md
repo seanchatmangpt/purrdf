@@ -96,7 +96,10 @@ start-stamp rows; end marks are register/footer-cited.
 **Phase 3** (12:10–, start inferred):
 - 12:10 (inferred): phase-3 runner (pid 81055) starts.
 - sparql-eval rc=101 2006s: clean compile post-FQ-01, 12 rows green, then
-  deep_nesting stack overflow (FQ-08). geo-kernel in flight at last read.
+  rc=101 — re-diagnosed as a COMPILE break, not the stack overflow: the
+  purrdf-sparql-results lib failed (50 errors in `canon_arrow.rs`); the
+  deep_nesting wrapper was never exercised (FQ-08). geo-kernel in flight at
+  last read.
 
 **Fix landings** 12:43–13:05: arrow (FQ-09), duckdb (FQ-10), branchless
 (FQ-12), deep_nesting big-stack wrapper (FQ-08) edits applied by repair lane.
@@ -137,7 +140,7 @@ close path; "no unowned red remains" stands as of 13:08 PDT.
 | FQ-05 | text | same | phase-3 rerun | RE-RUN IN FLIGHT |
 | FQ-06 | shapes | pydantic_package cut off mid-run | phase-4 --bench pydantic_package | ASSIGNED |
 | FQ-07 | hash-conformance | in yaml matrix, absent from queues | phase-4 lane | ASSIGNED |
-| FQ-08 | sparql-eval | deep_nesting stack overflow | 256MB stack wrapper | FIXED, rerun queued |
+| FQ-08 | sparql-eval | phase-4 deep_nesting rc=101 51s was a COMPILE break, not the stack overflow: purrdf-sparql-results lib failed — 50 errors in `canon_arrow.rs` (47x E0753 stray `///` in the `//!` block, 2x E0499, 1x E0277); wrapper never exercised | `canon_arrow.rs` fix landed 612bba89 | FIXED, phase-4b rerun post-612bba89 queued |
 | FQ-09 | arrow | E0614 ..*header, ipc_egress.rs:98 | applied | FIX APPLIED, rerun pending |
 | FQ-10 | duckdb | E0599 dir.path(), sql_rdf_e2e.rs | applied | FIX APPLIED, rerun pending |
 | FQ-11 | n3 | SIGKILL at 185s, 2 green rows first | phase-4 solo rerun, jobs=2 | memory pressure |
@@ -148,11 +151,13 @@ close path; "no unowned red remains" stands as of 13:08 PDT.
 FQ-16-style progress note: the OPT-17 arrow-egress wiring wave is landing
 against subjects this wave already receipted. Disk state: `canon-arrow`
 results-format arm wired in `crates/sparql-results` (`src/lib.rs:105/121/
-140-141/246-255`; `mod canon_arrow;` at `src/lib.rs:62` has no backing module
-file on disk yet — crate UNCOMPILED on current tree state, in-flight lane
-file), new bench arm `to_canon_arrow_5k_rows`
-(`crates/sparql-results/benches/graph_serialize.rs:166`) — never executed, no
-receipt; rdf-capi/rdf-wasm seams not started. Close path: the phase-4 queue
+140-141/246-255`; writer `src/canon_arrow.rs` landed, 680 lines; the
+module's first compiler contact — phase-4's deep_nesting subject — found 50
+errors, ALL fixed in 612bba89; compile confirmation = the phase-4b
+sparql-eval rerun or CI), new bench arm `to_canon_arrow_5k_rows`
+(`crates/sparql-results/benches/graph_serialize.rs:188`) — never executed, no
+receipt; rdf-capi/rdf-wasm seams LANDED (6e93aca3: purrdf_query_canon_arrow
++ queryCanonArrow + js exposure). Close path: the phase-4 queue
 (`/tmp/run_benches_phase4.py`) was frozen before this wave and cannot cover
 the new arm — the sparql-results/graph_serialize bench receipt needs a
 phase-5 fast-lane run or a CI `make bench` run.
@@ -164,8 +169,11 @@ duplicate `var`, `purrdf-sparql-eval.log`) → FQ-01 `solution.rs:1965`
 `FastMap::new` → `FastMap::default()` applied 11:36 → phase-3 clean compile,
 12 rows green (footers "4 benchmarks measured; 0 failed" + "8 benchmarks
 measured; 0 failed") → stderr `deep_nesting: optional_spine answers 16007
-levels deep on the bench thread` → stack overflow abort (SIGABRT, rc=101
-2006s) → FQ-08 256MB measurement-thread wrapper, rerun queued (phase-4).
+levels deep on the bench thread` → rc=101 2006s. Re-diagnosis (post-612bba89):
+the abort was a COMPILE break, not the stack overflow — purrdf-sparql-results
+lib failed with 50 errors in `canon_arrow.rs` (47x E0753 stray `///` in the
+`//!` block, 2x E0499, 1x E0277); the deep_nesting wrapper was never
+exercised. Fix landed 612bba89; phase-4b rerun post-612bba89 queued.
 
 The full 24-row deep_nesting table lives in the phase-3 log
 (`/tmp/bench-logs/purrdf-sparql-eval.phase3.log`; receipt = in-log `time:`
@@ -213,7 +221,7 @@ REFRESH-PENDING: this section is stale on arrival; read
 
 Post-freeze addition (not in the phase-4 queue): the OPT-17 wiring wave adds
 a `canon-arrow` arm to `crates/sparql-results` including a new bench subject
-`to_canon_arrow_5k_rows` (`benches/graph_serialize.rs:166`). The phase-4
+`to_canon_arrow_5k_rows` (`benches/graph_serialize.rs:188`). The phase-4
 queue was frozen before this wave landed, so it cannot cover the new arm —
 close path is a phase-5 fast-lane run or a CI `make bench` run (see §7.0).
 
@@ -225,7 +233,7 @@ close path is a phase-5 fast-lane run or a CI `make bench` run (see §7.0).
 | Phase-4 queued | 8 subjects (§9) | phase-4 register rows |
 | No lane this wave | gts, json, geo, markdown, xsd, jsonschema, deflate, ed25519 | CI/make bench |
 | wasm/js selections | all — never run, no receipts | `make wasm-test` (CI) |
-| Post-freeze OPT-17 arm | `to_canon_arrow_5k_rows` (`crates/sparql-results/benches/graph_serialize.rs:166`) — new bench subject from the arrow-egress wiring wave; UNRUN (no receipt; the arms HAVE landed at `crates/sparql-results/benches/graph_serialize.rs:166,191,353`, but only after the phase-4 queue froze, so no queued run can cover them) | phase-5 fast-lane or CI `make bench` (§7.0) |
+| Post-freeze OPT-17 arm | `to_canon_arrow_5k_rows` (`crates/sparql-results/benches/graph_serialize.rs:188`) — new bench subject from the arrow-egress wiring wave; UNRUN (no receipt; the arms HAVE landed at `crates/sparql-results/benches/graph_serialize.rs:188,191,353`, but only after the phase-4 queue froze, so no queued run can cover them) | phase-5 fast-lane or CI `make bench` (§7.0) |
 | Full gate | `make check` — fmt, clippy, tests, hygiene (pedantic+nursery) | CI-only on this box |
 
 In-flight detail: phase-2 entail, shex, plus the misnamed purrdf-rdf-core

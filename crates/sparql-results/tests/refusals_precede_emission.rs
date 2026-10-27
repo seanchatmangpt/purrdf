@@ -185,17 +185,22 @@ fn srx_refuses_a_graph_and_spares_the_kinds_it_defines() {
     assert!(select_text.contains("<uri>https://example.org/1</uri>"));
 }
 
-/// The CanonArrow frame writer refuses a result kind it does not define — a
-/// CONSTRUCT graph and an ASK boolean both have no columnar frame — and the
-/// refusal is decided before the first byte reaches the sink. The neighbour is
-/// the SELECT solution set the frame exists for, which must still serialize.
+/// The CanonArrow writer does not refuse an ASK boolean or a CONSTRUCT graph —
+/// every non-tabular shape emits the fixed 192-byte canon-empty frame, header
+/// first at offset 0. What it does refuse, before the first byte reaches the
+/// sink, is a malformed nested triple term: the measuring pass walks every cell
+/// before the header is pushed, so the refusal lands with the sink untouched.
+/// Each side carries a neighbour — the boolean's neighbour is the graph that
+/// shares its frame, and the malformed term's neighbour is the same nested
+/// triple with a predicate that does spell.
 #[test]
-fn canon_arrow_refuses_an_undefined_result_kind_before_the_first_byte() {
+fn canon_arrow_emits_the_canon_empty_frame_and_refuses_only_a_malformed_term_before_the_first_byte() {
     use purrdf_sparql_results::{SparqlResultsFormat, serialize_into};
 
     let provenance = ResultProvenance::default();
 
-    for (label, undefined) in [
+    // Non-tabular shapes succeed, with exactly the canon-empty frame.
+    for (label, shape) in [
         ("ask", SparqlResult::Boolean(true)),
         (
             "graph",
@@ -208,38 +213,88 @@ fn canon_arrow_refuses_an_undefined_result_kind_before_the_first_byte() {
         ),
     ] {
         let mut sink: Vec<u8> = Vec::new();
-        let error = serialize_into(
-            &undefined,
+        serialize_into(
+            &shape,
             SparqlResultsFormat::CanonArrow,
             &provenance,
             None,
             &mut sink,
         )
-        .expect_err(&format!("CanonArrow must refuse an undefined result kind ({label})"));
-        let rendered = error.to_string();
-        assert!(
-            rendered.contains("is defined only for SELECT variable bindings"),
-            "unexpected refusal wording for {label}: {rendered}"
+        .unwrap_or_else(|e| panic!("CanonArrow emits the canon-empty frame for {label}: {e}"));
+        assert_eq!(
+            sink.len(),
+            192,
+            "the {label} canon-empty frame is header plus trailing padding"
         );
+        assert_eq!(
+            &sink[..8],
+            b"GLAWARRW",
+            "the {label} frame opens with the wire magic"
+        );
+        let wire: [u8; purrdf_arrow::ArrowEgressHeader::SIZE] = sink
+            [..purrdf_arrow::ArrowEgressHeader::SIZE]
+            .try_into()
+            .expect("a 192-byte frame carries the full 128-byte header");
+        let header = purrdf_arrow::ArrowEgressHeader::from_bytes(&wire)
+            .expect("the canon-empty frame header validates");
         assert!(
-            sink.is_empty(),
-            "the {label} refusal leaked {} byte(s) to the sink before failing",
-            sink.len()
+            header.fits_in(sink.len() as u64),
+            "the {label} header fits the frame it was emitted in"
         );
     }
 
-    // The neighbour: the SELECT solution set the frame is built for.
-    let select = solutions(&["a"], vec![vec![iri("https://example.org/1")]]);
+    // The true refusals-precede-emission case: a nested triple term whose
+    // predicate is not an IRI has no canonical N-Triples spelling. The
+    // measuring pass rejects it before the header is pushed, so the sink
+    // must come back with zero bytes written.
+    let malformed = TermValue::Triple {
+        s: purrdf_core::TermBox::new(TermValue::Iri("https://example.org/s".to_owned())),
+        p: purrdf_core::TermBox::new(TermValue::Literal {
+            lexical_form: "not-a-predicate".to_owned(),
+            datatype: "http://www.w3.org/2001/XMLSchema#string".to_owned(),
+            language: None,
+            direction: None,
+        }),
+        o: purrdf_core::TermBox::new(TermValue::Iri("https://example.org/o".to_owned())),
+    };
+    let bad = solutions(&["s"], vec![vec![Some(malformed)]]);
     let mut sink: Vec<u8> = Vec::new();
-    serialize_into(
-        &select,
+    let error = serialize_into(
+        &bad,
         SparqlResultsFormat::CanonArrow,
         &provenance,
         None,
         &mut sink,
     )
-    .expect("CanonArrow admits a SELECT solution set");
-    assert!(!sink.is_empty(), "the frame emitted no bytes for a SELECT");
+    .expect_err("a triple term without a canonical spelling must be refused");
+    assert!(
+        error.to_string().contains("malformed result term"),
+        "unexpected refusal wording: {error}"
+    );
+    assert!(
+        sink.is_empty(),
+        "the malformed-term refusal leaked {} byte(s) to the sink before failing",
+        sink.len()
+    );
+
+    // The neighbour on the far side of the hoisted scan: the same nested
+    // triple with an IRI predicate is representable and still serializes.
+    let well_formed = TermValue::Triple {
+        s: purrdf_core::TermBox::new(TermValue::Iri("https://example.org/s".to_owned())),
+        p: purrdf_core::TermBox::new(TermValue::Iri("https://example.org/p".to_owned())),
+        o: purrdf_core::TermBox::new(TermValue::Iri("https://example.org/o".to_owned())),
+    };
+    let good = solutions(&["s"], vec![vec![Some(well_formed)]]);
+    let mut sink: Vec<u8> = Vec::new();
+    serialize_into(
+        &good,
+        SparqlResultsFormat::CanonArrow,
+        &provenance,
+        None,
+        &mut sink,
+    )
+    .unwrap_or_else(|e| panic!("a well-formed nested triple still serializes: {e}"));
+    assert!(!sink.is_empty(), "the well-formed frame emitted bytes");
 }
 
 /// The streamed serialization equals the eager one, byte for byte, for every
