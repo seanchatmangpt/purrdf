@@ -406,7 +406,7 @@ fn lexical_native_causes_survive_source_disposal_and_imports() {
 
 fn shexj_ingress_retains_original_json_causes_and_precedence() {
     use purrdf_lex::json::{self, Limits};
-    use purrdf_shex::{ExactSchema, parse_shexj};
+    use purrdf_shex::{ExactSchema, JsonMemberReason, parse_shexj};
 
     let limits = Limits {
         unique_members: true,
@@ -519,7 +519,14 @@ fn shexj_ingress_retains_original_json_causes_and_precedence() {
     assert_eq!(Capture::read(&base_fault).code, "shex-iri");
     let schema_fault = parse_shexj("[]", None).unwrap_err();
     assert_eq!(Capture::read(&schema_fault).code, "shex-json");
-    assert!(std::error::Error::source(&schema_fault).is_none());
+    let schema_cause = std::error::Error::source(&schema_fault).unwrap();
+    assert!(schema_cause.is::<JsonMemberReason>());
+    assert!(
+        schema_cause
+            .source()
+            .unwrap()
+            .is::<json::record::DecodeError>()
+    );
     let root = parse_shexj(
         r#"{"type":"Schema","imports":["https://example.org/import"]}"#,
         None,
@@ -963,7 +970,1181 @@ fn shape_map_owned_names_and_language_causes_survive_input_disposal() {
     }
 }
 
+fn schema_grammar_refusals_keep_original_tokens_and_positions() {
+    use purrdf_shex::{ExactSchema, GrammarExpectation as E, GrammarReason, ShexError};
+    // The keyword fallback and guarded expect calls are defensive paths, not
+    // fabricated scanner inputs. These cases reach the public production seam.
+    for (input, expected, token, reason) in [
+        (
+            "START .",
+            E::StartEquals,
+            Some("."),
+            "expected '=' after start, found Some(Dot)",
+        ),
+        (
+            "<urn:S> { true . }",
+            E::Predicate,
+            Some("true"),
+            "expected predicate, found Some(Word(\"true\"))",
+        ),
+        (
+            "PREFIX true",
+            E::PrefixName,
+            Some("true"),
+            "expected prefix name after PREFIX",
+        ),
+        (
+            "BASE true",
+            E::BaseIri,
+            Some("true"),
+            "expected IRI after BASE",
+        ),
+        ("IMPORT", E::ImportIri, None, "expected IRI after IMPORT"),
+        (
+            "<urn:S> +",
+            E::ShapeExpression,
+            Some("+"),
+            "expected shape expression, found Some(Plus)",
+        ),
+        (
+            "<urn:S> LENGTH .",
+            E::StringFacet,
+            Some("."),
+            "expected non-negative INTEGER as string facet value",
+        ),
+        (
+            "<urn:S> TOTALDIGITS .",
+            E::DigitFacet,
+            Some("."),
+            "expected non-negative INTEGER as digit-count facet value",
+        ),
+        (
+            "<urn:S> MININCLUSIVE .",
+            E::NumericFacet,
+            Some("."),
+            "expected numeric literal as facet value, found Some(Dot)",
+        ),
+        (
+            "<urn:S> [ . ]",
+            E::WildcardExclusion,
+            Some("]"),
+            "expected '-' exclusion after '.' in a value set",
+        ),
+        (
+            "<urn:S> [ . - true ]",
+            E::Exclusion,
+            Some("true"),
+            "expected IRI, literal or language tag exclusion, found Some(Word(\"true\"))",
+        ),
+        (
+            "<urn:S> [ @en~ - 1 ]",
+            E::LanguageExclusion,
+            Some("1"),
+            "expected language tag exclusion",
+        ),
+        (
+            "<urn:S> [ \"x\"~ - @en ]",
+            E::Literal,
+            Some("@en"),
+            "expected literal, found Some(LangTag(\"en\"))",
+        ),
+        (
+            "<urn:é> ( .",
+            E::RightParen,
+            None,
+            "expected ')', found None",
+        ),
+    ] {
+        let owned = input.to_owned();
+        let error = parse_shexc(&owned, None).unwrap_err();
+        let exact = ExactSchema::parse_shexc(&owned, None).unwrap_err();
+        assert_eq!(error, exact, "{input}");
+        let ShexError::Grammar { reason: native, at } = &error else {
+            panic!("{input}: {error}");
+        };
+        let (GrammarReason::Expected {
+            expected: actual,
+            encountered,
+        }
+        | GrammarReason::FacetValue {
+            expected: actual,
+            encountered,
+            ..
+        }) = native.as_ref()
+        else {
+            panic!("{input}: {error}");
+        };
+        assert_eq!(*actual, expected, "{input}");
+        if let GrammarReason::FacetValue { facet, .. } = native.as_ref() {
+            let keyword = owned.split_whitespace().nth(1).unwrap();
+            assert_eq!(&owned[facet.start..facet.end], keyword);
+            assert_eq!(
+                facet.token,
+                purrdf_shex::lexer::Token::Word(keyword.to_owned())
+            );
+            let _ = inspect_without_allocation(facet);
+            let fields = inspect_without_allocation(native.as_ref());
+            let facet_fields = fields.child("facet");
+            assert!(
+                matches!(facet_fields.child("token").field("value"), ErrorValue::Text(value) if value == keyword)
+            );
+        }
+
+        if let Some(text) = token {
+            let operand = encountered.as_ref().unwrap();
+            assert_eq!(&owned[operand.start..operand.end], text, "{input}");
+            let fields = inspect_without_allocation(operand);
+            assert!(
+                matches!(fields.field("start"), ErrorValue::ByteCount(value) if value == operand.start as u128)
+            );
+            assert!(
+                matches!(fields.field("end"), ErrorValue::ByteCount(value) if value == operand.end as u128)
+            );
+            let _ = inspect_without_allocation(&operand.token);
+            // Wildcard dispatch probes beyond '-' while historical at stays '-'.
+            if expected == E::Exclusion {
+                assert_eq!(&owned[*at..=*at], "-");
+            }
+        } else {
+            assert!(encountered.is_none());
+            assert_eq!(*at, owned.len());
+        }
+        let at = *at;
+        assert_eq!(
+            error.to_string(),
+            format!("ShExC syntax error at byte {at}: {reason}")
+        );
+        assert_eq!(format!("{error:?}"), error.to_string());
+        assert_eq!(error.byte_offset(), Some(at));
+        assert_eq!(
+            error.locate(&owned).unwrap(),
+            purrdf_iri::LineIndex::new(&owned).locate(&owned, at)
+        );
+        drop(owned);
+        let cloned = error.clone();
+        drop(error);
+        let fields = inspect_without_allocation(&cloned);
+        assert_eq!(fields.code, "shex-syntax");
+        assert!(matches!(fields.field("at"), ErrorValue::Unsigned(value) if value == at as u128));
+        let ErrorValue::Cause(native) = fields.field("reason") else {
+            panic!("native grammar cause");
+        };
+        let _ = inspect_without_allocation(native);
+        assert!(
+            std::error::Error::source(&cloned)
+                .unwrap()
+                .is::<GrammarReason>()
+        );
+    }
+    for (input, keyword) in [
+        ("<urn:S> mAxLeNgTh .", "mAxLeNgTh"),
+        ("<urn:S> FRACTIONDIGITS .", "FRACTIONDIGITS"),
+        ("<urn:S> MAXEXCLUSIVE .", "MAXEXCLUSIVE"),
+    ] {
+        let error = parse_shexc(input, None).unwrap_err();
+        let ShexError::Grammar { reason, .. } = &error else {
+            panic!("{error}");
+        };
+        let GrammarReason::FacetValue { facet, .. } = reason.as_ref() else {
+            panic!("{error}");
+        };
+        assert_eq!(&input[facet.start..facet.end], keyword);
+        assert_eq!(
+            facet.token,
+            purrdf_shex::lexer::Token::Word(keyword.to_owned())
+        );
+    }
+    // Successful neighbors use the same parsing paths, including exact facets.
+    for input in [
+        "PREFIX ex: <urn:> BASE <urn:base> IMPORT <urn:other> START = @ex:S ex:S {}",
+        "<urn:S> { <urn:p> . }",
+        "<urn:S> LENGTH 1",
+        "<urn:S> TOTALDIGITS 1",
+        "<urn:S> MININCLUSIVE 1",
+        "<urn:S> [ . - <urn:x> ]",
+        "<urn:S> [ @en~ - @fr ]",
+        "<urn:S> [ \"x\"~ - \"y\" ]",
+        "<urn:é> ( . )",
+    ] {
+        assert!(parse_shexc(input, None).is_ok(), "{input}");
+        assert!(ExactSchema::parse_shexc(input, None).is_ok(), "{input}");
+    }
+    // The full source is tokenized before grammar admission, preserving priority.
+    assert!(matches!(
+        parse_shexc("START . <\\q>", None),
+        Err(ShexError::Lex { .. })
+    ));
+}
+
+fn schema_grammar_placement_and_rich_operands_survive_input_disposal() {
+    use purrdf_shex::lexer::{CodeName, Token};
+    use purrdf_shex::{GrammarReason, ShexError};
+    for (source, expected_text) in [
+        ("PREFIX ex:local <urn:>", "PREFIX name must end with ':'"),
+        ("PREFIX ex: true", "expected IRI after PREFIX name"),
+        (
+            "<urn:S> [ \"é\"@EN^^<urn:t> ]",
+            "literal cannot carry both language tag and datatype",
+        ),
+        (
+            "<urn:S> { $<urn:label> (&<urn:reference>) }",
+            "'$' label cannot name an inclusion",
+        ),
+        (
+            "<urn:S> { $_:label (&_:reference) }",
+            "'$' label cannot name an inclusion",
+        ),
+    ] {
+        let input = source.to_owned();
+        let original = parse_shexc(&input, None).unwrap_err();
+        let error = original.clone();
+        drop(original);
+        let ShexError::Grammar { reason, at } = &error else {
+            panic!("{source}: {error}");
+        };
+        assert_eq!(reason.to_string(), expected_text);
+        match reason.as_ref() {
+            GrammarReason::PrefixLocal { encountered } => {
+                assert_eq!(encountered.token, Token::PName("ex".into(), "local".into()));
+            }
+            GrammarReason::PrefixIri {
+                prefix,
+                encountered,
+            } => {
+                assert_eq!(&input[prefix.start..prefix.end], "ex:");
+                assert_eq!(prefix.token, Token::PName("ex".into(), String::new()));
+                assert_eq!(
+                    encountered.as_ref().unwrap().token,
+                    Token::Word("true".into())
+                );
+            }
+            GrammarReason::LiteralSuffix {
+                literal,
+                language,
+                marker,
+            } => {
+                assert_eq!(&input[literal.start..literal.end], "\"é\"");
+                assert_eq!(language.token, Token::LangTag("EN".into()));
+                assert_eq!(&input[marker.start..marker.end], "^^");
+                assert_eq!(*at, marker.start);
+            }
+            GrammarReason::LabelledInclusion {
+                label,
+                reference,
+                label_tokens,
+                reference_tokens,
+            } => {
+                let (expected_label, expected_reference) = if source.contains("_:") {
+                    ("_:label", "_:reference")
+                } else {
+                    ("urn:label", "urn:reference")
+                };
+                assert_eq!(label, expected_label);
+                assert_eq!(reference, expected_reference);
+                assert_eq!(label_tokens[0].token, Token::Dollar);
+                assert_eq!(reference_tokens[0].token, Token::LParen);
+                assert_eq!(reference_tokens.last().unwrap().token, Token::RParen);
+                for operand in label_tokens.iter().chain(reference_tokens) {
+                    assert_ne!(&input[operand.start..operand.end], "");
+                    let _ = inspect_without_allocation(operand);
+                }
+                assert_eq!(&input[*at..=*at], "}");
+            }
+            _ => panic!("placement refusal: {error}"),
+        }
+        drop(input);
+        let fields = inspect_without_allocation(&error);
+        let ErrorValue::Cause(native) = fields.field("reason") else {
+            panic!("native reason");
+        };
+        let fields = inspect_without_allocation(native);
+        if matches!(reason.as_ref(), GrammarReason::LabelledInclusion { .. }) {
+            assert!(matches!(fields.field("label"), ErrorValue::Text(_)));
+            assert!(matches!(fields.field("reference"), ErrorValue::Text(_)));
+        }
+    }
+    for input in [
+        "PREFIX ex: <urn:> ex:S {}",
+        "<urn:S> [ \"é\"@EN ]",
+        "<urn:S> { $<urn:label> (<urn:p> .) }",
+        "<urn:S> { $_:label (<urn:p> .) }",
+    ] {
+        assert!(parse_shexc(input, None).is_ok(), "{input}");
+    }
+    // Real unexpected tokens retain every payload, not a diagnostic rendering.
+    for input in ["+", "/α/i", "{2,4}", "<urn:S> [ ? ]"] {
+        let owned = input.to_owned();
+        let original = parse_shexc(&owned, None).unwrap_err();
+        drop(owned);
+        let error = original.clone();
+        drop(original);
+        let ShexError::Grammar { reason, .. } = &error else {
+            panic!("{input}: {error}");
+        };
+        let token = match reason.as_ref() {
+            GrammarReason::Declaration { encountered } => &encountered.token,
+            GrammarReason::Expected {
+                encountered: Some(operand),
+                ..
+            }
+            | GrammarReason::ValueSet {
+                encountered: Some(operand),
+            } => &operand.token,
+            _ => panic!("unexpected refusal: {error}"),
+        };
+        let fields = inspect_without_allocation(token);
+        match token {
+            Token::Regex { pattern, flags } => {
+                assert_eq!(pattern, "α");
+                assert_eq!(flags, "i");
+                assert!(matches!(fields.field("flags"), ErrorValue::Text("i")));
+            }
+            Token::Repeat { min, max } => {
+                assert_eq!((*min, *max), (2, 4));
+                assert!(matches!(fields.field("max"), ErrorValue::Signed(4)));
+            }
+            Token::Plus | Token::Question => {}
+            _ => panic!("{input}: {token:?}"),
+        }
+    }
+    // Code is itself accepted at document scope, so expose it at a shape cursor.
+    for input in ["<urn:S> %ex:action{ body %}", "<urn:S> %<urn:action>%"] {
+        let owned = input.to_owned();
+        let original = parse_shexc(&owned, None).unwrap_err();
+        drop(owned);
+        let error = original.clone();
+        drop(original);
+        let ShexError::Grammar { reason, .. } = &error else {
+            panic!("{input}: {error}");
+        };
+        let GrammarReason::Expected {
+            encountered: Some(operand),
+            ..
+        } = reason.as_ref()
+        else {
+            panic!("{input}: {error}");
+        };
+        let Token::Code { name, code } = &operand.token else {
+            panic!("code token");
+        };
+        let fields = inspect_without_allocation(&operand.token);
+        let _ = inspect_without_allocation(name);
+        assert_eq!(
+            fields.child("name").code,
+            match name {
+                CodeName::PName(_, _) => "shexc-code-pname",
+                CodeName::Iri(_) => "shexc-code-iri",
+            }
+        );
+        assert_eq!(code.as_deref(), input.contains("body").then_some(" body "));
+    }
+    let root = parse_shexc("IMPORT <urn:import>", None).unwrap();
+    let imported =
+        purrdf_shex::resolve_imports(root, &|_| parse_shexc("<urn:S> [ ? ]", None)).unwrap_err();
+    let fields = inspect_without_allocation(&imported);
+    assert_eq!(fields.child("cause").code, "shex-syntax");
+    assert!(
+        std::error::Error::source(&imported)
+            .unwrap()
+            .source()
+            .unwrap()
+            .is::<GrammarReason>()
+    );
+}
+
+fn facet_conflicts_keep_both_original_occurrences_and_exact_values() {
+    use purrdf_shex::{ExactSchema, FacetKind as K, FacetReason, NumericLiteral, ShexError};
+    for (input, message, kind, old, new) in [
+        (
+            "<urn:S> /old/i /new/m",
+            "duplicate pattern facet",
+            K::Pattern,
+            0,
+            0,
+        ),
+        (
+            "<urn:S> LENGTH 1 length 2",
+            "duplicate length facet",
+            K::Length,
+            1,
+            2,
+        ),
+        (
+            "<urn:S> mInLeNgTh 3 MINLENGTH 4",
+            "duplicate minlength facet",
+            K::MinLength,
+            3,
+            4,
+        ),
+        (
+            "<urn:S> MAXLENGTH 5 MAXLENGTH 6",
+            "duplicate maxlength facet",
+            K::MaxLength,
+            5,
+            6,
+        ),
+        (
+            "<urn:S> TOTALDIGITS 7 TOTALDIGITS 8",
+            "duplicate totaldigits facet",
+            K::TotalDigits,
+            7,
+            8,
+        ),
+        (
+            "<urn:S> FRACTIONDIGITS 9 FRACTIONDIGITS 10",
+            "duplicate fractiondigits facet",
+            K::FractionDigits,
+            9,
+            10,
+        ),
+    ] {
+        let owned = input.to_owned();
+        let original = parse_shexc(&owned, None).unwrap_err();
+        assert_eq!(
+            ExactSchema::parse_shexc(&owned, None).unwrap_err(),
+            original
+        );
+        let ShexError::Facet { reason, at } = &original else {
+            panic!("{original}");
+        };
+        assert_eq!(
+            original.to_string(),
+            format!("ShExC syntax error at byte {at}: {message}")
+        );
+        assert_eq!(original.byte_offset(), Some(*at));
+        assert_eq!(format!("{original:?}"), original.to_string());
+        match reason.as_ref() {
+            FacetReason::Pattern { previous, incoming } => {
+                assert_eq!(&owned[previous.start..previous.end], "/old/i");
+                assert_eq!(&owned[incoming.start..incoming.end], "/new/m");
+                assert_eq!(*at, incoming.start);
+                let fields = inspect_without_allocation(reason.as_ref());
+                assert!(matches!(
+                    fields.child("previous").child("token").field("flags"),
+                    ErrorValue::Text("i")
+                ));
+                assert!(matches!(
+                    fields.child("incoming").child("token").field("pattern"),
+                    ErrorValue::Text("new")
+                ));
+            }
+            FacetReason::UnsignedDuplicate {
+                kind: actual,
+                previous,
+                incoming,
+            } => {
+                assert_eq!(*actual, kind);
+                assert_eq!((previous.value(), incoming.value()), (old, new));
+                assert_eq!(
+                    &owned[previous.token().start..previous.token().end],
+                    old.to_string()
+                );
+                assert_eq!(
+                    &owned[incoming.token().start..incoming.token().end],
+                    new.to_string()
+                );
+                assert!(previous.keyword().start < incoming.keyword().start);
+                assert_eq!(*at, owned.len());
+                let fields = inspect_without_allocation(previous);
+                assert!(
+                    matches!(fields.field("value"), ErrorValue::Unsigned(value) if value == u128::from(old))
+                );
+            }
+            _ => panic!("{original}"),
+        }
+        drop(owned);
+        let error = original.clone();
+        drop(original);
+        let fields = inspect_without_allocation(&error);
+        assert_eq!(fields.code, "shex-syntax");
+        let ErrorValue::Cause(reason) = fields.field("reason") else {
+            panic!("native cause");
+        };
+        let _ = inspect_without_allocation(reason);
+        assert!(
+            std::error::Error::source(&error)
+                .unwrap()
+                .is::<FacetReason>()
+        );
+    }
+    for (keyword, kind, first, second, datatype) in [
+        (
+            "mInInClUsIvE",
+            K::MinInclusive,
+            "5",
+            "5.0000000000000000001",
+            purrdf_xsd::XsdDatatype::Decimal,
+        ),
+        (
+            "MINEXCLUSIVE",
+            K::MinExclusive,
+            "1E999",
+            "2E999",
+            purrdf_xsd::XsdDatatype::Double,
+        ),
+        (
+            "MAXINCLUSIVE",
+            K::MaxInclusive,
+            "1.5",
+            "1.50",
+            purrdf_xsd::XsdDatatype::Decimal,
+        ),
+        (
+            "MAXEXCLUSIVE",
+            K::MaxExclusive,
+            "-0.0",
+            "0E0",
+            purrdf_xsd::XsdDatatype::Double,
+        ),
+    ] {
+        let input = format!("<urn:S> {keyword} {first} {keyword} {second}");
+        let original = parse_shexc(&input, None).unwrap_err();
+        assert_eq!(
+            ExactSchema::parse_shexc(&input, None).unwrap_err(),
+            original
+        );
+        let ShexError::Facet { reason, at } = &original else {
+            panic!("{original}");
+        };
+        let FacetReason::NumericDuplicate {
+            kind: actual,
+            previous,
+            incoming,
+        } = reason.as_ref()
+        else {
+            panic!("{original}");
+        };
+        assert_eq!(*actual, kind);
+        assert_eq!(previous.exact_lexical(), first);
+        assert_eq!(incoming.exact_lexical(), second);
+        assert_eq!(incoming.exact_datatype(), datatype);
+        assert_eq!(
+            &input[previous.keyword().start..previous.keyword().end],
+            keyword
+        );
+        assert_eq!(&input[incoming.token().start..incoming.token().end], second);
+        assert_eq!(*at, input.len());
+        let fields = inspect_without_allocation(previous);
+        assert!(
+            matches!(fields.child("exact").field("lexical"), ErrorValue::Text(value) if value == first)
+        );
+        let _ = inspect_without_allocation(previous.value());
+        let _ = inspect_without_allocation(incoming);
+        if kind == K::MinInclusive {
+            assert_eq!(*previous.value(), NumericLiteral::Integer(5));
+            assert_eq!(*incoming.value(), NumericLiteral::Integer(5));
+            assert_ne!(previous.exact_lexical(), incoming.exact_lexical());
+        }
+        if kind == K::MinExclusive {
+            assert!(
+                matches!(previous.value(), NumericLiteral::Fractional(value) if value.is_infinite())
+            );
+        }
+        drop(input);
+        let error = original.clone();
+        drop(original);
+        let fields = inspect_without_allocation(&error);
+        let ErrorValue::Cause(reason) = fields.field("reason") else {
+            panic!("native numeric evidence");
+        };
+        let _ = inspect_without_allocation(reason);
+    }
+    // Healthy neighbors admit distinct facets and preserve ordinary/exact paths.
+    for input in [
+        "<urn:S> /old/i",
+        "<urn:S> LENGTH 1 MINLENGTH 0 MAXLENGTH 2",
+        "<urn:S> TOTALDIGITS 3 FRACTIONDIGITS 2",
+        "<urn:S> MININCLUSIVE 5 MAXINCLUSIVE 5.0000000000000000001",
+    ] {
+        assert!(parse_shexc(input, None).is_ok(), "{input}");
+        assert!(ExactSchema::parse_shexc(input, None).is_ok(), "{input}");
+    }
+}
+
+fn facet_admission_keeps_native_causes_datatypes_and_first_fault() {
+    use purrdf_shex::{AdmittedNumericFacet, ExactSchema, FacetReason, NumericLiteral, ShexError};
+    use purrdf_xsd::XsdDatatype;
+    for (keyword, lexical, cause_name, message) in [
+        (
+            "mInLeNgTh",
+            "-1",
+            "invalid-digit",
+            "string facet value must be a non-negative integer",
+        ),
+        (
+            "FRACTIONDIGITS",
+            "18446744073709551616",
+            "positive-overflow",
+            "digit-count facet value must be a non-negative integer",
+        ),
+    ] {
+        let input = format!("<urn:S> {keyword} {lexical}");
+        let original = parse_shexc(&input, None).unwrap_err();
+        assert_eq!(
+            ExactSchema::parse_shexc(&input, None).unwrap_err(),
+            original
+        );
+        let ShexError::Facet { reason, at } = &original else {
+            panic!("{original}");
+        };
+        let FacetReason::Unsigned {
+            keyword: word,
+            token,
+            cause,
+            ..
+        } = reason.as_ref()
+        else {
+            panic!("{original}");
+        };
+        assert_eq!(&input[word.start..word.end], keyword);
+        assert_eq!(&input[token.start..token.end], lexical);
+        assert_eq!(*at, token.start);
+        assert_eq!(
+            original.to_string(),
+            format!("ShExC syntax error at byte {at}: {message}")
+        );
+        assert_eq!(&lexical.parse::<u64>().unwrap_err(), cause);
+        let fields = inspect_without_allocation(reason.as_ref());
+        assert!(matches!(fields.field("minimum"), ErrorValue::Unsigned(0)));
+        assert!(
+            matches!(fields.field("maximum"), ErrorValue::Unsigned(value) if value == u128::from(u64::MAX))
+        );
+        assert!(
+            matches!(fields.child("cause").child("kind").field("name"), ErrorValue::Code(value) if value == cause_name)
+        );
+        drop(input);
+        let error = original.clone();
+        drop(original);
+        assert!(
+            std::error::Error::source(&error)
+                .unwrap()
+                .source()
+                .unwrap()
+                .is::<core::num::ParseIntError>()
+        );
+        let _ = inspect_without_allocation(&error);
+    }
+    for (datatype, recognized) in [
+        (
+            "http://www.w3.org/2001/XMLSchema#string",
+            Some(XsdDatatype::String),
+        ),
+        ("urn:unknown", None),
+    ] {
+        let input = format!(
+            "PREFIX dt: <{datatype}> <urn:é> dt: FRACTIONDIGITS 2 MAXEXCLUSIVE 5.0000000000000000001 MININCLUSIVE 0 TOTALDIGITS 7 MINEXCLUSIVE -1 MAXINCLUSIVE 9"
+        );
+        let original = parse_shexc(&input, None).unwrap_err();
+        assert_eq!(
+            ExactSchema::parse_shexc(&input, None).unwrap_err(),
+            original
+        );
+        let ShexError::Facet { reason, at } = &original else {
+            panic!("{original}");
+        };
+        let FacetReason::Datatype {
+            token,
+            resolved,
+            recognized: actual,
+            facets,
+        } = reason.as_ref()
+        else {
+            panic!("{original}");
+        };
+        assert_eq!(&input[token.start..token.end], "dt:");
+        assert_eq!(resolved, datatype);
+        assert_eq!(*actual, recognized);
+        assert_eq!(facets.len(), 6);
+        assert_eq!(*at, input.len());
+        let mut previous_end = token.end;
+        for (index, facet) in facets.iter().enumerate() {
+            let fields = inspect_without_allocation(facet);
+            assert!(fields.code.starts_with("shex-facet-admitted-"));
+            match facet {
+                AdmittedNumericFacet::Range { operand, .. } => {
+                    assert!(operand.keyword().start > previous_end);
+                    previous_end = operand.token().end;
+                    if index == 1 {
+                        assert_eq!(operand.exact_lexical(), "5.0000000000000000001");
+                    }
+                    let _ = inspect_without_allocation(operand);
+                }
+                AdmittedNumericFacet::Digits { operand, .. } => {
+                    assert!(operand.keyword().start > previous_end);
+                    previous_end = operand.token().end;
+                    assert_eq!(operand.value(), if index == 0 { 2 } else { 7 });
+                }
+            }
+        }
+        assert_eq!(
+            original.to_string(),
+            format!(
+                "ShExC syntax error at byte {at}: numeric facet on non-numeric datatype <{datatype}>"
+            )
+        );
+        assert_eq!(
+            original.locate(&input).unwrap(),
+            purrdf_iri::LineIndex::new(&input).locate(&input, *at)
+        );
+        drop(input);
+        let error = original.clone();
+        drop(original);
+        let fields = inspect_without_allocation(&error);
+        let ErrorValue::Cause(reason) = fields.field("reason") else {
+            panic!("native datatype evidence");
+        };
+        let _ = inspect_without_allocation(reason);
+    }
+    // A digit-only refusal must not capture the previous constraint's exact
+    // range record: no exact bound belongs to this datatype occurrence.
+    let input = "<urn:Earlier> MININCLUSIVE 4 <urn:S> <urn:unknown> TOTALDIGITS 2";
+    let error = ExactSchema::parse_shexc(input, None).unwrap_err();
+    let ShexError::Facet { reason, .. } = &error else {
+        panic!("{error}");
+    };
+    let FacetReason::Datatype { facets, .. } = reason.as_ref() else {
+        panic!("{error}");
+    };
+    assert_eq!(facets.len(), 1);
+    assert!(
+        matches!(&facets[0], AdmittedNumericFacet::Digits { operand, .. } if operand.value() == 2)
+    );
+    // Incoming conversion precedes duplicate detection; suitability comes last.
+    for input in [
+        "<urn:S> LENGTH 1 LENGTH -1",
+        "<urn:S> <urn:unknown> TOTALDIGITS 1 TOTALDIGITS -1",
+    ] {
+        let error = parse_shexc(input, None).unwrap_err();
+        assert!(
+            matches!(error, ShexError::Facet { reason, .. } if matches!(reason.as_ref(), FacetReason::Unsigned { .. }))
+        );
+    }
+    assert!(matches!(
+        parse_shexc("<urn:S> LENGTH 1 LENGTH .", None),
+        Err(ShexError::Grammar { .. })
+    ));
+    // Ordinary range refusal stays separate; exact parsing still saturates its
+    // AST stand-in and retains the original huge bound before a duplicate.
+    let huge = "9".repeat(400);
+    let input = format!("<urn:S> MININCLUSIVE {huge} MININCLUSIVE 1");
+    assert!(matches!(
+        parse_shexc(&input, None),
+        Err(ShexError::Syntax { .. })
+    ));
+    let error = ExactSchema::parse_shexc(&input, None).unwrap_err();
+    let ShexError::Facet { reason, .. } = &error else {
+        panic!("{error}");
+    };
+    let FacetReason::NumericDuplicate { previous, .. } = reason.as_ref() else {
+        panic!("{error}");
+    };
+    assert_eq!(previous.exact_lexical(), huge);
+    assert!(matches!(previous.value(), NumericLiteral::Fractional(value) if *value == f64::MAX));
+    for input in [
+        "<urn:S> MINLENGTH 0 MAXLENGTH 18446744073709551615",
+        "<urn:S> <http://www.w3.org/2001/XMLSchema#decimal> MININCLUSIVE 0 TOTALDIGITS 2",
+        "<urn:S> <urn:unknown> LENGTH 1",
+        "<urn:S> <http://www.w3.org/2001/XMLSchema#string> /x/",
+    ] {
+        assert!(parse_shexc(input, None).is_ok(), "{input}");
+        assert!(ExactSchema::parse_shexc(input, None).is_ok(), "{input}");
+    }
+    let root = parse_shexc("IMPORT <urn:import>", None).unwrap();
+    let imported = purrdf_shex::resolve_imports(root, &|_| parse_shexc("<urn:S> LENGTH -1", None))
+        .unwrap_err();
+    let fields = inspect_without_allocation(&imported);
+    assert_eq!(fields.child("cause").code, "shex-syntax");
+    assert!(
+        std::error::Error::source(&imported)
+            .unwrap()
+            .source()
+            .unwrap()
+            .source()
+            .unwrap()
+            .is::<core::num::ParseIntError>()
+    );
+}
+
+fn shexj_materialization_retains_native_members_and_grammar() {
+    use purrdf_shex::{ExactSchema, JsonMemberReason, ShexError};
+    // Materialization admission and grammar use the public JSON ingress,
+    // without cursor or malformed native Number fabrication.
+    for (input, code, message) in [
+        ("[]", "shexj-object", "Schema: expected a JSON object"),
+        (
+            r#"{"type":"Other"}"#,
+            "shexj-type",
+            "Schema: expected type \"Schema\", found \"Other\"",
+        ),
+        (
+            r#"{"type":"Schema","startActs":[{"type":"SemAct"}]}"#,
+            "shexj-missing",
+            "SemAct: missing \"name\"",
+        ),
+        (
+            r#"{"type":"Schema","startActs":[{"type":"SemAct","name":"urn:a","code":7}]}"#,
+            "shexj-member",
+            "SemAct: \"code\" must be a string",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"NodeConstraint","length":-0}}"#,
+            "shexj-member",
+            "NodeConstraint: \"length\" must be a non-negative integer",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"NodeConstraint","minlength":false}}"#,
+            "shexj-member",
+            "NodeConstraint: \"minlength\" must be a number",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"Shape","expression":{"type":"EachOf","max":1.0,"expressions":[]}}}"#,
+            "shexj-member",
+            "EachOf/OneOf: \"max\" must be an integer",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"Shape","expression":{"type":"TripleConstraint","predicate":"urn:p","min":null}}}"#,
+            "shexj-member",
+            "TripleConstraint: \"min\" must be a number",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"Shape","closed":null}}"#,
+            "shexj-member",
+            "Shape: \"closed\" must be a boolean",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"NodeConstraint","mininclusive":"NaN"}}"#,
+            "shexj-member",
+            "NodeConstraint: \"mininclusive\" must be a number",
+        ),
+        (
+            r#"{"type":"Schema","shapes":null}"#,
+            "shexj-member",
+            "Schema: \"shapes\" must be an array",
+        ),
+        (
+            r#"{"type":"Schema","z":{"b":[1.50,true],"a":null},"a":0}"#,
+            "shexj-unknown-member",
+            "Schema: unknown key \"z\"",
+        ),
+        (
+            r#"{"type":"Schema","imports":["urn:i",{"x":true}]}"#,
+            "shexj-entry",
+            "Schema: imports entries must be strings",
+        ),
+        (
+            r#"{"type":"Schema","shapes":[false]}"#,
+            "shexj-object",
+            "shapes entry: expected a JSON object",
+        ),
+        (
+            r#"{"type":"Schema","shapes":[{"id":7,"type":"Shape"}]}"#,
+            "shexj-identifier",
+            "shapes entry: missing string \"id\"",
+        ),
+        (
+            r#"{"type":"Schema","start":null}"#,
+            "shexj-discriminator",
+            "shapeExpr: missing \"type\" discriminator",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"ShapeAnd"}}"#,
+            "shexj-missing",
+            "ShapeAnd: missing \"shapeExprs\"",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"ShapeNot"}}"#,
+            "shexj-missing",
+            "ShapeNot: missing \"shapeExpr\"",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"Other"}}"#,
+            "shexj-unknown-type",
+            "shapeExpr: unknown type \"Other\"",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"NodeConstraint","values":[{"type":"IriStemRange","stem":3}]}}"#,
+            "shexj-stem",
+            "IriStemRange: stem must be a string or Wildcard",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"NodeConstraint","values":[{"type":"IriStemRange"}]}}"#,
+            "shexj-missing",
+            "IriStemRange: missing \"stem\"",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"NodeConstraint","values":[{"type":"LiteralStemRange"}]}}"#,
+            "shexj-missing",
+            "LiteralStemRange: missing \"stem\"",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"NodeConstraint","values":[{"type":"LanguageStemRange"}]}}"#,
+            "shexj-missing",
+            "LanguageStemRange: missing \"stem\"",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"Shape","extra":["urn:p",false]}}"#,
+            "shexj-entry",
+            "Shape: extra entries must be strings",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"Shape","expression":false}}"#,
+            "shexj-discriminator",
+            "tripleExpr: missing \"type\" discriminator",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"Shape","expression":{"type":"OneOf"}}}"#,
+            "shexj-missing",
+            "OneOf: missing \"expressions\"",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"Shape","expression":{"type":"Other"}}}"#,
+            "shexj-unknown-type",
+            "tripleExpr: unknown type \"Other\"",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"Shape","annotations":[{"type":"Annotation","predicate":"urn:p"}]}}"#,
+            "shexj-missing",
+            "Annotation: missing \"object\"",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"NodeConstraint","nodeKind":"other"}}"#,
+            "shexj-node-kind",
+            "NodeConstraint: unknown nodeKind \"other\"",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"NodeConstraint","values":[{"type":"LiteralStemRange","stem":false}]}}"#,
+            "shexj-stem",
+            "LiteralStemRange: stem must be a string or Wildcard",
+        ),
+        (
+            r#"{"type":"Schema","start":{"type":"NodeConstraint","values":[{"type":"LanguageStemRange","stem":{"type":"Other"}}]}}"#,
+            "shexj-type",
+            "LanguageStemRange: expected type \"Wildcard\", found \"Other\"",
+        ),
+    ] {
+        let owned = input.to_owned();
+        let original = purrdf_shex::parse_shexj(&owned, None).unwrap_err();
+        assert_eq!(
+            ExactSchema::parse_shexj(&owned, None).unwrap_err(),
+            original
+        );
+        assert_eq!(original.to_string(), format!("ShExJ error: {message}"));
+        assert_eq!(format!("{original:?}"), original.to_string());
+        assert_eq!(original.byte_offset(), None);
+        assert_eq!(original.locate(&owned), None);
+        drop(owned);
+        let error = original.clone();
+        drop(original);
+        let fields = inspect_without_allocation(&error);
+        assert_eq!(fields.code, "shex-json");
+        let ErrorValue::Cause(native) = fields.field("reason") else {
+            panic!("native materialization reason");
+        };
+        let fields = inspect_without_allocation(native);
+        assert_eq!(fields.code, code, "{input}");
+        assert!(
+            std::error::Error::source(&error)
+                .unwrap()
+                .is::<JsonMemberReason>()
+        );
+        let ShexError::JsonMember(reason) = &error else {
+            panic!("native member variant");
+        };
+        match reason.as_ref() {
+            JsonMemberReason::Member {
+                member,
+                expected,
+                offered,
+                ..
+            } => {
+                let _ = inspect_without_allocation(member);
+                let _ = inspect_without_allocation(expected);
+                let offered_fields = inspect_without_allocation(offered);
+                assert_eq!(
+                    offered_fields.child("value").code,
+                    match offered.value() {
+                        purrdf_lex::json::Value::Null => "json-null",
+                        purrdf_lex::json::Value::Bool(_) => "json-boolean",
+                        purrdf_lex::json::Value::Number(_) => "json-number",
+                        _ => "json-string",
+                    }
+                );
+            }
+            JsonMemberReason::Entry { index, .. } => assert_eq!(*index, 1),
+            JsonMemberReason::Type { expected, .. } => {
+                let _ = inspect_without_allocation(expected);
+            }
+            JsonMemberReason::Discriminator { offered, .. } => {
+                let _ = inspect_without_allocation(offered.value());
+            }
+            _ => {}
+        }
+    }
+    // Healthy counterparts span the same object/member/type and value paths.
+    for input in [
+        r#"{"type":"Schema","@context":null}"#,
+        r#"{"type":"Schema","imports":["urn:i"],"startActs":[{"type":"SemAct","name":"urn:a","code":"7"}]}"#,
+        r#"{"type":"Schema","shapes":[{"id":"urn:S","type":"Shape","closed":false,"extra":["urn:p"]}]}"#,
+        r#"{"type":"Schema","start":{"type":"ShapeAnd","shapeExprs":[{"type":"ShapeOr","shapeExprs":[{"type":"ShapeExternal"}]}]}}"#,
+        r#"{"type":"Schema","start":{"type":"ShapeNot","shapeExpr":{"type":"ShapeExternal"}}}"#,
+        r#"{"type":"Schema","start":{"type":"NodeConstraint","nodeKind":"literal","length":0,"minlength":0,"maxlength":18446744073709551615,"mininclusive":1e999,"maxinclusive":1.5,"values":[{"type":"IriStemRange","stem":{"type":"Wildcard"},"exclusions":["urn:x"]},{"type":"LiteralStemRange","stem":"x"},{"type":"LanguageStemRange","stem":""},{"value":"v","type":"urn:custom-datatype"}]}}"#,
+        r#"{"type":"Schema","start":{"type":"Shape","expression":{"type":"EachOf","min":-0,"max":-1,"expressions":[{"type":"OneOf","expressions":[{"type":"TripleConstraint","predicate":"urn:p","min":-2,"max":9223372036854775807}]}]},"annotations":[{"type":"Annotation","predicate":"urn:a","object":"urn:b"}]}}"#,
+    ] {
+        assert!(purrdf_shex::parse_shexj(input, None).is_ok(), "{input}");
+        assert!(ExactSchema::parse_shexj(input, None).is_ok(), "{input}");
+    }
+}
+
+fn shexj_rejected_values_keep_depth_spelling_priority_and_numeric_profiles() {
+    use purrdf_lex::json::{self, Value};
+    use purrdf_shex::{
+        ExactSchema, JsonContext, JsonMember, JsonMemberReason, JsonType, NumericLiteral, ShexError,
+    };
+    let input = format!(
+        r#"{{"type":"Schema","start":{{"type":"NodeConstraint","mininclusive":{}}}}}"#,
+        "9".repeat(400)
+    );
+    let error = purrdf_shex::parse_shexj(&input, None).unwrap_err();
+    let ShexError::JsonMember(reason) = &error else {
+        panic!("{error}");
+    };
+    let JsonMemberReason::NumericRange {
+        context,
+        member,
+        offered,
+        converted,
+    } = reason.as_ref()
+    else {
+        panic!("numeric range");
+    };
+    assert_eq!(*context, JsonContext::Type(JsonType::NodeConstraint));
+    assert_eq!(*member, JsonMember::Mininclusive);
+    assert_eq!(*converted, f64::INFINITY.to_bits());
+    assert_eq!(
+        offered.value().as_number().unwrap().lexeme(),
+        "9".repeat(400)
+    );
+    assert_eq!(
+        error.to_string(),
+        "ShExJ error: NodeConstraint: \"mininclusive\" out of range"
+    );
+    let _ = inspect_without_allocation(reason.as_ref());
+    let exact = ExactSchema::parse_shexj(&input, None).unwrap();
+    let purrdf_shex::ShapeExpr::Node(node) = exact.schema().start.as_deref().unwrap() else {
+        panic!("exact node");
+    };
+    assert!(
+        matches!(node.mininclusive, Some(NumericLiteral::Fractional(value)) if value == f64::MAX)
+    );
+    drop(exact);
+    drop(input);
+    let cloned = error.clone();
+    drop(error);
+    let fields = inspect_without_allocation(&cloned);
+    let ErrorValue::Cause(reason) = fields.field("reason") else {
+        panic!("owned numeric cause");
+    };
+    assert_eq!(
+        inspect_without_allocation(reason).code,
+        "shexj-numeric-range"
+    );
+
+    // The unknown member's whole native payload survives source and DOM drop.
+    // Its original member order and number spelling remain observable.
+    let value = format!(
+        r#"{{"b":1.50,"a":{}true{}}}"#,
+        "[".repeat(60),
+        "]".repeat(60)
+    );
+    let input = format!(r#"{{"type":"Schema","first":{value},"second":0}}"#);
+    let original = purrdf_shex::parse_shexj(&input, None).unwrap_err();
+    let expected = json::read(&value).unwrap();
+    drop(input);
+    drop(value);
+    let error = original.clone();
+    drop(original);
+    let ShexError::JsonMember(reason) = &error else {
+        panic!("owned member");
+    };
+    let JsonMemberReason::Unknown { name, offered, .. } = reason.as_ref() else {
+        panic!("unknown member");
+    };
+    assert_eq!(name, "first");
+    assert!(offered.value().same_text(&expected));
+    let Value::Object(object) = offered.value() else {
+        panic!("original object");
+    };
+    let fields = inspect_without_allocation(offered.value());
+    assert_eq!(fields.code, "json-object");
+    assert_eq!(
+        object.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["b", "a"]
+    );
+    assert_eq!(
+        object.get("b").unwrap().as_number().unwrap().lexeme(),
+        "1.50"
+    );
+    let mut nested = object.get("a").unwrap();
+    for _ in 0..60 {
+        let _ = inspect_without_allocation(nested);
+        nested = &nested.as_array().unwrap()[0];
+    }
+    assert_eq!(nested, &Value::Bool(true));
+    drop(expected);
+    drop(error);
+
+    // Read-before-base-before-schema priority and the existing typed families.
+    assert!(matches!(
+        purrdf_shex::parse_shexj("{", Some("bad base")),
+        Err(ShexError::JsonRead(_))
+    ));
+    assert!(matches!(
+        purrdf_shex::parse_shexj("[]", Some("bad base")),
+        Err(ShexError::Iri { .. })
+    ));
+    let id_first = r#"{"type":"Schema","shapes":[{"id":"relative","type":"Other"}]}"#;
+    assert!(matches!(
+        purrdf_shex::parse_shexj(id_first, None),
+        Err(ShexError::Iri { .. })
+    ));
+    let language_first = r#"{"type":"Schema","start":{"type":"NodeConstraint","values":[{"value":"v","language":"en-","unknown":true}]}}"#;
+    assert!(matches!(
+        purrdf_shex::parse_shexj(language_first, None),
+        Err(ShexError::LanguageTag { .. })
+    ));
+    let child_first =
+        r#"{"type":"Schema","start":{"type":"ShapeNot","shapeExpr":null,"unknown":true}}"#;
+    let error = purrdf_shex::parse_shexj(child_first, None).unwrap_err();
+    assert!(
+        matches!(error, ShexError::JsonMember(reason) if matches!(reason.as_ref(), JsonMemberReason::Discriminator { .. }))
+    );
+    // Unknown value-set types are literal datatype IRIs, not unknown tags.
+    assert!(purrdf_shex::parse_shexj(r#"{"type":"Schema","start":{"type":"NodeConstraint","values":[{"value":"v","type":"urn:datatype"}]}}"#, None).is_ok());
+    let root = parse_shexc("IMPORT <urn:import>", None).unwrap();
+    let imported = purrdf_shex::resolve_imports(root, &|_| {
+        purrdf_shex::parse_shexj(r#"{"type":"Schema","shapes":null}"#, None)
+    })
+    .unwrap_err();
+    assert_eq!(
+        inspect_without_allocation(&imported).child("cause").code,
+        "shex-json"
+    );
+    assert!(
+        std::error::Error::source(&imported)
+            .unwrap()
+            .source()
+            .unwrap()
+            .is::<JsonMemberReason>()
+    );
+}
+
 purrdf_testkit::harness_main!(
+    shexj_materialization_retains_native_members_and_grammar,
+    shexj_rejected_values_keep_depth_spelling_priority_and_numeric_profiles,
+    facet_conflicts_keep_both_original_occurrences_and_exact_values,
+    facet_admission_keeps_native_causes_datatypes_and_first_fault,
+    schema_grammar_refusals_keep_original_tokens_and_positions,
+    schema_grammar_placement_and_rich_operands_survive_input_disposal,
     actual_shape_map_keeps_original_iri_cause_after_input_disposal,
     structural_refusals_keep_the_original_unresolved_label,
     lexical_refusals_keep_original_values_offsets_and_presentation,

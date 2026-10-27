@@ -25,8 +25,27 @@ Regenerate or recompute these stored artifacts; 4.0 readers refuse or miss the
 Rebuild C clients against the regenerated `purrdf.h`; the 4.0 libraries declare
 C ABI 0.12.0. Several defaults change behavior without a signature change:
 remembered empty named graphs, model-only Datalog output, exact decimal
-division, the SPARQL pre-binding rewrite and specific SPARQL diagnostic codes.
+division, WKT parsing resource policies, the SPARQL pre-binding rewrite and specific
+SPARQL diagnostic codes.
 Each has its own section below.
+
+## WKT parsing resource policies
+
+`wkt::parse` and the compatibility WKT carrier through `geometry_arg` now apply
+`ExecutionPolicy::geometry()`. Input scanning, aggregate exact-decimal
+construction and coordinate count can exhaust that policy even for valid WKT.
+Refusals retain their original `WorkExhausted`, `MemoryExhausted` or
+`OutputExhausted` reason. Accepted coordinates and CRS metadata remain exact.
+
+Use `wkt::parse_in_policy` or `geometry_arg_in_policy` for caller-selected limits.
+Use `wkt::parse_unbounded` when the caller accepts unrestricted construction.
+Large exponents or trusted generated text with hundreds of decimal places can
+require either route. Producing a value under one operation's budget does not
+guarantee that a separately budgeted parse can reconstruct it.
+
+Existing supplied-policy, metered and storage ingress keeps its original account.
+Collections still use a heap stack with no separate nesting-depth ceiling;
+their scanning and construction consume the selected policy's resources.
 
 ## Shape-map syntax refusals and Unicode positions
 
@@ -656,3 +675,49 @@ OpenAPI output now references its definitions as `#/components/schemas/...`
 instead of `#/$defs/...`. Update tooling that rewrote or followed the old
 references. JSON Schema output is unchanged. The schema policy salt includes
 `openapi-3.1-local-refs-v1`, so `SchemaCompilation.key` changes.
+
+### ShExC grammar admission
+
+Token-stream grammar refusals now use `ShexError::Grammar` with a native
+`GrammarReason`, rather than a rendered `Syntax` reason. `GrammarExpectation`
+identifies the required production. Original encountered `Spanned` tokens retain
+their contents and half-open byte spans, including semantic action names and
+bodies, regex flags, repeat bounds and placement operands. These types implement
+the shared borrowed inspection protocol.
+
+The outer `shex-syntax` identity and `at` field remain unchanged; `reason` is now
+a nested native cause with a standard error source. Human messages, byte
+coordinates and refusal order remain unchanged. Contextual, semantic and resource
+refusals still use `Syntax`; this change does not replace that remaining family.
+
+### ShExC facet conflicts and admission
+
+Duplicate facets, unsigned facet conversion and numeric datatype suitability now
+use `ShexError::Facet` with a boxed native `FacetReason`. Evidence retains both
+original occurrences and their spans, admitted values and exact numeric bound
+spellings and datatypes. Integer conversion retains its original `ParseIntError`.
+Datatype refusal carries every admitted numeric facet in original source order.
+`NumericLiteral` participates in borrowed inspection without changing AST equality;
+immutable numeric refusal operands compare floating values by their exact bits.
+
+The outer `shex-syntax` identity, unsigned `at` field, human messages and byte
+coordinates remain unchanged. Its `reason` is a nested native cause and supports
+the standard error chain. Other contextual, resource and numeric range refusals
+continue to use `Syntax`.
+
+### Native ShExJ materialization refusals
+
+Library ShExJ object/member and schema/value refusals now use
+`ShexError::JsonMember` with a boxed `JsonMemberReason`. Typed contexts, members,
+expectations, collection indices and refused JSON values are available through
+borrowed inspection. `JsonOffered` retains native number spellings and member
+order, using the JSON home's iterative clone and drop operations. Numeric range
+refusals retain the actual `f64` conversion bits; they introduce no standard
+integer or floating parsing cause.
+
+The outer `shex-json` identity, human messages and absent byte offsets remain
+unchanged. Its `reason` is a native cause with a standard error chain. JSON ingress,
+IRI and language failures keep their existing native variants. `Shexj` remains for
+caller-provided diagnostics such as CLI import lookup; it is no longer the library
+materializer's fallback. This change adds no success-path DOM copy or whole-parser
+allocation guarantee.

@@ -246,28 +246,73 @@ complete prepared length. The public allocation control
 `canonical_decimal_reserves_one_exact_output_destination` in
 `crates/xsd/tests/exact_governance.rs` checks one exact-sized output allocation,
 including zero, normalized fractions, the minimum signed coefficient and long
-fractional padding, on native and WebAssembly targets.
-The binary64 conversion row includes the inline coefficient/scale and range
-gates; ratio conversion has a separate cold frame. Both routes retain
-the original correctly rounded kernels and exact bit-pattern oracles.
+fractional padding, in native execution.
+The conversion to `f64` narrows proven small coefficients to signed 64-bit
+integers before the existing exact-operand division. Zero, whole coefficients
+and wider values retain their original routes; ratio conversion has a separate
+cold frame. The correctly rounded kernels, `f32` path and bit-pattern oracles
+are unchanged.
 
 Inline decimal normalization tests divisibility by ten with an inverse multiply,
-rotation and bound instead of remainders. A native arithmetic-source comparison
-holds current hash/lex foundations constant and retains all 1,024 results outside
-each acknowledged instruction window. Ten fresh-process samples per row, fixed
-seeds and unchanged release/bench profiles give these median instructions/value:
+rotation and bound instead of remainders. Wide zero stripping retains the exact
+quotient from that test rather than dividing again. Decimal multiplication widens
+signed 64-bit coefficients before multiplying; other inline coefficients retain
+the checked 128-bit product, and larger products use the existing limb kernels.
+Rounded division keeps its machine-word quotient ahead of a cold general-integer
+storage and admission frame. Caller-selected rounding remains visible through
+the small entry; toward-zero division does not form an unused remainder or
+half-distance. The exact-first half-even default and all general division
+algorithms retain their original laws.
+
+Decimal parsing and its lexical predicate share one validated borrowed
+decomposition. Full grammar and the original fractional scale are checked
+before trimming or coefficient conversion; small coefficients accumulate in a
+native unsigned word and then widen into the same exact value. Wider conversion
+retains its existing cold native path. Canonical rendering consumes the existing
+Integer digit preparation and emits the prepared group widths at their one
+shared home, without another output allocation.
+
+A native arithmetic-source comparison holds current hash/lex foundations
+constant and retains all 1,024 results outside
+each acknowledged instruction window. Fixed seeds and unchanged release/bench
+profiles give these median instructions/value. Historical rows use ten
+fresh-process samples. The parsing/rendering after figures pool two complete
+ten-sample batches to resolve observed counter noise; both batches are retained.
+
+The division rows compare against the source after the earlier normalization
+and conversion improvements. Parsing/rendering pairs use the qualified division
+source as their before baseline; other rows retain their historical before
+figures.
 
 | Production route | Before | After | Change |
 | --- | ---: | ---: | ---: |
-| Exact decimal addition | 178.9902 | 172.1465 | -3.82% |
-| Exact decimal multiplication | 194.7314 | 187.4795 | -3.72% |
-| Public decimal multiplication | 282.2129 | 274.9600 | -2.57% |
-| Exact decimal division, scale eighteen/toward-zero | 374.5312 | 367.6816 | -1.83% |
+| Exact decimal addition | 172.1465 | 171.9121 | -0.14% |
+| Exact decimal multiplication | 187.4795 | 159.2354 | -15.07% |
+| Public decimal multiplication | 274.9604 | 248.7158 | -9.54% |
+| Exact decimal division, scale eighteen/toward-zero | 363.1680 | 243.0713 | -33.07% |
+| Public decimal division, exact-first half-even default | 598.2305 | 507.0273 | -15.25% |
+| Exact decimal conversion to `f64` | 144.3599 | 102.8242 | -28.77% |
+| Public decimal conversion to `f64` | 146.3594 | 104.8242 | -28.38% |
+| Exact decimal parsing and canonical rendering | 2228.2852 | 1767.5596 | -20.68% |
+| Public decimal parsing and canonical rendering | 2242.2852 | 1792.9961 | -20.04% |
 
-Every returned answer is checked after measurement. The other original small
-rows show no material instruction regression; all measured allocation quantities
-are unchanged. Multiplication still exceeds the frozen historical bounded source's
-170.4062 instructions/value by 10.02%. These retained-output arithmetic figures
+Every returned answer is checked after measurement. The accompanying pooled
+check gives exact division a median of 248905.5 total instructions per 1,024
+values against 248905 before; the original total recurs in ten of twenty samples.
+Every other non-parsing median equals its matched source baseline. All measured
+allocation quantities are unchanged. Exact multiplication is 6.56% below the frozen historical bounded
+source's 170.40625 instructions/value. Exact conversion to `f64` is 21.35% below
+its original 130.734375 instructions/value reference. From the already optimized
+normalization and conversion source, exact division falls from 363.16796875 to
+243.0712890625 instructions/value, 3.13% below its frozen bounded reference of
+250.9365234375. The public division row retains its distinct exact-first,
+eighteen-digit half-even policy. The existing bench default-law rows are
+unchanged; `decimal_div_scale18_toward_zero/exact` names the explicit policy.
+The parsing/rendering baseline is 2228.28515625 instructions/value through the
+tower and 2242.28515625 through the public route. Exact parsing/rendering reaches
+1767.5595703125, 0.16% below its frozen bounded reference of 1770.3603515625.
+That reference applies to the direct exact comparison; the public row preserves
+its original wrapper and output law. These retained-output figures
 include a common indirect call and exclude setup, validation and destruction;
 they establish neither complete-query speed nor full bounded parity. General
 semantics execute natively; portable release builds are a separate obligation.
