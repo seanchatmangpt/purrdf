@@ -1518,10 +1518,15 @@ impl QueryEngine {
     /// carry the extension. Read it back with `provenanceFromJson`/`provenanceFromXml`
     /// under the SAME namespace.
     ///
+    /// `format: "canon-arrow"` is refused here — the frame is binary and this surface
+    /// returns text — and MUST be taken through [`QueryEngine::query_canon_arrow`]
+    /// (`queryCanonArrow`), which returns it as a `Uint8Array` byte-exact.
+    ///
     /// # Errors
     ///
-    /// A parse/evaluation failure, an unsupported format, or exactly one of
-    /// `provenance_prefix`/`provenance_iri` supplied without the other.
+    /// A parse/evaluation failure, an unsupported format, exactly one of
+    /// `provenance_prefix`/`provenance_iri` supplied without the other, or
+    /// `format: "canon-arrow"` (use `queryCanonArrow`).
     #[wasm_bindgen(js_name = queryRaw)]
     #[allow(clippy::needless_pass_by_value)] // binding ABI receives owned values
     #[allow(
@@ -1538,6 +1543,18 @@ impl QueryEngine {
         provenance_iri: Option<String>,
         xpath_regex: Option<String>,
     ) -> Result<String, JsValue> {
+        if format.as_deref().is_some_and(|format| {
+            matches!(
+                SparqlResultsFormat::from_name(format),
+                Some(SparqlResultsFormat::CanonArrow)
+            )
+        }) {
+            return Err(coded_error(
+                "canon-arrow is a binary frame; queryRaw returns text — call queryCanonArrow, \
+                 which returns the frame as a Uint8Array",
+                SERIALIZE_CODE,
+            ));
+        }
         let namespace = build_provenance_namespace(provenance_prefix, provenance_iri)?;
         let mut input = self.input(
             dataset,
@@ -1549,6 +1566,54 @@ impl QueryEngine {
         input.format = format;
         input.provenance = namespace;
         raw_text(input.run_offline(None)?)
+    }
+
+    /// `queryCanonArrow(dataset, sparql, base?, provenancePrefix?, provenanceIri?, xpathRegex?)`
+    /// → the `canon-arrow` frame as a `Uint8Array`.
+    ///
+    /// The binary twin of [`QueryEngine::query_raw`]: the `canon-arrow` frame is an
+    /// Arrow IPC byte sequence, so it crosses as bytes, never as text — the text
+    /// surface's UTF-8 decode would corrupt (lossy) or refuse (over-refusal) exactly
+    /// the frames that carry binary literal payloads. Select/Ask results only, like
+    /// every tabular format; the parameters match `queryRaw` one for one.
+    ///
+    /// Byte-deterministic like every serializer on this binding, so a caller's
+    /// content-addressed cache key over the frame is stable.
+    ///
+    /// # Errors
+    ///
+    /// A parse/evaluation failure, a graph result (no tabular format holds
+    /// CONSTRUCT/DESCRIBE), or exactly one of `provenance_prefix`/`provenance_iri`
+    /// supplied without the other.
+    #[wasm_bindgen(js_name = queryCanonArrow)]
+    #[allow(clippy::needless_pass_by_value)] // binding ABI receives owned values
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "each parameter is a distinct, independently-named input at the wasm boundary"
+    )]
+    pub fn query_canon_arrow(
+        &self,
+        dataset: &Dataset,
+        sparql: &str,
+        base: Option<String>,
+        provenance_prefix: Option<String>,
+        provenance_iri: Option<String>,
+        xpath_regex: Option<String>,
+    ) -> Result<Vec<u8>, JsValue> {
+        let namespace = build_provenance_namespace(provenance_prefix, provenance_iri)?;
+        let mut input = self.input(
+            dataset,
+            AsyncOperationKind::Raw,
+            sparql,
+            base.as_deref(),
+            xpath_regex.as_deref(),
+        )?;
+        input.format = Some(String::from(SparqlResultsFormat::CanonArrow.token()));
+        input.provenance = namespace;
+        match input.run_offline(None)? {
+            JobOutcome::Raw(bytes) => Ok(bytes),
+            other => Err(unexpected_outcome("a canon-arrow serialization", &other)),
+        }
     }
 
     /// Serialize a CONSTRUCT/DESCRIBE result with configured JSON-LD/YAML-LD.
@@ -1996,9 +2061,20 @@ fn query_raw_with_options(
 }
 
 /// The text of a serializing operation's outcome.
+///
+/// Only text-format egress flows through here (`explainQuery`, `queryRaw`'s text
+/// formats, the configured JSON-LD/YAML-LD surfaces): `queryRaw` refuses
+/// `canon-arrow` up front in favour of [`QueryEngine::query_canon_arrow`], so the
+/// decode below is an internal invariant of those surfaces, not a data-dependent
+/// check on caller input.
 fn raw_text(outcome: JobOutcome) -> Result<String, JsValue> {
     match outcome {
-        JobOutcome::Raw(text) => Ok(text),
+        JobOutcome::Raw(bytes) => String::from_utf8(bytes).map_err(|e| {
+            coded_error(
+                &format!("a text-format query serialization is not valid UTF-8: {e}"),
+                SERIALIZE_CODE,
+            )
+        }),
         other => Err(unexpected_outcome("a serialized query", &other)),
     }
 }
@@ -2320,20 +2396,27 @@ pub(crate) fn build_provenance_namespace(
     }
 }
 
-/// Serialize a query result to text in `format`, or the kind's default when `None`.
+/// Serialize a query result in `format`, or the kind's default when `None`.
 ///
-/// Returns a plain `String` error so the asynchronous lane can record it on a job and
-/// the native build can test it; the synchronous entry maps it to a `JsError`.
+/// Returns the serialization's exact bytes: every graph syntax and the four tabular
+/// text formats are UTF-8 text, but `canon-arrow` is a binary frame, so the text
+/// `String` surface ends here — callers that can hold binary take the bytes verbatim
+/// ([`JobOutcome::Raw`], `queryCanonArrow`), and text callers UTF-8-decode the text
+/// formats at their own boundary. Returns a plain `String` error so the asynchronous
+/// lane can record it on a job and the native build can test it; the synchronous entry
+/// maps it to a `JsError`.
 pub(crate) fn serialize_query_result(
     result: &SparqlResult,
     format: Option<&str>,
     provenance_namespace: Option<&purrdf_sparql_results::ProvenanceNamespace>,
     query: &str,
-) -> Result<String, String> {
+) -> Result<Vec<u8>, String> {
     match result {
-        SparqlResult::Graph(graph) => {
-            serialize_graph_result(graph, format.unwrap_or_else(|| default_graph_format(graph)))
-        }
+        SparqlResult::Graph(graph) => serialize_graph_result(
+            graph,
+            format.unwrap_or_else(|| default_graph_format(graph)),
+        )
+        .map(String::into_bytes),
         SparqlResult::Solutions { .. } | SparqlResult::Boolean(_) => {
             let results_format = match format {
                 None => SparqlResultsFormat::Json,
@@ -2355,11 +2438,21 @@ fn serialize_tabular_result(
     format: SparqlResultsFormat,
     provenance_namespace: Option<&purrdf_sparql_results::ProvenanceNamespace>,
     query: &str,
-) -> Result<String, String> {
+) -> Result<Vec<u8>, String> {
     let provenance = purrdf_validate::query::provenance(provenance_namespace, query);
     let outcome = serialize_results(result, format, &provenance, provenance_namespace)
         .map_err(|e| e.to_string())?;
-    String::from_utf8(outcome.bytes).map_err(|e| format!("SPARQL result is not valid UTF-8: {e}"))
+    match format {
+        // A binary Arrow IPC frame: handed through verbatim. Forcing it through the
+        // text surface's UTF-8 decode would corrupt it (lossy) or refuse it (the
+        // over-refusal this branch exists to close).
+        SparqlResultsFormat::CanonArrow => Ok(outcome.bytes),
+        // The four text writers emit UTF-8 by construction; the decode is the seam
+        // where a writer regression would be caught, not a data-dependent check.
+        _ => String::from_utf8(outcome.bytes)
+            .map(String::into_bytes)
+            .map_err(|e| format!("SPARQL result is not valid UTF-8: {e}")),
+    }
 }
 
 /// The closing imperative of every named-graph refusal on this binding: the
@@ -2669,7 +2762,8 @@ mod tests {
             let result = SparqlResult::Graph(graph);
             let bytes = serialize_query_result(&result, Some("nquads"), None, "")
                 .expect("borrowed native graph serialization");
-            assert!(bytes.contains("<https://example.org/g>"));
+            let nquads = std::str::from_utf8(&bytes).expect("nquads serialization is UTF-8 text");
+            assert!(nquads.contains("<https://example.org/g>"));
             assert_eq!(live.load(Ordering::SeqCst), admitted);
             let dataset = if typed_wrapper {
                 let mut result = query_result_from_sparql(result, BlankScopeMode::Keep)

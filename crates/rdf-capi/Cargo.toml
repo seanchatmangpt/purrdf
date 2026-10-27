@@ -60,6 +60,9 @@ sha2 = { workspace = true }
 purrdf-hash = { workspace = true }
 # Shared test text: the SPARQL string literals the regex-law tests build.
 purrdf-testkit = { workspace = true }
+# The canon-arrow frame tests decode the wire header the new
+# `purrdf_query_canon_arrow` entry emits (from_bytes/fits_in/digest recompute).
+purrdf-arrow = { workspace = true }
 
 [[example]]
 name = "native_ci_profile"

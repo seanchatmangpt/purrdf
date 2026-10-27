@@ -40,7 +40,7 @@ use std::sync::Arc;
 
 use purrdf_core::{BlankScope, RdfDataset, RdfDatasetBuilder, RdfLiteral, TermValue};
 use purrdf_sparql_results::{
-    ResultProvenance, SparqlResult, SparqlResultsFormat, from_json, from_json_bounded,
+    ResultProvenance, SparqlResult, SparqlResultsFormat, from_json, from_json_bounded, serialize,
     serialize_into, to_csv, to_json, to_tsv, to_xml,
 };
 use purrdf_testkit::bench::{Bench, Throughput, bench_group, bench_main, black_box};
@@ -160,6 +160,21 @@ fn bench_results_serialize(c: &mut Bench) {
             black_box(outcome);
         });
     });
+    // The canon-arrow eager arm routes through the public `serialize` dispatch
+    // (the only eager spelling of the format; lib.rs backs it with the streaming
+    // writer), so the bench measures the production path, not a test shortcut.
+    group.bench_function("to_canon_arrow_5k_rows", |bencher| {
+        bencher.iter(|| {
+            let outcome = serialize(
+                black_box(&result),
+                SparqlResultsFormat::CanonArrow,
+                black_box(&provenance),
+                None,
+            )
+            .expect("serialize");
+            black_box(outcome);
+        });
+    });
     // The STREAMED spelling of each, into a discarding writer.
     //
     // Report-only, and the PAIRING is the point rather than any single number: each
@@ -173,6 +188,7 @@ fn bench_results_serialize(c: &mut Bench) {
         ("to_xml_5k_rows_streamed", SparqlResultsFormat::Xml),
         ("to_csv_5k_rows_streamed", SparqlResultsFormat::Csv),
         ("to_tsv_5k_rows_streamed", SparqlResultsFormat::Tsv),
+        ("write_canon_arrow", SparqlResultsFormat::CanonArrow),
     ] {
         group.bench_function(name, |bencher| {
             bencher.iter(|| {
@@ -315,6 +331,34 @@ fn bench_graph_serialize(c: &mut Bench) {
         bencher.iter(|| {
             let outcome =
                 to_json(black_box(&result), black_box(&provenance), None).expect("serialize");
+            black_box(outcome);
+        });
+    });
+    // Sanity pass for the canon-arrow Graph arm: the format's envelope is total
+    // over all three result shapes (OPT-17 §2), so a CONSTRUCT graph must emit a
+    // real framed document — if the arm ever collapses to the empty-v1 stub or
+    // starts refusing, this fails loudly instead of benchmarking a no-op.
+    let canon = serialize(
+        &result,
+        SparqlResultsFormat::CanonArrow,
+        &provenance,
+        None,
+    )
+    .expect("canon-arrow graph sanity pass");
+    assert!(
+        canon.bytes.len() > 128 + 64 && canon.bytes.len() > ROWS,
+        "canon-arrow graph output is implausibly small ({} bytes for {ROWS} quads)",
+        canon.bytes.len()
+    );
+    group.bench_function("to_canon_arrow_10k_quads", |bencher| {
+        bencher.iter(|| {
+            let outcome = serialize(
+                black_box(&result),
+                SparqlResultsFormat::CanonArrow,
+                black_box(&provenance),
+                None,
+            )
+            .expect("serialize");
             black_box(outcome);
         });
     });

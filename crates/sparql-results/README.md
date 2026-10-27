@@ -19,8 +19,9 @@ SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 `purrdf-sparql-results` is the results boundary of the PurRDF SPARQL stack: the
 canonical authority for turning a `SparqlResult` (SELECT solutions, ASK
 boolean, or CONSTRUCT graph) into the four W3C SPARQL Results formats — JSON
-(SRJ), XML, CSV, and TSV — plus an additive, provenance-carrying PurRDF
-extension where the format can carry one, anchored under a caller-supplied
+(SRJ), XML, CSV, and TSV — plus the columnar canon-arrow format and an
+additive, provenance-carrying PurRDF extension where the format can carry one,
+anchored under a caller-supplied
 `ProvenanceNamespace` (PurRDF mints no vocabulary IRIs of its own). JSON and
 XML documents can also be read back (`from_json`, `from_xml`), and the
 additive extension itself round-trips too (`provenance_from_json`,

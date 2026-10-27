@@ -22,8 +22,8 @@
 //!
 //! Scope: the shared infrastructure (error type, provenance carrier, term
 //! lexicalization bridge, CONSTRUCT-graph N-Triples writer), the four per-format
-//! document writers (JSON/XML/CSV/TSV), and the [`serialize`] dispatcher that
-//! selects among them.
+//! document writers (JSON/XML/CSV/TSV), the additive `canon-arrow` frame writer,
+//! and the [`serialize`] dispatcher that selects among them.
 //!
 //! # Examples
 //!
@@ -59,6 +59,7 @@
 //! );
 //! ```
 
+mod canon_arrow;
 mod csv;
 mod error;
 mod graph;
@@ -70,6 +71,7 @@ mod tsv;
 mod xml;
 mod xml_read;
 
+pub use canon_arrow::to_canon_arrow;
 pub use csv::to_csv;
 pub use error::{
     Error, MalformedResult, NamespaceRefusal, ReadReason, ReadRefusal, ReadShape, ReadToken,
@@ -88,7 +90,8 @@ pub use xml_read::{from_xml, from_xml_boolean, provenance_from_xml};
 /// a single path (`purrdf_sparql_results::SparqlResult`).
 pub use purrdf_core::SparqlResult;
 
-/// The four W3C SPARQL Results serialization formats this crate targets.
+/// The four W3C SPARQL Results serialization formats this crate targets, plus
+/// the additive `canon-arrow` extension format.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SparqlResultsFormat {
     /// SPARQL Results JSON (a.k.a. SRJ).
@@ -99,6 +102,8 @@ pub enum SparqlResultsFormat {
     Csv,
     /// SPARQL Results TSV.
     Tsv,
+    /// The additive `purrdf` canonical Arrow frame extension (OPT-17).
+    CanonArrow,
 }
 
 impl purrdf_hash::error::StructuredError for SparqlResultsFormat {
@@ -107,13 +112,14 @@ impl purrdf_hash::error::StructuredError for SparqlResultsFormat {
         Xml => "sparql-results-format-xml" {},
         Csv => "sparql-results-format-csv" {},
         Tsv => "sparql-results-format-tsv" {},
+        CanonArrow => "sparql-results-format-canon-arrow" {},
     }
 }
 
 impl SparqlResultsFormat {
-    /// Every format, in the order a server prefers them when a client accepts all four:
+    /// Every format, in the order a server prefers them when a client accepts all:
     /// JSON first, the default.
-    pub const ALL: [Self; 4] = [Self::Json, Self::Xml, Self::Csv, Self::Tsv];
+    pub const ALL: [Self; 5] = [Self::Json, Self::Xml, Self::Csv, Self::Tsv, Self::CanonArrow];
 
     /// Every format's spellings, in [`Self::ALL`] (declaration) order: its short
     /// token, the internet media type the W3C SPARQL 1.1 Query Results format
@@ -122,7 +128,7 @@ impl SparqlResultsFormat {
     ///
     /// The one table every spelling is read from, so [`Self::token`],
     /// [`Self::media_type`] and [`Self::from_name`] cannot drift apart.
-    const SPELLINGS: [(&'static str, &'static str, &'static [&'static str]); 4] = [
+    const SPELLINGS: [(&'static str, &'static str, &'static [&'static str]); 5] = [
         (
             "json",
             "application/sparql-results+json",
@@ -131,9 +137,14 @@ impl SparqlResultsFormat {
         ("xml", "application/sparql-results+xml", &["sparql-xml"]),
         ("csv", "text/csv", &[]),
         ("tsv", "text/tab-separated-values", &[]),
+        (
+            "canon-arrow",
+            "application/x-purrdf-canon-arrow",
+            &["canonarrow"],
+        ),
     ];
 
-    /// The format a caller named, or `None` for a name that is not one of the four.
+    /// The format a caller named, or `None` for a name that is not one of them.
     ///
     /// The one reading of a results-format name for every host — the command line, the C
     /// ABI, the wasm package and the Python binding — so a name one host accepts is not
@@ -154,8 +165,8 @@ impl SparqlResultsFormat {
         })
     }
 
-    /// The format's short token — `json`, `xml`, `csv` or `tsv` — which
-    /// [`Self::from_name`] reads back.
+    /// The format's short token — `json`, `xml`, `csv`, `tsv` or `canon-arrow` —
+    /// which [`Self::from_name`] reads back.
     #[must_use]
     pub const fn token(self) -> &'static str {
         Self::SPELLINGS[self as usize].0
@@ -233,6 +244,16 @@ pub fn serialize(
         SparqlResultsFormat::Xml => to_xml(result, provenance, namespace),
         SparqlResultsFormat::Csv => to_csv(result, provenance),
         SparqlResultsFormat::Tsv => to_tsv(result, provenance),
+        SparqlResultsFormat::CanonArrow => {
+            // The frame writer owns its staging; reuse the streaming path so the
+            // eager and streaming outcomes cannot disagree.
+            let mut bytes = Vec::new();
+            let outcome = serialize_into(result, format, provenance, namespace, &mut bytes)?;
+            Ok(SerializeOutcome {
+                bytes,
+                provenance_dropped: outcome.provenance_dropped,
+            })
+        }
     }
 }
 
@@ -278,6 +299,9 @@ pub fn serialize_into(
         SparqlResultsFormat::Xml => xml::write_srx(result, provenance, namespace, &mut out)?,
         SparqlResultsFormat::Csv => csv::write_csv(result, provenance, &mut out)?,
         SparqlResultsFormat::Tsv => tsv::write_tsv(result, provenance, &mut out)?,
+        SparqlResultsFormat::CanonArrow => {
+            canon_arrow::write_canon_arrow(result, provenance, &mut out)?
+        }
     }
     let finished = out.finish().map_err(|error| Error::Write {
         kind: error.kind(),
@@ -303,7 +327,12 @@ fn provenance_dropped(
         SparqlResultsFormat::Json | SparqlResultsFormat::Xml => {
             !provenance.is_empty() && namespace.is_none()
         }
-        SparqlResultsFormat::Csv | SparqlResultsFormat::Tsv => !provenance.is_empty(),
+        // CanonArrow joins CSV/TSV: the v1 frame carries no provenance extension
+        // (the reserved region is zero-checked), so a populated provenance is
+        // still dropped at the exit gate.
+        SparqlResultsFormat::Csv | SparqlResultsFormat::Tsv | SparqlResultsFormat::CanonArrow => {
+            !provenance.is_empty()
+        }
     }
 }
 
@@ -352,6 +381,14 @@ mod tests {
             String::from_utf8(tsv.bytes).expect("utf8"),
             "?s\n<http://example.org/s>\n"
         );
+
+        let canon_arrow =
+            serialize(&result, SparqlResultsFormat::CanonArrow, &prov, None).expect("canon-arrow");
+        assert!(!canon_arrow.bytes.is_empty(), "frame must emit bytes");
+        assert!(
+            !canon_arrow.provenance_dropped,
+            "default provenance is empty; nothing to drop"
+        );
     }
 
     #[test]
@@ -368,6 +405,12 @@ mod tests {
             ("text/csv", SparqlResultsFormat::Csv),
             ("tsv", SparqlResultsFormat::Tsv),
             ("text/tab-separated-values", SparqlResultsFormat::Tsv),
+            ("canon-arrow", SparqlResultsFormat::CanonArrow),
+            ("canonarrow", SparqlResultsFormat::CanonArrow),
+            (
+                "application/x-purrdf-canon-arrow",
+                SparqlResultsFormat::CanonArrow,
+            ),
         ] {
             assert_eq!(SparqlResultsFormat::from_name(name), Some(format), "{name}");
         }
@@ -392,10 +435,18 @@ mod tests {
             SparqlResultsFormat::from_name("TEXT/Tab-Separated-Values"),
             Some(SparqlResultsFormat::Tsv)
         );
+        assert_eq!(
+            SparqlResultsFormat::from_name(" Canon-Arrow "),
+            Some(SparqlResultsFormat::CanonArrow)
+        );
+        assert_eq!(
+            SparqlResultsFormat::from_name("APPLICATION/X-PURRDF-CANON-ARROW"),
+            Some(SparqlResultsFormat::CanonArrow)
+        );
     }
 
     #[test]
-    fn a_name_outside_the_four_formats_is_refused() {
+    fn a_name_outside_the_known_formats_is_refused() {
         for name in [
             "",
             " ",
@@ -417,7 +468,7 @@ mod tests {
     fn the_token_and_the_media_type_read_back_to_their_format() {
         assert_eq!(
             SparqlResultsFormat::ALL.map(SparqlResultsFormat::token),
-            ["json", "xml", "csv", "tsv"]
+            ["json", "xml", "csv", "tsv", "canon-arrow"]
         );
         assert_eq!(
             SparqlResultsFormat::ALL.map(SparqlResultsFormat::media_type),
@@ -426,6 +477,7 @@ mod tests {
                 "application/sparql-results+xml",
                 "text/csv",
                 "text/tab-separated-values",
+                "application/x-purrdf-canon-arrow",
             ]
         );
         for format in SparqlResultsFormat::ALL {

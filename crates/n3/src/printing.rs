@@ -1,5 +1,6 @@
 use crate::ast::*;
 use crate::reasoner::FiredFuse;
+use purrdf_lex::json_escape::{JsonEscapes, push_body};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Renders reasoner output triples as N3: joined `log:outputString` values when
@@ -577,6 +578,9 @@ fn sanitize_blank(s: &str) -> String {
         .collect()
 }
 
+// NOTE: `escape_string` is the N3/Turtle *string* escape law (`\"`, `\\`,
+// `\n`, `\r`, `\t`, everything else raw) — it is NOT JSON escaping and must
+// never be swapped for `purrdf_lex::json_escape`. Out of scope here.
 fn escape_string(s: &str) -> String {
     let mut out = String::new();
     for c in s.chars() {
@@ -733,17 +737,17 @@ fn named_graph_fact(triple: &Triple) -> Option<(&Term, &[Triple])> {
 }
 
 fn named_node_json(value: &str) -> String {
-    format!(
-        "{{\"termType\":\"NamedNode\",\"value\":\"{}\"}}",
-        escape_json(value)
-    )
+    let mut out = String::from("{\"termType\":\"NamedNode\",\"value\":\"");
+    push_body(&mut out, value, JsonEscapes::Minimal);
+    out.push_str("\"}");
+    out
 }
 
 fn blank_node_json(value: &str) -> String {
-    format!(
-        "{{\"termType\":\"BlankNode\",\"value\":\"{}\"}}",
-        escape_json(value)
-    )
+    let mut out = String::from("{\"termType\":\"BlankNode\",\"value\":\"");
+    push_body(&mut out, value, JsonEscapes::Minimal);
+    out.push_str("\"}");
+    out
 }
 
 fn literal_json(lit: &Literal) -> String {
@@ -763,16 +767,62 @@ fn literal_json(lit: &Literal) -> String {
                 .unwrap_or("http://www.w3.org/2001/XMLSchema#string"),
         ),
     };
-    format!(
-        "{{\"termType\":\"Literal\",\"value\":\"{}\",\"language\":\"{}\",\"datatype\":{}}}",
-        escape_json(&lit.value),
-        escape_json(language),
-        named_node_json(datatype),
-    )
+    let mut out = String::from("{\"termType\":\"Literal\",\"value\":\"");
+    push_body(&mut out, &lit.value, JsonEscapes::Minimal);
+    out.push_str("\",\"language\":\"");
+    push_body(&mut out, language, JsonEscapes::Minimal);
+    out.push_str("\",\"datatype\":");
+    out.push_str(&named_node_json(datatype));
+    out.push('}');
+    out
 }
 
 fn default_graph_json() -> String {
     "{\"termType\":\"DefaultGraph\",\"value\":\"\"}".to_string()
+}
+
+#[cfg(test)]
+mod golden_json_escapes {
+    use super::*;
+
+    /// OPT-17 part 3 golden: the RDF 1.2 JSON writer escapes its string bodies
+    /// with `purrdf_lex::json_escape::JsonEscapes::Minimal`, NOT the deleted
+    /// hand-rolled `escape_json`. The deliberate public byte change is confined
+    /// to C0 controls: `\b` -> `\u0008`, `\f` -> `\u000c`, and every other
+    /// non-short-form C0 escape goes lowercase hex (was uppercase `\u{:04X}`).
+    /// DEL (U+007F) and the C1 block stay raw in both spellings. This fixture
+    /// pins the exact new spelling so the change is deliberate, not silent.
+    #[test]
+    fn rdf12_json_uses_lex_minimal_escapes() {
+        let value = format!("q\"b\\n\nt\u{7}\u{8}\u{c}\u{1f}\u{7f}");
+        let doc = Document {
+            prefixes: BTreeMap::new(),
+            base_iri: None,
+            facts: vec![Triple {
+                s: Term::Iri(Name::from("http://example.org/s")),
+                p: Term::Iri(Name::from("http://example.org/p")),
+                o: Term::Literal(Literal {
+                    value: Name::from(value.as_str()),
+                    datatype: None,
+                    language: None,
+                }),
+            }],
+            universals: BTreeSet::new(),
+            existentials: BTreeSet::new(),
+            fact_sources: BTreeMap::new(),
+        };
+        let json = rdf12_json(&doc);
+        let expected = concat!(
+            "[{\"termType\":\"Quad\",\"value\":\"\",",
+            "\"subject\":{\"termType\":\"NamedNode\",\"value\":\"http://example.org/s\"},",
+            "\"predicate\":{\"termType\":\"NamedNode\",\"value\":\"http://example.org/p\"},",
+            "\"object\":{\"termType\":\"Literal\",\"value\":\"q\\\"b\\\\n\\nt\\u0007\\u0008\\u000c\\u001f\u{7f}\",",
+            "\"language\":\"\",\"datatype\":{\"termType\":\"NamedNode\",",
+            "\"value\":\"http://www.w3.org/2001/XMLSchema#string\"}},",
+            "\"graph\":{\"termType\":\"DefaultGraph\",\"value\":\"\"}}]\n"
+        );
+        assert_eq!(json, expected);
+    }
 }
 
 fn quad_json(subject: &str, predicate: &str, object: &str, graph: &str) -> String {
@@ -780,22 +830,4 @@ fn quad_json(subject: &str, predicate: &str, object: &str, graph: &str) -> Strin
         "{{\"termType\":\"Quad\",\"value\":\"\",\"subject\":{},\"predicate\":{},\"object\":{},\"graph\":{}}}",
         subject, predicate, object, graph
     )
-}
-
-fn escape_json(s: &str) -> String {
-    let mut out = String::new();
-    for c in s.chars() {
-        match c {
-            '\\' => out.push_str("\\\\"),
-            '"' => out.push_str("\\\""),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\u{0008}' => out.push_str("\\b"),
-            '\u{000C}' => out.push_str("\\f"),
-            c if c <= '\u{001F}' => out.push_str(&format!("\\u{:04X}", c as u32)),
-            other => out.push(other),
-        }
-    }
-    out
 }

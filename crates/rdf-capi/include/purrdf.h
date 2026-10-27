@@ -2855,6 +2855,40 @@ int32_t purrdf_query_json_xpath_regex(const PurrdfDataset *dataset,
                                       PurrdfError **out_error);
 
 /**
+ * Execute a SPARQL query and serialize the result to PurRDF's additive
+ * `canon-arrow` frame format (OPT-17) into `*out_buffer` (the eager lane of
+ * [`purrdf_sparql_results::SparqlResultsFormat::CanonArrow`]). A SELECT
+ * solution sequence is materialized as a typed columnar frame; an ASK boolean
+ * is a non-tabular result and renders as the canonical 192-byte empty frame
+ * (128-byte `ArrowEgressHeader` + 64-byte trailing padding). The simple/robust
+ * path — no row cursor needed, one contiguous FFI buffer. The query runs under
+ * the dataset's division policy (`purrdf_dataset_set_division_policy`).
+ *
+ * The frame carries everything a result holds, the same widening answer the
+ * JSON entry gives: base quads, the RDF 1.2 statement layer, and named graphs
+ * ride the frame's aux-dataset side — nothing is dropped and no loss ledger is
+ * needed. The frame is PurRDF's own CanonArrow protocol, NOT Arrow IPC: read
+ * the 128-byte header with `purrdf_arrow::ArrowEgressHeader::from_bytes`,
+ * gate the payload with `fits_in`, and verify `columnar_digest` as BLAKE3 over
+ * the payload region.
+ *
+ * `base_iri` may be null. A serialization failure (the writer refuses a result
+ * shape the frame cannot hold) is `PURRDF_STATUS_QUERY_ERROR` naming the
+ * writer's error; a malformed query or a null `dataset`/`query`/`out_buffer`
+ * is refused exactly as [`purrdf_query_json`] refuses them.
+ *
+ * # Safety
+ * `dataset` must be a live handle; `query` must be a NUL-terminated C string;
+ * `base_iri`, if non-null, must be a NUL-terminated UTF-8 C string live for
+ * the call; `out_buffer` and `out_error` must be writable.
+ */
+int32_t purrdf_query_canon_arrow(const PurrdfDataset *dataset,
+                                 const char *query,
+                                 const char *base_iri,
+                                 PurrdfBuffer **out_buffer,
+                                 PurrdfError **out_error);
+
+/**
  * Execute a SPARQL query under caller-supplied governors.
  *
  * `*out_outcome` is a [`PurrdfQueryOutcomeKind`]. A complete outcome writes the ordinary

@@ -3112,7 +3112,7 @@ impl AsyncJob {
                 AsyncOperationKind::Shacl,
             ],
         )? {
-            JobOutcome::Raw(text) => Ok(text.into_bytes()),
+            JobOutcome::Raw(text) => Ok(text),
             _ => Err(usage_error("takeRawBytes: the job holds no raw result")),
         }
     }

@@ -1896,3 +1896,12 @@ One line per suite: what it measures, and the sellable claim it backs.
   `scale_valid_100k` / `scale_invalid_100k` over 100,000 nodes, elements/s
   at `sample_size(10)`. Sells: ShEx pattern validation cost at 100k nodes,
   valid and invalid fixtures apart.
+- **sparql-results `graph_serialize` canon-arrow arms**
+  (`crates/sparql-results/benches/graph_serialize.rs`) — the suite's
+  format-arm rows already cover the four W3C formats (SRJ JSON, XML, CSV/TSV
+  egress plus the SRJ read-back row); the canon-arrow additions route
+  `SparqlResultsFormat::CanonArrow` through the public `serialize` dispatch in
+  three forms — eager (`to_canon_arrow_5k_rows`), streamed
+  (`write_canon_arrow`), and CONSTRUCT-graph (`to_canon_arrow_10k_quads`).
+  STATUS: UNVERIFIED — bench never run (new arms, outside the phase-4 queue;
+  first receipt via phase-5 fast lane or CI).

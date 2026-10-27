@@ -1960,7 +1960,7 @@ trait ShaclAnswer {
 
 impl ShaclAnswer for String {
     fn into_outcome(self) -> JobOutcome {
-        JobOutcome::Raw(self)
+        JobOutcome::Raw(self.into_bytes())
     }
 }
 

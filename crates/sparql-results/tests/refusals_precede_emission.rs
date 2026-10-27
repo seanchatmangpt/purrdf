@@ -185,6 +185,63 @@ fn srx_refuses_a_graph_and_spares_the_kinds_it_defines() {
     assert!(select_text.contains("<uri>https://example.org/1</uri>"));
 }
 
+/// The CanonArrow frame writer refuses a result kind it does not define — a
+/// CONSTRUCT graph and an ASK boolean both have no columnar frame — and the
+/// refusal is decided before the first byte reaches the sink. The neighbour is
+/// the SELECT solution set the frame exists for, which must still serialize.
+#[test]
+fn canon_arrow_refuses_an_undefined_result_kind_before_the_first_byte() {
+    use purrdf_sparql_results::{SparqlResultsFormat, serialize_into};
+
+    let provenance = ResultProvenance::default();
+
+    for (label, undefined) in [
+        ("ask", SparqlResult::Boolean(true)),
+        (
+            "graph",
+            SparqlResult::Graph(
+                RdfDatasetBuilder::new()
+                    .freeze()
+                    .expect("an empty dataset freezes")
+                    .into(),
+            ),
+        ),
+    ] {
+        let mut sink: Vec<u8> = Vec::new();
+        let error = serialize_into(
+            &undefined,
+            SparqlResultsFormat::CanonArrow,
+            &provenance,
+            None,
+            &mut sink,
+        )
+        .expect_err(&format!("CanonArrow must refuse an undefined result kind ({label})"));
+        let rendered = error.to_string();
+        assert!(
+            rendered.contains("is defined only for SELECT variable bindings"),
+            "unexpected refusal wording for {label}: {rendered}"
+        );
+        assert!(
+            sink.is_empty(),
+            "the {label} refusal leaked {} byte(s) to the sink before failing",
+            sink.len()
+        );
+    }
+
+    // The neighbour: the SELECT solution set the frame is built for.
+    let select = solutions(&["a"], vec![vec![iri("https://example.org/1")]]);
+    let mut sink: Vec<u8> = Vec::new();
+    serialize_into(
+        &select,
+        SparqlResultsFormat::CanonArrow,
+        &provenance,
+        None,
+        &mut sink,
+    )
+    .expect("CanonArrow admits a SELECT solution set");
+    assert!(!sink.is_empty(), "the frame emitted no bytes for a SELECT");
+}
+
 /// The streamed serialization equals the eager one, byte for byte, for every
 /// format and every result kind each format admits.
 ///

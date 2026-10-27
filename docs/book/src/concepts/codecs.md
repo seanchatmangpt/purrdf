@@ -190,6 +190,14 @@ reads that exact profile back without Arrow or a general Parquet runtime. The
 mapping retains RDF 1.2 triple terms, reifiers, annotations, graph scope,
 directional literals, blank-node scope, and explicitly empty named graphs.
 
+For destinations that *do* speak Arrow, `purrdf-arrow` provides CanonArrow: a
+128-byte framed columnar-egress header carrying BLAKE3 dual digests, designed
+for downstream encapsulation in Arrow IPC. It is a deterministic framing, not
+an Arrow IPC implementation — PurRDF still emits no Arrow types itself. The
+SPARQL results layer rides the same framing as an additive results format
+(`canon-arrow`, `application/x-purrdf-canon-arrow`); see
+[Result Formats](../sparql/results.md).
+
 The files are byte-deterministic and readable by engines such as DuckDB. See
 the [normative columnar schema](https://github.com/Blackcat-Informatics/purrdf/blob/main/docs/COLUMNAR.md)
 for every field and the deliberately narrow Parquet profile.

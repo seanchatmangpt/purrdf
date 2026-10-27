@@ -71,7 +71,11 @@ purrdf-lex = { workspace = true }
 wasm-bindgen = { workspace = true }
 
 [dev-dependencies]
-purrdf-testkit = { workspace = true }
+# The canon-arrow egress header: `tests/canon_arrow_roundtrip.rs` decodes the
+# frames `purrdf-sparql-results`'s `canon-arrow` arm emits through
+# `ArrowEgressHeader::from_bytes`/`fits_in` (OPT-17). Test-only: the binding
+# itself consumes frames as opaque bytes across the JS boundary.
+purrdf-arrow = { workspace = true }
 
 [[bench]]
 name = "query_engine_reuse"

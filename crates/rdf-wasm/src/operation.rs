@@ -359,7 +359,10 @@ pub(crate) fn diagnostic_to_js(diagnostic: RdfDiagnostic) -> JsValue {
 )]
 pub(crate) enum JobOutcome {
     Query(SparqlResult),
-    Raw(String),
+    /// A serialization's exact bytes. Text formats are UTF-8 (decode at the text
+    /// egress, `raw_text`); `canon-arrow` is a binary frame carried verbatim — see
+    /// `serialize_query_result` and `queryCanonArrow`.
+    Raw(Vec<u8>),
     Governed(Box<GovernedOutcome>),
     Entailment(Box<GovernedEntailment>),
     Updated(Arc<RdfDataset>),
@@ -704,10 +707,13 @@ impl OperationInput<'_> {
                     xpath_regex,
                     &geo,
                 )?;
-                let text = run.serialize(|| match (&jsonld, format.as_deref()) {
-                    (Some(options), Some(format)) => {
-                        serialize_configured_graph(result, format, options)
-                    }
+                let bytes = run.serialize(|| match (&jsonld, format.as_deref()) {
+                    (Some(options), Some(format)) => serialize_configured_graph(
+                        result,
+                        format,
+                        options,
+                    )
+                    .map(String::into_bytes),
                     _ => serialize_query_result(
                         &result,
                         format.as_deref(),
@@ -716,7 +722,7 @@ impl OperationInput<'_> {
                     )
                     .map_err(|message| JobError::message(SERIALIZE_CODE, message)),
                 });
-                Ok(JobOutcome::Raw(text?))
+                Ok(JobOutcome::Raw(bytes?))
             }
             AsyncOperationKind::Governed => {
                 let env = governed_env(aggregate_namespace.as_deref())?;
@@ -773,7 +779,7 @@ impl OperationInput<'_> {
                             })
                             .map_err(|message| JobError::message(SERIALIZE_CODE, message))?;
                         NegotiatedValue::Complete {
-                            bytes: text.into_bytes(),
+                            bytes: text,
                             format,
                             evidence,
                         }
@@ -867,7 +873,7 @@ impl OperationInput<'_> {
                 {
                     return Err(JobError::stopped(tripped));
                 }
-                Ok(JobOutcome::Raw(explanation.render()))
+                Ok(JobOutcome::Raw(explanation.render().into_bytes()))
             }
             AsyncOperationKind::Update => {
                 let mut target = Arc::clone(&frozen);
@@ -1191,7 +1197,7 @@ mod tests {
         };
         match outcome {
             JobOutcome::Query(result) => in_result(result),
-            JobOutcome::Raw(text) => text.contains(THIRD),
+            JobOutcome::Raw(text) => std::str::from_utf8(&text).is_ok_and(|text| text.contains(THIRD)),
             JobOutcome::Governed(governed) => in_outcome(governed),
             JobOutcome::Entailment(entailment) => matches!(
                 entailment.as_ref(),

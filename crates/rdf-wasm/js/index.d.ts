@@ -1134,6 +1134,22 @@ export class QueryEngine {
   update(dataset: Dataset, sparql: string, options?: QueryOptions | null): Dataset;
   queryRaw(dataset: Dataset, sparql: string, options?: QueryRawOptions | null): string;
   /**
+   * Run a SPARQL SELECT/ASK query and serialize it to the `canon-arrow` frame, returned
+   * as a `Uint8Array` byte-exact — the binary twin of `queryRaw`.
+   *
+   * The frame is an Arrow IPC byte sequence (128-byte `GLAWARRW` header), so it crosses
+   * as bytes, never as text: the text surface's UTF-8 decode would corrupt (lossy) or
+   * refuse (over-refusal) exactly the frames that carry binary literal payloads. Callers
+   * receive CanonArrow framed bytes directly — decode/parse them with an Arrow IPC
+   * reader, not `TextDecoder`.
+   *
+   * Takes the same options as `queryRaw` minus `format` (fixed to `canon-arrow` here);
+   * supplying `format` is a `TypeError`, since the wasm ABI carries no format parameter
+   * and the call would otherwise ignore it silently. Select/Ask results only; a CONSTRUCT/
+   * DESCRIBE graph result is an error, as on every tabular format.
+   */
+  queryCanonArrow(dataset: Dataset, sparql: string, options?: QueryRawOptions | null): Uint8Array;
+  /**
    * Run a SPARQL query under caller-supplied execution governors.
    *
    * A tripped governor is an OUTCOME, not a throw: check `isComplete`, read `result`

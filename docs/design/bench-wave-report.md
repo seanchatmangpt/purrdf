@@ -143,6 +143,20 @@ close path; "no unowned red remains" stands as of 13:08 PDT.
 | FQ-11 | n3 | SIGKILL at 185s, 2 green rows first | phase-4 solo rerun, jobs=2 | memory pressure |
 | FQ-12 | branchless | 8 lib-test compile errors | repair-lane fix applied | APPLIED-UNCOMPILED |
 
+### 7.0 OPT-17 wiring-wave progress (2026-10-27, added post-freeze; not an FQ row — no red to own)
+
+FQ-16-style progress note: the OPT-17 arrow-egress wiring wave is landing
+against subjects this wave already receipted. Disk state: `canon-arrow`
+results-format arm wired in `crates/sparql-results` (`src/lib.rs:105/121/
+140-141/246-255`; `mod canon_arrow;` at `src/lib.rs:62` has no backing module
+file on disk yet — crate UNCOMPILED on current tree state, in-flight lane
+file), new bench arm `to_canon_arrow_5k_rows`
+(`crates/sparql-results/benches/graph_serialize.rs:166`) — never executed, no
+receipt; rdf-capi/rdf-wasm seams not started. Close path: the phase-4 queue
+(`/tmp/run_benches_phase4.py`) was frozen before this wave and cannot cover
+the new arm — the sparql-results/graph_serialize bench receipt needs a
+phase-5 fast-lane run or a CI `make bench` run.
+
 ### 7.1 Case study: sparql-eval failure→fix chain
 
 The chain: phase-1 red (E0425 `cannot find function var` ×9 + E0428
@@ -197,6 +211,12 @@ corpus.
 REFRESH-PENDING: this section is stale on arrival; read
 `/tmp/bench-logs/register.txt` for live state.
 
+Post-freeze addition (not in the phase-4 queue): the OPT-17 wiring wave adds
+a `canon-arrow` arm to `crates/sparql-results` including a new bench subject
+`to_canon_arrow_5k_rows` (`benches/graph_serialize.rs:166`). The phase-4
+queue was frozen before this wave landed, so it cannot cover the new arm —
+close path is a phase-5 fast-lane run or a CI `make bench` run (see §7.0).
+
 ## 10. UNVERIFIED register (5 classes)
 
 | class | subjects | close path |
@@ -205,6 +225,7 @@ REFRESH-PENDING: this section is stale on arrival; read
 | Phase-4 queued | 8 subjects (§9) | phase-4 register rows |
 | No lane this wave | gts, json, geo, markdown, xsd, jsonschema, deflate, ed25519 | CI/make bench |
 | wasm/js selections | all — never run, no receipts | `make wasm-test` (CI) |
+| Post-freeze OPT-17 arm | `to_canon_arrow_5k_rows` (`crates/sparql-results/benches/graph_serialize.rs:166`) — new bench subject from the arrow-egress wiring wave; UNRUN (no receipt, and the module body is not yet on disk so the crate does not compile on the current tree) | phase-5 fast-lane or CI `make bench` (phase-4 queue frozen pre-wave, cannot cover it; §7.0) |
 | Full gate | `make check` — fmt, clippy, tests, hygiene (pedantic+nursery) | CI-only on this box |
 
 In-flight detail: phase-2 entail, shex, plus the misnamed purrdf-rdf-core

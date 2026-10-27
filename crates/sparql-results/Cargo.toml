@@ -39,6 +39,11 @@ purrdf-core = { workspace = true }
 # SERVICE response's tag enters the engine (see `error::language_tag_refusal`).
 # Zero-dep, wasm-clean leaf.
 purrdf-iri = { workspace = true }
+# The one canon-arrow writer/reader behind the crate's arrow-egress arm: a
+# SPARQL results table materialized as a typed arrow columnar batch shares the
+# single columnar codec the rest of the workspace uses, instead of a second
+# serialization body. A leaf over `purrdf-hash` only, and wasm32-clean.
+purrdf-arrow = { workspace = true }
 
 [dev-dependencies]
 # Runs the deep-structure tests on a stack of a stated size: a fresh thread
@@ -57,6 +62,11 @@ purrdf-alloc-probe = { workspace = true }
 [[test]]
 # The original public reader/writer causes on native and wasm32.
 name = "structured_errors"
+harness = false
+
+[[test]]
+# Golden bytes for the canon-arrow frame; its own `harness_main!` main.
+name = "canon_arrow_golden"
 harness = false
 
 [[bench]]

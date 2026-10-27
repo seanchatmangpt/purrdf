@@ -748,6 +748,77 @@ unsafe fn query_json_entry(
     }
 }
 
+/// Execute a SPARQL query and serialize the result to PurRDF's additive
+/// `canon-arrow` frame format (OPT-17) into `*out_buffer` (the eager lane of
+/// [`purrdf_sparql_results::SparqlResultsFormat::CanonArrow`]). A SELECT
+/// solution sequence is materialized as a typed columnar frame; an ASK boolean
+/// is a non-tabular result and renders as the canonical 192-byte empty frame
+/// (128-byte `ArrowEgressHeader` + 64-byte trailing padding). The simple/robust
+/// path — no row cursor needed, one contiguous FFI buffer. The query runs under
+/// the dataset's division policy (`purrdf_dataset_set_division_policy`).
+///
+/// The frame carries everything a result holds, the same widening answer the
+/// JSON entry gives: base quads, the RDF 1.2 statement layer, and named graphs
+/// ride the frame's aux-dataset side — nothing is dropped and no loss ledger is
+/// needed. The frame is PurRDF's own CanonArrow protocol, NOT Arrow IPC: read
+/// the 128-byte header with `purrdf_arrow::ArrowEgressHeader::from_bytes`,
+/// gate the payload with `fits_in`, and verify `columnar_digest` as BLAKE3 over
+/// the payload region.
+///
+/// `base_iri` may be null. A serialization failure (the writer refuses a result
+/// shape the frame cannot hold) is `PURRDF_STATUS_QUERY_ERROR` naming the
+/// writer's error; a malformed query or a null `dataset`/`query`/`out_buffer`
+/// is refused exactly as [`purrdf_query_json`] refuses them.
+///
+/// # Safety
+/// `dataset` must be a live handle; `query` must be a NUL-terminated C string;
+/// `base_iri`, if non-null, must be a NUL-terminated UTF-8 C string live for
+/// the call; `out_buffer` and `out_error` must be writable.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn purrdf_query_canon_arrow(
+    dataset: *const PurrdfDataset,
+    query: *const c_char,
+    base_iri: *const c_char,
+    out_buffer: *mut *mut PurrdfBuffer,
+    out_error: *mut *mut PurrdfError,
+) -> i32 {
+    unsafe {
+        ffi_try!(out_error, {
+            if dataset.is_null() || query.is_null() || out_buffer.is_null() {
+                return Err(PurrdfError::new(
+                    PurrdfStatus::NullPointer,
+                    "null pointer argument to purrdf_query_canon_arrow",
+                ));
+            }
+            let result = run_query(
+                dataset,
+                query,
+                base_iri,
+                None,
+                &purrdf_validate::geo::STANDARD_PROFILE,
+            )?;
+            // Delegate to the canonical SPARQL-Results dispatcher's canon-arrow
+            // arm — the same single entry the CLI/wasm/Python hosts read — with
+            // no provenance namespace: the v1 frame carries no provenance
+            // extension, so `ResultProvenance::default()` is exact, not lossy.
+            let outcome = purrdf_sparql_results::serialize(
+                &result,
+                purrdf_sparql_results::SparqlResultsFormat::CanonArrow,
+                &purrdf_sparql_results::ResultProvenance::default(),
+                None,
+            )
+            .map_err(|e| {
+                PurrdfError::new(
+                    PurrdfStatus::QueryError,
+                    format!("SPARQL results canon-arrow serialization failed: {e}"),
+                )
+            })?;
+            *out_buffer = into_handle(PurrdfBuffer(outcome.bytes));
+            Ok(PurrdfStatus::Ok)
+        })
+    }
+}
+
 /// Execute a SPARQL query under caller-supplied governors.
 ///
 /// `*out_outcome` is a [`PurrdfQueryOutcomeKind`]. A complete outcome writes the ordinary
@@ -1718,6 +1789,7 @@ mod tests {
     use std::ffi::CString;
     use std::mem::MaybeUninit;
 
+    use purrdf_arrow::{ArrowEgressHeader, canon_arrow_empty_v1};
     use purrdf_core::{RdfDatasetBuilder, RdfLiteral, TermValue};
     use purrdf_rs::SparqlEngine as _;
 
@@ -2612,6 +2684,135 @@ mod tests {
             "the stored MEDIAN of {{1, 2, 3}} is the computed decimal 2.0"
         );
 
+        unsafe { purrdf_dataset_free(dataset) };
+    }
+
+    /// Run `query` through `purrdf_query_canon_arrow`, returning the frame
+    /// bytes or the error's message.
+    fn canon_arrow_frame(dataset: *mut PurrdfDataset, query: &str) -> Result<Vec<u8>, String> {
+        let query = CString::new(query).expect("query C string");
+        let mut buffer = std::ptr::null_mut();
+        let mut error = std::ptr::null_mut();
+        let status = unsafe {
+            purrdf_query_canon_arrow(
+                dataset,
+                query.as_ptr(),
+                std::ptr::null(),
+                &raw mut buffer,
+                &raw mut error,
+            )
+        };
+        if status != PurrdfStatus::Ok as i32 {
+            assert!(!error.is_null());
+            let message = unsafe {
+                std::ffi::CStr::from_ptr(crate::error::purrdf_error_message(error))
+                    .to_string_lossy()
+                    .into_owned()
+            };
+            unsafe { crate::error::purrdf_error_free(error) };
+            return Err(message);
+        }
+        assert!(error.is_null());
+        assert!(!buffer.is_null());
+        let mut ptr = std::ptr::null();
+        let mut len = 0;
+        assert_eq!(
+            unsafe { purrdf_buffer_data(buffer, &raw mut ptr, &raw mut len) },
+            PurrdfStatus::Ok as i32
+        );
+        let frame = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
+        unsafe { purrdf_buffer_free(buffer) };
+        Ok(frame)
+    }
+
+    /// The wire frame the eager canon-arrow lane returns decodes with the
+    /// shared reader: the 128-byte header parses, the length bookkeeping is
+    /// exact, and `columnar_digest` recomputes as BLAKE3 over the payload
+    /// region exactly as `ArrowEgressHeader` documents it.
+    #[test]
+    fn canon_arrow_select_frame_parses_and_the_columnar_digest_recomputes() {
+        let dataset = query_dataset();
+        let frame = canon_arrow_frame(
+            dataset,
+            "SELECT ?s ?o WHERE { ?s <http://example.org/p> ?o }",
+        )
+        .expect("SELECT serializes to a canon-arrow frame");
+        assert!(frame.len() > ArrowEgressHeader::SIZE, "header plus payload");
+        let mut header_bytes = [0_u8; ArrowEgressHeader::SIZE];
+        header_bytes.copy_from_slice(&frame[..ArrowEgressHeader::SIZE]);
+        let header = ArrowEgressHeader::from_bytes(&header_bytes)
+            .expect("the emitted frame header must parse with the shared reader");
+        assert_eq!(header.magic, ArrowEgressHeader::MAGIC);
+        assert_eq!(header.schema_version, ArrowEgressHeader::SCHEMA_VERSION);
+        assert_eq!(
+            header.flags & !ArrowEgressHeader::FLAGS_MASK,
+            0,
+            "only defined flag bits set"
+        );
+        assert_eq!(header.payload_offset as usize, ArrowEgressHeader::SIZE);
+        assert_eq!(header.total_byte_len as usize, frame.len(), "exact frame");
+        assert!(header.fits_in(frame.len() as u64));
+        let payload = &frame[header.payload_offset as usize
+            ..header.payload_offset as usize + header.payload_byte_len as usize];
+        assert_eq!(
+            header.columnar_digest,
+            *purrdf_hash::blake3::hash(payload).as_bytes(),
+            "columnar_digest must be BLAKE3 over the payload region"
+        );
+        unsafe { purrdf_dataset_free(dataset) };
+    }
+
+    /// An ASK is a non-tabular result: the frame is the canonical 192-byte
+    /// empty frame — 128-byte header + 64-byte trailing padding, empty payload,
+    /// and the domain null digest for the columnar side.
+    #[test]
+    fn canon_arrow_ask_frame_is_the_192_byte_empty_frame() {
+        let dataset = query_dataset();
+        let frame = canon_arrow_frame(dataset, "ASK { ?s ?p ?o }").expect("ASK frame");
+        assert_eq!(frame.len(), 192, "128-byte header + 64-byte padding");
+        let mut header_bytes = [0_u8; ArrowEgressHeader::SIZE];
+        header_bytes.copy_from_slice(&frame[..ArrowEgressHeader::SIZE]);
+        let header = ArrowEgressHeader::from_bytes(&header_bytes)
+            .expect("the ASK frame header must parse with the shared reader");
+        assert_eq!(header.payload_byte_len, 0);
+        assert_eq!(header.total_byte_len, 192);
+        assert_eq!(header.batch_count, 1);
+        assert!(header.fits_in(192));
+        assert_eq!(
+            header.columnar_digest,
+            *canon_arrow_empty_v1(),
+            "a non-tabular result carries the domain null digest"
+        );
+        unsafe { purrdf_dataset_free(dataset) };
+    }
+
+    /// Refusal + neighbour: a null `out_buffer` is refused as a null-pointer
+    /// argument, while the neighbouring valid call on the same dataset and
+    /// query still succeeds (the over-refusal law's second case).
+    #[test]
+    fn canon_arrow_refuses_a_null_out_buffer_and_the_neighbour_still_answers() {
+        let dataset = query_dataset();
+        let query = CString::new("ASK { ?s ?p ?o }").expect("query C string");
+        let mut error = std::ptr::null_mut();
+        let status = unsafe {
+            purrdf_query_canon_arrow(
+                dataset,
+                query.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null_mut(),
+                &raw mut error,
+            )
+        };
+        assert_eq!(status, PurrdfStatus::NullPointer as i32);
+        assert!(!error.is_null());
+        let message = unsafe {
+            std::ffi::CStr::from_ptr(crate::error::purrdf_error_message(error))
+                .to_string_lossy()
+                .into_owned()
+        };
+        assert!(message.contains("purrdf_query_canon_arrow"), "{message}");
+        unsafe { crate::error::purrdf_error_free(error) };
+        assert!(canon_arrow_frame(dataset, "ASK { ?s ?p ?o }").is_ok());
         unsafe { purrdf_dataset_free(dataset) };
     }
 }

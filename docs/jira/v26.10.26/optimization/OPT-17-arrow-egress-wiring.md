@@ -32,6 +32,37 @@
 
 ---
 
+## Status (2026-10-27, wiring-wave sync lane; disk-read, not runner-cited)
+
+- **Item 1 — `canon-arrow` results-format arm (`crates/sparql-results`): PARTIAL
+  (wired, module body not yet on disk).** The format surface is wired:
+  `CanonArrow` variant (`src/lib.rs:105`), member of `ALL` (`src/lib.rs:121`),
+  MIME token `application/x-purrdf-canon-arrow` (`src/lib.rs:140-141`), and the
+  `serialize` dispatch arm (`src/lib.rs:246-255`, routed through
+  `serialize_into` so eager/streaming cannot disagree); the bench arm
+  `to_canon_arrow_5k_rows` exists (`benches/graph_serialize.rs:166`). BUT
+  `mod canon_arrow;` (`src/lib.rs:62`) has **no backing
+  `src/canon_arrow.rs` or `src/canon_arrow/` on disk** — the crate does not
+  compile on the current tree state; the frame writer is UNCOMPILED
+  (in-flight lane file, not this doc-lane's to fix).
+- **Item 2 — FFI/JS seams (`rdf-capi`, `rdf-wasm`): OPEN.** Zero
+  `canon_arrow`/`ArrowEgressHeader` references in
+  `crates/rdf-capi/src/query.rs` and `crates/rdf-wasm/src/query.rs`
+  (grep rc=1, 2026-10-27); both still hold the monolithic document egress
+  named in §2.
+- **Item 3 — escaper consolidation: DONE.** `gts` delegates to
+  `purrdf_lex::json_escape` (`crates/gts/src/mmr.rs:17,585`); `n3`'s
+  hand-rolled `escape_json` is deleted and `JsonEscapes::Minimal` wired at
+  `printing.rs:741/:748/:771/:773`, with the golden pin at :796-825. The
+  public byte change (uppercase → lowercase `\uXXXX`; `\b`/`\f` short
+  forms dropped) is court-verified SAFE: no frozen fixture carries the old
+  spelling, and the only consumer is the new in-file golden.
+
+Addendum enrichment items (`BadMagic([u8; 8])`, `ReservedNotZero{offset,
+value}`) remain OPEN — not applied.
+
+---
+
 ## Addendum (2026-10-27, arrow 20-lane review): error-payload enrichment
 
 Two refusals are under-specified for diagnosis and belong in this ticket's

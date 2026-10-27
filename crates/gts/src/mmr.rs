@@ -14,7 +14,7 @@ pub use proof_error::ProofError;
 use purrdf_hash::Domain;
 use purrdf_hash::blake3::RecordHasher;
 use purrdf_hash::hex::Lower;
-use purrdf_iri::json_escape::{JsonEscapes, push_body};
+use purrdf_lex::json_escape::{JsonEscapes, push_body};
 use purrdf_lex::cbor::Value;
 use purrdf_lex::cbor::head;
 use purrdf_lex::json::{self, Object, Value as Json};
@@ -580,7 +580,7 @@ pub fn verify_proof(proof: &Proof) -> Result<(), ProofError> {
 }
 
 /// A proof string's JSON body: the workspace's one JSON escape law,
-/// [`purrdf_iri::json_escape`], in its [`JsonEscapes::Controls`] spelling (DEL
+/// [`purrdf_lex::json_escape`], in its [`JsonEscapes::Controls`] spelling (DEL
 /// and the C1 controls escaped too, as this writer always has).
 fn json_escape(text: &str) -> String {
     let mut out = String::with_capacity(text.len());

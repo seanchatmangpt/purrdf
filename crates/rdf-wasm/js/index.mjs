@@ -1228,6 +1228,7 @@ export async function ready(wasmBytesOrUrl) {
     const wasmDescribe = QueryEngine.prototype.describe;
     const wasmUpdate = QueryEngine.prototype.update;
     const wasmQueryRaw = QueryEngine.prototype.queryRaw;
+    const wasmQueryCanonArrow = QueryEngine.prototype.queryCanonArrow;
     const wasmQueryGoverned = QueryEngine.prototype.queryGoverned;
     const wasmQueryEntailmentGoverned = QueryEngine.prototype.queryEntailmentGoverned;
     const wasmUpdateGoverned = QueryEngine.prototype.updateGoverned;
@@ -1272,6 +1273,25 @@ export async function ready(wasmBytesOrUrl) {
         sparql,
         base,
         format,
+        provenancePrefix,
+        provenanceIri,
+        xpathRegex,
+      );
+    };
+    QueryEngine.prototype.queryCanonArrow = function (dataset, sparql, options) {
+      if (options != null && typeof options === "object" && options.format != null) {
+        throw new TypeError(
+          "query option format is fixed to canon-arrow on queryCanonArrow; this call " +
+            "would ignore it entirely",
+        );
+      }
+      const { base, provenancePrefix, provenanceIri, xpathRegex } =
+        normalizeQueryOptions(options);
+      return wasmQueryCanonArrow.call(
+        this,
+        dataset,
+        sparql,
+        base,
         provenancePrefix,
         provenanceIri,
         xpathRegex,
