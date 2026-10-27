@@ -369,3 +369,15 @@ debug = false
 # named, instead of riding on a glob that means something else.
 [profile.dev.build-override]
 opt-level = 3
+
+
+# Local canonical checkout first: crates.io publishes lag this repo, and the
+# path patch keeps bench/dev builds on the same sources that
+# ~/.frozen-duckdb/cache (prebuilt mega-libs) was produced from — no repaying
+# the crates.io resolve or re-downloading the DuckDB binary per target dir.
+# Version-matched (2.0.2 == 2.0.2); publishing purrdf is unaffected (patches
+# are workspace-local and ignored by crates.io).
+[patch.crates-io]
+frozen-duckdb = { path = "/Users/sac/frozen-duckdb/crates/frozen-duckdb" }
+frozen-duckdb-sys = { path = "/Users/sac/frozen-duckdb/crates/frozen-duckdb-sys" }
+frozen-duckdb-builder = { path = "/Users/sac/frozen-duckdb/crates/frozen-duckdb-builder" }

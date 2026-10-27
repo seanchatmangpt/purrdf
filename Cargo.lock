@@ -855,8 +855,6 @@ dependencies = [
 [[package]]
 name = "frozen-duckdb"
 version = "2.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b2cd958aa5fdbea2b239001e8c1c397c624c5b49a90729c3e85dfe753ea5692"
 dependencies = [
  "anyhow",
  "arrow",
@@ -878,8 +876,6 @@ dependencies = [
 [[package]]
 name = "frozen-duckdb-builder"
 version = "2.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac0fdf83e4a053f38498ad8457cb269da0c3f7c3d283231e87adef1470d9ed22"
 dependencies = [
  "anyhow",
  "flate2",
@@ -893,8 +889,6 @@ dependencies = [
 [[package]]
 name = "frozen-duckdb-sys"
 version = "2.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68f470c5207feebf6a507b1e38d4d3fdb19b8bae2968135013211bb2ef983cf2"
 dependencies = [
  "bindgen",
  "frozen-duckdb-builder",
