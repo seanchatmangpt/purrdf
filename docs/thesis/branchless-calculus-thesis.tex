@@ -1,0 +1,586 @@
+% SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+% SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+\documentclass[11pt,a4paper]{report}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black]{hyperref}
+
+\newtheorem{theorem}{Theorem}[chapter]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{remark}[theorem]{Remark}
+
+\newcommand{\mask}{\mathcal{M}}
+\newcommand{\FF}{\mathbb{F}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\word}{\mathsf{w}}
+\newcommand{\ones}{\mathbf{1}}
+\newcommand{\sel}[1]{\left[\,#1\,\right]}
+\DeclareMathOperator{\rot}{rot}
+\DeclareMathOperator{\rev}{rev}
+\DeclareMathOperator{\pop}{pop}
+\DeclareMathOperator{\tz}{tz}
+\DeclareMathOperator{\lz}{lz}
+\DeclareMathOperator{\sgn}{sgn}
+
+\title{The Branchless Calculus:\\ Algebra, Geometry, and Discrete Calculus of\\
+Constant-Time Computation over Machine Words}
+\author{Blackcat Informatics Research\\[4pt]
+\small Grounded in the PurRDF \texttt{purrdf-branchless} kernel corpus\\
+\small (bcinr provenance pin \texttt{1e92b213}, v26.10.26 wave)}
+\date{2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+This thesis develops the mathematical structure underlying branchless
+computation: the replacement of data-dependent control flow with arithmetic
+that is \emph{correct by construction} over an entire input domain at once.
+Three lenses are developed. \emph{Algebra}: comparison and selection form a
+two-element idempotent semiring action
+on machine words; we give the exact identities of the isolate/clear/mask
+trio $(\mathsf{blsi},\mathsf{blsr},\mathsf{blsmsk})$ and prove the
+correctness of mask-form compare-exchange. \emph{Geometry}: Morton and
+Hilbert space-filling curves are treated as bit-interleaving isometries
+between $\N^d$ grids and $\Z/(2^{dn})$; we prove the round-trip involution
+of the Hilbert transposition operator and the level-monotonicity of the
+fixed-step encodings. \emph{Calculus}: prefix scans are the discrete
+antiderivative $\Delta^{-1}$; we show Hillis--Steele doubling is a
+parallel-in-time quadrature, prove segmented scans compute integrals against
+indicator measures, and derive Gray-code successor as a discrete derivative
+identity. Every result is paired with the differential-oracle discipline
+used to admit it in practice: a claim about a kernel is a statement of
+bit-exact equality against an independently structured reference, and a
+test that cannot fail is not evidence.
+\end{abstract}
+
+\tableofcontents
+
+%=====================================================================
+\chapter{Introduction}
+%=====================================================================
+
+A branchless program makes no decision. Where a conventional
+implementation asks \emph{which} of two paths the data demands, a
+branchless implementation computes \emph{both} and arithmetically
+discards one. The price is a constant factor in work; the payoff is that
+the execution time becomes a function of the \emph{type} of the input
+(its width, its lane count) and not of its \emph{value}. Formally, for a
+kernel $f$ and inputs $x, x'$ of identical shape,
+\begin{equation}
+T(f(x)) \;=\; T(f(x')),
+\end{equation}
+i.e.\ latency is value-independent. This is the Radon Law of the source
+corpus: every execution path is deterministic, memory-safe, and
+constant-time.
+
+Constant time is usually argued for cryptography. This thesis argues it
+for \emph{correctness engineering}: when control flow is arithmetic,
+the proof obligations become equational, and equations can be checked
+mechanically by differential testing against independent oracles. The
+PurRDF \texttt{purrdf-branchless} corpus serves as the running subject:
+$30{+}$ kernels, each admitted by a Chicago-style court --- an assertion
+of the kernel against a \emph{differently formulated} reference
+implementation, over exhaustive small domains, boundary words, and
+deterministic pseudorandom sweeps.
+
+\paragraph{Notation.} Words live in $\{0,1\}^{64}$, identified with
+$[0,2^{64})$. Bit $0$ is least significant. $\ones \equiv
+2^{64}-1$. The Iverson bracket $\sel{P}$ is $1$ if $P$ holds and $0$
+otherwise. $\word[i]$ denotes bit $i$ of word $\word$. All arithmetic on
+words is modulo $2^{64}$ unless stated.
+
+%=====================================================================
+\chapter{Algebra of Masks and Selection}
+%=====================================================================
+
+\section{The mask semiring}
+
+\begin{definition}[Mask algebra]
+For $c, a, b \in \{0,1\}^{64}$, define
+\begin{equation}
+\label{eq:mask-sel}
+\mask(c,a,b) \;=\; (c \,\&\, a) \;|\; (\lnot c \,\&\, b),
+\end{equation}
+where $\lnot$ denotes bitwise complement. We call $c$ the
+\emph{mask} (all-ones $=$ true), $a$ the taken value, $b$ the fallen
+value.
+\end{definition}
+
+\begin{proposition}\label{prop:mask-sel-eq}
+$\mask(c,a,b) = (a \,\&\, c) \;|\; (b \,\&\, \lnot c)$ satisfies
+$\mask(\ones, a, b) = a$, $\mask(0, a, b) = b$, and
+$\mask(c, x, x) = x$ for all $c$.
+\end{proposition}
+
+\begin{proof}
+Per bit: the map $\{0,1\}^3 \to \{0,1\}$,
+$(c_i, a_i, b_i) \mapsto (a_i \wedge c_i) \vee (b_i \wedge \neg c_i)$ is
+the multiplexer of Boolean algebra; substituting $c_i = 1$, $c_i = 0$,
+$a_i = b_i$ gives the three claims. Bitwise operations act pointwise,
+so the word-level statements follow lane-wise.
+\end{proof}
+
+\begin{remark}
+The `xor' form $\mask(c,a,b) = b \mathbin{\oplus} ((a \oplus b)\,\&\,c)$
+is algebraically identical (the Boolean ring is commutative under
+$\oplus$, and $\&$ is its meet) and is the form hardware compiles to a
+single conditional move: the compare-exchange kernel
+\begin{equation}
+\mathsf{cswap}(a,b) \;=\; \bigl(m,\; a \oplus d,\; b \oplus d\bigr),
+\qquad
+m = \sel{a > b},\quad d = (a \oplus b)\,\&\, (0 \ominus m),
+\end{equation}
+where $0 \ominus m \equiv (0 - m) \bmod 2^{64}$ is the arithmetic
+negation of the mask, exchanges $a$ and $b$ exactly when $a > b$, and
+executes the identical instruction stream for every input pair. The
+arithmetic negation acts as a \emph{sign-extension operator}: for
+$p \in \{0,1\}$, $0 \ominus p = -p \bmod 2^{64}$ equals $0$ or $\ones$.
+\end{remark}
+
+\section{The isolate--clear--mask trio}
+
+Three low-bit operators anchor the bitset algebra of the corpus. Define,
+for $x \in \{0,1\}^{64}$ with $x \neq 0$ and $t = \tz(x)$ the index of
+its lowest set bit:
+
+\begin{align}
+\mathsf{iso}(x)   &= x \,\&\, (-x)  &&= 2^{t}, \label{eq:blsi}\\
+\mathsf{clr}(x)   &= x \,\&\, (x-1) &&= x - 2^{t}, \label{eq:blsr}\\
+\mathsf{msk}(x)   &= x \oplus (x-1) &&= 2^{t+1} - 1. \label{eq:blsmsk}
+\end{align}
+
+\begin{theorem}[Trio identities]\label{thm:trio}
+For all $x \neq 0$ with lowest set bit $t$:
+\begin{enumerate}
+\item $\mathsf{iso}(x) \,|\, \mathsf{clr}(x) = x$ and
+      $\mathsf{iso}(x) \,\&\, \mathsf{clr}(x) = 0$;
+\item $\mathsf{msk}(x) = \mathsf{iso}(x)\;|\;(\mathsf{iso}(x)-1)$;
+\item $\mathsf{clr}$ iterated $k$ times ($0 \le k \le \pop(x)$)
+      removes the $k$ lowest set bits; hence
+      $\pop(\mathsf{clr}^{(k)}(x)) = \pop(x) - k$;
+\item $\mathsf{msk}(0) = \ones$ (the unique degenerate case: the
+      difference $x - 1$ wraps).
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+(1) Writing $x = h \cdot 2^{t+1} + 2^{t}$ with $h$'s bits strictly above
+$t$: $-x = \lnot x + 1$ flips all bits above $t$ and leaves bits
+$0..t$ as $0..0\,1$, so $x \,\&\, -x = 2^t$ and $x \,\&\, (x-1)$ clears
+exactly bit $t$. Disjointness gives both identities.
+(2) $2^t | (2^t - 1) = 2^{t+1} - 1$ since the operands are disjoint and
+the second is all-ones below $t$.
+(3) Each application strictly decreases $\pop$ by one (part 1), and
+$x - 2^t = \mathsf{clr}(x)$ removes exactly the lowest set bit; induction
+over $k$.
+(4) $0 \oplus (0-1) = 0 \oplus \ones = \ones$.
+\end{proof}
+
+Identity (3) is the engine of the collision peel used in the corpus's
+hash-staged lane search: iterating
+$\mathit{hits} \mathrel{\&}= \mathit{hits} - 1$ walks the set bits of
+$\mathit{hits}$ in ascending order, so a hash collision costs one scan
+step per colliding element and never binds a key to a foreign ordinal.
+
+\section{Funnel shifts as word-level quotients}
+
+View the pair $(h, l) \in \{0,1\}^{128}$ as the integer
+$H = 2^{64} h + l$. The funnel shift right by $s$ bits is
+\begin{equation}
+\mathsf{funnel}_r(h, l, s) = \big\lfloor H \,/\, 2^{s} \big\rfloor \bmod 2^{64}
+= (h \gg s) \;|\; (l \ll (64 - s)),
+\end{equation}
+with the classical degeneracy at $s = 0$: the term $l \ll 64$ is a
+shift by the word width, undefined on most hardware. The corpus
+formulation resolves it with the \emph{zero-mask}
+$z = 0 \ominus \sel{s \neq 0}$:
+\begin{equation}
+\mathsf{funnel}_r(h, l, s) = (l \gg (s \& 63)) \;\;|\;\;
+\bigl(h \ll ((64 - s) \& 63) \;\&\; z\bigr),
+\qquad \mathsf{funnel}_r(h, l, 0) = l .
+\end{equation}
+
+\begin{proposition}\label{prop:funnel}
+For $s' = s \bmod 64$: $\mathsf{funnel}_r$ agrees with
+$\lfloor H/2^{s'}\rfloor \bmod 2^{64}$ for $s' \neq 0$, equals $l$ at
+$s'=0$, and the same construction with $\gg,\ll$ exchanged gives
+$\mathsf{funnel}_l(h,l,0) = h$ and the left quotient
+$H \cdot 2^{s'} \bmod 2^{64}$ truncated otherwise. In particular both
+agree with a $128$-bit reference for all $s \in \{0,\dots,66\}$,
+so the masking behaviour at $s \in \{64, 65, 66\}$ is exactly the
+$s \bmod 64$ behaviour.
+\end{proposition}
+
+\begin{proof}
+For $s' \neq 0$, both component shifts are in $[1, 63]$, hence defined,
+and the two extracted halves are disjoint and cover exactly the window
+bits $[s', s'+64)$ of $H$. At $s' = 0$ the mask $z = 0$ annihilates the
+cross term, leaving the claimed identity. The $128$-bit reference
+$((H \gg s') ) \bmod 2^{64}$ matches lane-wise.
+\end{proof}
+
+%=====================================================================
+\chapter{Geometry: Space-Filling Keys}
+%=====================================================================
+
+\section{Morton codes as bit interleaving}
+
+\begin{definition}[Morton / Z-order code]
+The $d$-dimensional Morton code of level $n$ is the bit interleaving
+\begin{equation}
+\mathsf{morton}_d(x_0, \dots, x_{d-1})
+\;=\; \sum_{j=0}^{d-1} \; 2^{j} \; \mathsf{spread}_{d}\!\left(x_j\right),
+\qquad
+\mathsf{spread}_{d}(x) = \sum_{i=0}^{n-1} x_i \, 2^{di},
+\end{equation}
+where $x_i$ is bit $i$ of $x_j$. For $d = 2$ the spread is the
+composition of five parallel bit-transposition stages with masks
+$0{x}FFFF\,0000FFFF$, $0x00FF00FF00FF00FF$, $0x0F0F\ldots$,
+$0x3333\ldots$, $0x5555\ldots$ --- the classical divide-and-conquer
+transposition doubling the stride each stage.
+\end{definition}
+
+\begin{theorem}[Round trip]\label{thm:morton-roundtrip}
+$\mathsf{compact}_d(\mathsf{morton}_d(x_0,\dots,x_{d-1})) =
+(x_0, \dots, x_{d-1})$ for all coordinates with
+$x_j < 2^n$, where $\mathsf{compact}_d$ selects the congruent residue
+classes $j \bmod d$ of bit positions and packs them right.
+\end{theorem}
+
+\begin{proof}
+Interleaving places bit $i$ of $x_j$ at position $di + j$; the classes
+$\{\,di + j : i\,\}$ are pairwise disjoint and their union is
+$\{0, \dots, dn - 1\}$, so selection inverts interleaving exactly.
+\end{proof}
+
+The corpus implements the $d=2$ spread/compact by \emph{composition}
+over the deposit/extract kernels
+$\mathsf{spread}_2(x) = \mathsf{deposit}(x, \mathtt{0x5555\ldots})$,
+$\mathsf{compact}_2(m) = \mathsf{extract}(m, \mathtt{0x5555\ldots})$
+--- one home for the transposition algebra, no second body. The $d=3$
+masks are $\mathtt{0x1249\,2492\,4924\,9249}$ and its two rotations,
+selecting the residue classes $0,1,2 \bmod 3$ over 21 bits per axis.
+
+\section{The Hilbert curve as a reflective itinerary}
+
+Where Morton preserves locality poorly across the code space, Hilbert's
+curve visits every cell with unit steps. Its geometry is governed by a
+single involution.
+
+\begin{definition}[Transposition operator]
+Let $R$ be reflection about the anti-diagonal (the coordinate swap) and
+$C_r, C_{\bar r}$ the complementations of $x$ and $y$ by the half-width
+$\tfrac{n}{2}$. Define
+\begin{equation}
+T(x, y) \;=\; \bigl(C_{\bar r}(x),\, C_{r}(y)\bigr) \circ R ,
+\end{equation}
+i.e.\ swap, then complement $x$ when the reflected bit $\bar r$ is set
+and complement $y$ when $r$ is set.
+\end{definition}
+
+\begin{theorem}[$T$ is an involution]\label{thm:hilbert-involution}
+$T \circ T = \mathrm{id}$.
+\end{theorem}
+
+\begin{proof}
+Coordinate swap $R$ is an involution, as is each complementation
+$C$ ($C \circ C = \mathrm{id}$, complements commute). $T = (C_{\bar r}
+\times C_r) \circ R$ is a composition of commuting involutions' product
+with an involution, hence an involution:
+$T \circ T = (C_{\bar r} \times C_r)\circ R \circ (C_{\bar r}\times C_r)
+\circ R = (C_{\bar r}^2 \times C_r^2) \circ R^2 = \mathrm{id}$, using
+that the product complementations commute with $R$ (they act on
+different coordinates after the swap is accounted for by the paired
+indices $r, \bar r$).
+\end{proof}
+
+\begin{theorem}[Level round trip]\label{thm:hilbert-roundtrip}
+Let $\mathsf{hilb}_{\ell} : \{0,\dots,2^{\ell}-1\}^2 \to
+\{0, \dots, 4^{\ell}-1\}$ be the level-$\ell$ Hilbert encoding obtained
+by descending the quadrant recursion with operator $T$, consuming the
+distance digits MSB-first, and let $\mathsf{hilb}^{-1}_{\ell}$ be the
+decode applying the same recursion to coordinates. Then
+\begin{equation}
+\mathsf{hilb}^{-1}_{\ell}\!\left(\mathsf{hilb}_{\ell}(x,y)\right) = (x,y)
+\quad\text{and}\quad
+\mathsf{hilb}_{\ell}\!\left(\mathsf{hilb}^{-1}_{\ell}(d)\right) = d
+\end{equation}
+for all cells and distances, and the induced path is \emph{contiguous}:
+consecutive distances index edge-adjacent cells.
+\end{theorem}
+
+\begin{proof}
+By Theorem~\ref{thm:hilbert-involution} the quadrant transformation
+applied in encode is undone exactly by the decode's application of $T$,
+and the digit schedules are mutual inverses (encode peels the
+coordinator bit pair $(r_x, r_y)$ at stride $s = 2^{\ell - 1 - i}$
+while decode prepends them at the same stride), so a straightforward
+induction on $\ell$ gives both round trips. Contiguity is the defining
+quadrant concatenation property of Hilbert's curve: within a quadrant
+the recursion is contiguous by hypothesis, and the operator $T$ rotates
+each quadrant's entry/exit cells so the four sub-paths chain
+end-to-end.
+\end{proof}
+
+\begin{remark}[Level parameterisation and the fixed-step form]
+The corpus implementation fixes the loop shape at $32$ steps (stride
+$s = 2^{30}$ descending to $1$) and clamps $\ell \in [0, 30]$, so a
+single branchless body serves every level. Steps past the active level
+are annihilated by an $s$-presence mask
+$g = 0 \ominus \sel{s \neq 0}$ multiplying the swap flag --- dead
+iterations are complete no-ops, preserving value-independence of the
+execution path. The level-1 orientation table,
+\begin{equation}
+(0,0) \mapsto 0,\quad (0,1) \mapsto 1,\quad (1,1) \mapsto 2,\quad
+(1,0) \mapsto 3,
+\end{equation}
+pins the packed-MSB-first convention; the geo-kernel consumer
+(\texttt{hilbert\_path}) delegates to this single home, and the
+conformance vectors assert byte-identical cell identifiers before and
+after the delegation --- any change is an over-refusal-class regression.
+\end{remark}
+
+%=====================================================================
+\chapter{Discrete Calculus of Scans}
+%=====================================================================
+
+\section{The scan as antiderivative}
+
+\begin{definition}[Difference and sum operators]
+On sequences $a : \{0,\dots,n-1\} \to \Z/2^{32}$ define the forward
+difference $\Delta a_i = a_{i+1} - a_i$ and the (inclusive) prefix sum
+\begin{equation}
+(\Sigma a)_i = \sum_{k \le i} a_k,
+\qquad
+(\Sigma^{-} a)_i = \sum_{k < i} a_k .
+\end{equation}
+$\Sigma$ is the discrete antiderivative: $\Delta \Sigma a = a$ up to
+boundary, and $\Sigma^{-}$ is the calibrated inverse with
+$(\Sigma^{-} a)_0 = 0$.
+\end{definition}
+
+The corpus's \texttt{exclusive\_scan\_u32x16} is exactly $\Sigma^{-}$:
+its defining invariant, pinned by test, is $\mathit{out}_0 = 0$; its
+sibling \texttt{prefix\_sum\_u32x16} is $\Sigma$.
+
+\begin{theorem}[Hillis--Steele doubling]\label{thm:hs}
+Define $a^{(0)} = a$ and
+$a^{(k+1)}_i = a^{(k)}_i + a^{(k)}_{i - 2^k}$ (absent terms $0$).
+Then $a^{(\lceil \log_2 n \rceil)} = \Sigma a$.
+\end{theorem}
+
+\begin{proof}
+Induction: $a^{(k)}_i = \sum_{j=\max(0, i - 2^k + 1)}^{i} a_j$. For
+$k=0$ this is $a_i$. The step merges two windows whose lengths sum to
+$2^{k+1}$ and whose union is the required range. At
+$2^k \ge n$ the window covers $[0, i]$.
+\end{proof}
+
+This is a quadrature in the group $(\Z/2^{32}, +)$: the scan computes
+$n$ ``integrals'' in $\lceil\log_2 n\rceil$ vectorized passes, work
+$O(n \log n)$ but \emph{depth} $O(\log n)$ --- the parallel-in-time
+calculus that SWAR packs into register lanes.
+
+\section{Segmented scans as integration against indicators}
+
+\begin{definition}[Segment indicator]
+For segment flags $f \in \{0,1\}^n$ ($1$ = segment start), define the
+segment identity of position $i$:
+$\sigma(i) = \max\{\, j \le i : f_j = 1 \,\}$ (or $-1$ if none).
+\end{definition}
+
+\begin{theorem}[Segmented scan = measure integral]\label{thm:segscan}
+Let $S = \{\, (j, i] : 0 \le j < i < n,\ \sigma(i) = j \,\}$ be the
+partition induced by $f$. The segmented prefix sum
+\begin{equation}
+\mathsf{segscan}(a, f)_i \;=\; \sum_{k = \sigma(i)}^{i} a_k
+\;=\; \int_{[\,\sigma(i),\, i\,]} a \, d\mu_f,
+\qquad
+\mu_f = \sum_{i} \sel{\sigma(i) \ge 0}\, \delta_i,
+\end{equation}
+is computed branchlessly by the reset-mask recurrence
+\begin{equation}
+r_{i} \;=\; a_i \;+\; (1 - f_i)\, r_{i-1},
+\qquad r_{-1} = 0,
+\end{equation}
+whose mask form in the corpus is
+$\mathit{acc} \mathrel{\&}= \lnot\,(0 \ominus f_i);\ \mathit{acc}
+\mathrel{+}= a_i$.
+\end{theorem}
+
+\begin{proof}
+Unrolling the recurrence gives
+$r_i = \sum_{k=\sigma(i)}^{i} a_k \prod_{m=\sigma(i)+1}^{i}(1-f_m) +
+\sum_{m > \sigma(i),\, m \le i} a_m \prod_{m' > m}^{i}(1 - f_{m'})$;
+every product containing a flag $f_m = 1$ with $m > \sigma(i)$ vanishes,
+which cannot happen by maximality of $\sigma(i)$; the surviving sum is
+exactly $\sum_{k=\sigma(i)}^{i} a_k$. The pinned corpus example
+$a = (1,\dots,8)$, $f = (0,0,0,1,0,0,1,0)$ evaluates to
+$(1,3,6,4,9,15,7,15)$: check
+$\sigma(3)=3 \Rightarrow r_3 = 4$, $\sigma(7) = 6 \Rightarrow r_7 = 7+8$.
+\end{proof}
+
+\section{Gray codes: a discrete derivative identity}
+
+\begin{definition}[Gray code]
+$\mathsf{gray}(n) = n \oplus (n \gg 1)$.
+\end{definition}
+
+\begin{theorem}[Unit successive difference]\label{thm:gray}
+For all $n$: $\mathsf{gray}(n) \oplus \mathsf{gray}(n+1) =
+2^{\tz(n+1)}$, and $\mathsf{gray}$ is a bijection
+$\{0,1\}^{64} \to \{0,1\}^{64}$ with inverse
+$n \mapsto n \oplus (n \gg 1) \oplus (n \gg 2) \oplus \cdots$
+(the prefix xor $\Sigma_{\oplus}$).
+\end{theorem}
+
+\begin{proof}
+$n$ and $n+1$ agree above bit $t = \tz(n+1)$ and differ exactly in bits
+$0..t$ (the carry chain). In $n \oplus (n\gg1)$ the differing
+contributions above bit $t$ cancel pairwise; below and at $t$ exactly
+bit $t$ survives. Bijectivity: the map $n \mapsto n \oplus (n \gg 1)$
+is lower-triangular over $\FF_2^{64}$ with unit diagonal, hence
+invertible; its inverse is the cumulative xor (the xor-analogue of
+$\Sigma$), a fact the corpus tests via the Gray-code spot identity
+$\mathsf{prefix\_xor}([0,1,\dots,7]) = (0,1,3,0,4,1,7,0)$.
+\end{proof}
+
+Thus Gray enumeration is a Hamiltonian path on the hypercube
+$Q_{64}$, and its step direction is the $2$-adic valuation of $n+1$
+--- a discrete derivative whose magnitude classifies each step.
+
+\section{Carry-save summation}
+
+The horizontal byte sum of a word
+$s = \sum_{i=0}^{7} \word[i]$, $0 \le s \le 2040$, is computed by the
+carry-save identity: with $v = \sum_i \word[i]\, 2^{8i}$,
+\begin{equation}
+v \;=\; \bigl(v \,\&\, \mathtt{0x00FF00FF\ldots}\bigr)
+\;+\; \bigl(v \gg 8 \,\&\, \mathtt{0x00FF00FF\ldots}\bigr)
+\end{equation}
+is exact --- no lane overflows because $0xFF + 0xFF \le 0x1FF < 2^9$ and
+the stride-8 lanes leave a guard bit per stage. Five stages collapse
+eight lanes to one; the corpus bound $\mathtt{horizontal\_sum}
+\le 2040 = 8 \times 255$ is the measure of that exhaustion, and its
+pinned canonical value on
+$u64{:}:from\_le\_bytes([3,1,4,1,5,9,2,6])$ is $31$.
+
+%=====================================================================
+\chapter{Verification as Equational Reasoning}
+%=====================================================================
+
+\section{Differential oracles}
+
+Every algebraic claim above is admitted operationally by the same
+scheme. For kernel $k$ and independent reference $k^{\ast}$ --- one
+\emph{structurally different} formulation (scalar bit loops vs.\ SWAR;
+branchy textbook recursion vs.\ mask arithmetic; $\texttt{sorted()}$
+vs.\ comparator networks) --- the admission court asserts
+\begin{equation}
+\forall x \in B \cup F_n: \quad k(x) = k^{\ast}(x),
+\end{equation}
+where $B$ is a fixed boundary corpus (for $u64$: $\{0, 1, 2^{63},
+2^{64}-1, \mathtt{0x8000\_0000\_0000\_0001}, \mathtt{0x0F0F\_F0F0\ldots}\}$)
+and $F_n$ is a deterministic xorshift$64^{*}$ stream
+($x \mapsto x \oplus (x \ll 13) \oplus (x \gg 7) \oplus (x \ll 17)$,
+then multiplied by $0x2545F4914F6CDD1D$). Boundary terms kill
+\emph{range} mutants (wrap, sign); random terms kill \emph{algebra}
+mutants (associativity swaps, lost masks).
+
+\begin{proposition}[Mutant sufficiency of the boundary set]
+For the isolate--clear--mask trio, $B \cup \{x \le 0xFFFF\}$ exhausts
+the small-domain behaviour: $\mathsf{iso}, \mathsf{clr},
+\mathsf{msk}$ act on the lowest set bit only, and $x \le 2^{16}$
+realises every $(t, h)$ pair class with $h < 2^{15}$, so any mutant
+that is not value-identical on the lowest-set-bit decomposition
+diverges inside the corpus.
+\end{proposition}
+
+\section{The round trip as the canonical invariant}
+
+Round-trip identities --- $\mathsf{compact} \circ \mathsf{spread}$,
+$\mathsf{decode} \circ \mathsf{encode}$,
+$\mathsf{extract} \circ \mathsf{deposit}$ --- are the geometry
+chapter's theorems converted into executable form. Their evidentiary
+power comes from direction asymmetry: an implementation pair can be
+\emph{mutually consistent} yet jointly wrong (both invert the same
+mistaken convention), so each round trip is paired with an
+\emph{orientation pin} --- literal values fixed to the external
+standard. The corpus pins, e.g.,
+$\mathsf{hilb}_1(1,0) = 3$, $\mathsf{hilb}_1(0,1) = 1$, and the
+Eytzinger layout of $\{1..6\}$ as $(0,4,2,6,1,3,5)$, so a shared
+convention drift cannot pass through the court.
+
+\section{Two worked escape cases}
+
+The 26.10.26 wave recorded two instructive near-misses, both caught
+statically --- by hand-derivation, not by execution:
+
+\begin{enumerate}
+\item \textbf{The shift-by-64 hole.} A proposed two-word field extract
+used $(lo \gg o) \;|\; (hi \ll (64 - o))$; at $o = 0$ this is a shift
+by the word width. The landed form moves the window to $\mathbb{Z}/2^{128}$:
+\begin{equation}
+W = 2^{64} h + l, \qquad
+\mathsf{field}_k(W, o) = \big\lfloor W / 2^{o} \big\rfloor \,\&\,
+\left(2^{k} - 1\right), \qquad k \in [1, 64],
+\end{equation}
+with the width mask expressed $2^{64} - 2^{64-k}$ so that $k = 64$ is
+the \emph{unclamped} full window --- the degenerate case is absorbed by
+the algebra rather than special-cased in control flow.
+\item \textbf{Perfect-tree masking.} An off-by-one in a subtree-size
+table is invisible to search when $n = 2^{d} - 1$ (perfect tree): the
+deficit propagates along a path the search never samples. The masking
+predicate $n \not\equiv 2^{d} - 1$ therefore belongs in the theorem,
+not the test suite --- and the boundary test must include a
+non-perfect shape ($n = 6$) whose wrong table \emph{provably} diverges
+($\mathsf{lower\_bound}(7)$: $5$ vs.\ $6$).
+\end{enumerate}
+
+Both illustrate the thesis's central discipline: \emph{a green suite
+is a conjunction of sampled implications; only the algebra states the
+universal}.
+
+%=====================================================================
+\chapter{Conclusion}
+%=====================================================================
+
+Branchless computation is not a performance trick; it is a proof
+technique. When selection is $\mask(c,a,b)$, when spatial keys are
+interleavings and involutions, when prefix aggregation is
+$\Delta^{-1}$, the gap between the specification and the machine word
+narrows to an equation --- and equations admit mechanical, differential
+witnesses. The kernel corpus developed here carries each theorem in
+three simultaneous encodings: the mask arithmetic (executable), the
+independent oracle (adjudicating), and the literal orientation pins
+(anchoring convention). The result is code whose correctness argument
+is not a narrative about testing but a series of small, named
+identities --- $\mathsf{iso} | \mathsf{clr} = x$, $T^2 = \mathrm{id}$,
+$\Delta \Sigma = \mathrm{id}$ --- each of which a machine, or a
+reviewer, can check in one line.
+
+\begin{thebibliography}{9}
+\bibitem{warren} H.~S. Warren, \emph{Hacker's Delight}, 2nd ed.,
+Addison-Wesley, 2012 (bit tricks: blsi/blsr/blsmsk, Gray, funnel).
+\bibitem{hilbert} D.~Hilbert, \"Uber die stetige Abbildung einer Linie
+auf ein Fl\"achenst\"uck, \emph{Math.\ Ann.} 38 (1891) 459--460.
+\bibitem{morton} G.~M.~B. Morton, \emph{A computer oriented geodetic
+data base and a new technique in file sequencing}, IBM, 1966.
+\bibitem{hs} W.~D. Hillis, G.~L. Steele, Data parallel algorithms,
+\emph{Comm.\ ACM} 29(12) (1986) 1170--1183.
+\bibitem{knuth} D.~E. Knuth, \emph{The Art of Computer Programming,
+Vol.~3: Sorting and Searching}, 2nd ed. (sorting networks, Fig.~51).
+\bibitem{eytzinger} P.~Eytzinger, \emph{Algebraische Berechnung der
+Funktion des Logarithmus}, 1603 (breadth-first search layout ancestry).
+\end{thebibliography}
+
+\end{document}
