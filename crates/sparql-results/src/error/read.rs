@@ -189,6 +189,12 @@ impl core::fmt::Display for ReadRefusal {
         f.write_str(match self.format {
             SparqlResultsFormat::Xml => "SPARQL-XML: ",
             SparqlResultsFormat::Json => "SPARQL-JSON: ",
+            SparqlResultsFormat::CanonArrow => {
+                // canon-arrow is write-only today; the reader refuses it
+                // defensively so a future reader cannot be silently added
+                // without revisiting this match.
+                write!(f, "SPARQL-CANON-ARROW: read not supported")
+            }
             SparqlResultsFormat::Csv => "SPARQL-CSV: ",
             SparqlResultsFormat::Tsv => "SPARQL-TSV: ",
         })?;

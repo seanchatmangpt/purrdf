@@ -34,22 +34,23 @@
 
 ## Status (2026-10-27, wiring-wave sync lane; disk-read, not runner-cited)
 
-- **Item 1 — `canon-arrow` results-format arm (`crates/sparql-results`): PARTIAL
-  (wired, module body not yet on disk).** The format surface is wired:
-  `CanonArrow` variant (`src/lib.rs:105`), member of `ALL` (`src/lib.rs:121`),
-  MIME token `application/x-purrdf-canon-arrow` (`src/lib.rs:140-141`), and the
-  `serialize` dispatch arm (`src/lib.rs:246-255`, routed through
-  `serialize_into` so eager/streaming cannot disagree); the bench arm
-  `to_canon_arrow_5k_rows` exists (`benches/graph_serialize.rs:166`). BUT
-  `mod canon_arrow;` (`src/lib.rs:62`) has **no backing
-  `src/canon_arrow.rs` or `src/canon_arrow/` on disk** — the crate does not
-  compile on the current tree state; the frame writer is UNCOMPILED
-  (in-flight lane file, not this doc-lane's to fix).
-- **Item 2 — FFI/JS seams (`rdf-capi`, `rdf-wasm`): OPEN.** Zero
-  `canon_arrow`/`ArrowEgressHeader` references in
-  `crates/rdf-capi/src/query.rs` and `crates/rdf-wasm/src/query.rs`
-  (grep rc=1, 2026-10-27); both still hold the monolithic document egress
-  named in §2.
+- **Item 1 — `canon-arrow` results-format arm (`crates/sparql-results`): DONE.**
+  Format surface + writer both landed (commit 6e93aca3): `CanonArrow` variant
+  (`src/lib.rs:105`), member of `ALL` (`src/lib.rs:121`), MIME token
+  `application/x-purrdf-canon-arrow` (`src/lib.rs:140-141`), the eager +
+  streaming dispatch arms (`src/lib.rs:246-255`, `:301-303`), and the writer
+  `src/canon_arrow.rs` (627 lines: three-pass slabbed emitter, zero
+  document-sized allocations in the streaming lane, canon-empty frame for
+  non-tabular shapes, in-file Chicago tests). Courts: streaming-bounded
+  allocator oracle, golden bytes, refusals-before-emission, structured
+  errors; bench arms in `benches/graph_serialize.rs` (UNRUN — receipts via
+  phase-5 fast lane or CI).
+- **Item 2 — FFI/JS seams (`rdf-capi`, `rdf-wasm`): DONE.**
+  `purrdf_query_canon_arrow` (`crates/rdf-capi/src/query.rs:778`, header
+  `purrdf.h:2885`, ABI snapshot line 72, 3 tests); wasm `queryCanonArrow`
+  (`crates/rdf-wasm/src/query.rs:1588`, `JobOutcome::Raw(Vec<u8>)` byte lane,
+  `js/index.mjs` + `index.d.ts` exposure, round-trip court). The monolithic
+  text egress remains as the compatibility lane, unchanged.
 - **Item 3 — escaper consolidation: DONE.** `gts` delegates to
   `purrdf_lex::json_escape` (`crates/gts/src/mmr.rs:17,585`); `n3`'s
   hand-rolled `escape_json` is deleted and `JsonEscapes::Minimal` wired at
@@ -81,9 +82,9 @@ for implementers: OPT-66/67/68 are NOT arrow tickets — they are the
 renumbered batch-count/branchless/gts-cross-check tickets; enrichment
 lives here with the rest of the arrow scope.
 
-Related plan of record (2026-10-27 wiring-plan lane): the JSON-escaper
-consolidation in OPT-17 item 3 is already mostly done — gts delegates to
-`purrdf_lex::json_escape` via the purrdf_iri re-export; only n3's
-hand-rolled escaper remains (`crates/n3/src/printing.rs:785-802`), and
-switching it is a public byte change (uppercase -> lowercase `\uXXXX`)
-that must be pinned by a golden fixture before it lands.
+Plan-of-record update (2026-10-27, post-landing): the escaper
+consolidation is DONE (see Item 3); the n3 golden pin lives at
+crates/n3/src/printing.rs:785 (the golden module, not the deleted
+escaper). Remaining open scope in this ticket: the error-payload
+enrichment items above, and the framed-lane production consumers
+beyond capi/wasm (rdf-capi CLI surfaces) as adoption proceeds.

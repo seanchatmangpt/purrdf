@@ -697,6 +697,16 @@ impl OperationInput<'_> {
                 &geo,
             )?)),
             AsyncOperationKind::Raw | AsyncOperationKind::RawWithContext => {
+                // CanonArrow is a binary frame; this arm's bytes are
+                // text-decoded downstream (takeText/queryRawAsync), so a
+                // frame here would be silently corrupted. Mirror the sync
+                // queryRaw refusal and point at queryCanonArrow.
+                if format.as_deref() == Some("canon-arrow") {
+                    return Err(JsValue::new(
+                        "canon-arrow is a binary frame; queryRawAsync returns \
+                         text. Use queryCanonArrow instead.",
+                    ));
+                }
                 let result = ungoverned_query(
                     run,
                     &engine,

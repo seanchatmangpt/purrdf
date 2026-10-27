@@ -1572,7 +1572,7 @@ impl QueryEngine {
     /// → the `canon-arrow` frame as a `Uint8Array`.
     ///
     /// The binary twin of [`QueryEngine::query_raw`]: the `canon-arrow` frame is an
-    /// Arrow IPC byte sequence, so it crosses as bytes, never as text — the text
+    /// CanonArrow byte sequence (not Arrow IPC), so it crosses as bytes, never as text — the text
     /// surface's UTF-8 decode would corrupt (lossy) or refuse (over-refusal) exactly
     /// the frames that carry binary literal payloads. Select/Ask results only, like
     /// every tabular format; the parameters match `queryRaw` one for one.
@@ -2443,7 +2443,7 @@ fn serialize_tabular_result(
     let outcome = serialize_results(result, format, &provenance, provenance_namespace)
         .map_err(|e| e.to_string())?;
     match format {
-        // A binary Arrow IPC frame: handed through verbatim. Forcing it through the
+        // A binary CanonArrow frame (not Arrow IPC): handed through verbatim. Forcing it through the
         // text surface's UTF-8 decode would corrupt it (lossy) or refuse it (the
         // over-refusal this branch exists to close).
         SparqlResultsFormat::CanonArrow => Ok(outcome.bytes),

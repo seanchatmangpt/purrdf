@@ -185,7 +185,7 @@ fn a_zero_row_select_emits_the_canon_empty_frame() {
 /// - column `o`: kinds `[LITERAL=2, LITERAL=2]` at 44..46; offsets
 ///   `[0, 7, 12]` at 46..58; lexical `"Alice"` + `"Bob"` at 58..70.
 ///
-/// Payload = slab 68 + padding 64 = 132; total = 128 + 132 = 260.
+/// Payload = slab 70 + padding 64 = 134; total = 128 + 134 = 262.
 fn the_two_by_two_frame_pins_the_slab_bytes() {
     let frame = serialize(
         &two_by_two(),
@@ -195,16 +195,16 @@ fn the_two_by_two_frame_pins_the_slab_bytes() {
     )
     .expect("SELECT serializes to the canon-arrow frame")
     .bytes;
-    assert_eq!(frame.len(), 260);
+    assert_eq!(frame.len(), 262);
 
-    // Header: one batch, payload 132 (slab 68 + padding 64), total 260.
+    // Header: one batch, payload 134 (slab 70 + padding 64), total 262.
     assert_eq!(&frame[off::MAGIC], b"GLAWARRW");
     assert_eq!(&frame[off::VERSION], &0x0002_u16.to_le_bytes());
     assert_eq!(&frame[off::FLAGS], &0_u16.to_le_bytes());
     assert_eq!(&frame[off::BATCH_COUNT], &1_u32.to_le_bytes());
     assert_eq!(&frame[off::PAYLOAD_OFFSET], &128_u32.to_le_bytes());
-    assert_eq!(&frame[off::PAYLOAD_LEN], &132_u64.to_le_bytes());
-    assert_eq!(&frame[off::TOTAL_LEN], &260_u64.to_le_bytes());
+    assert_eq!(&frame[off::PAYLOAD_LEN], &134_u64.to_le_bytes());
+    assert_eq!(&frame[off::TOTAL_LEN], &262_u64.to_le_bytes());
 
     // First slab, column `s`: the term-kind bytes and the offset table.
     let slab = off::PAYLOAD_REGION;
@@ -225,7 +225,7 @@ fn the_two_by_two_frame_pins_the_slab_bytes() {
     assert_eq!(&frame[slab + 58..slab + 70], b"\"Alice\"\"Bob\"");
 
     // The 64-byte trailing padding closes the frame.
-    assert!(frame[260 - off::PADDING..].iter().all(|&b| b == 0));
+    assert!(frame[262 - off::PADDING..].iter().all(|&b| b == 0));
 
     // Decode through the shared wire header.
     let header = ArrowEgressHeader::from_bytes(
@@ -236,8 +236,8 @@ fn the_two_by_two_frame_pins_the_slab_bytes() {
     .expect("the solutions frame round-trips");
     assert_eq!(header.batch_count, 1);
     assert_eq!(header.payload_offset, ArrowEgressHeader::PAYLOAD_OFFSET);
-    assert_eq!(header.payload_byte_len, 132);
-    assert_eq!(header.total_byte_len, 260);
+    assert_eq!(header.payload_byte_len, 134);
+    assert_eq!(header.total_byte_len, 262);
     assert!(header.fits_in(frame.len() as u64));
     assert!(!header.fits_in(frame.len() as u64 - 1));
 

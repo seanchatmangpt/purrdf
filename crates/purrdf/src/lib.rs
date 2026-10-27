@@ -288,7 +288,9 @@ pub mod duckdb {
     pub use purrdf_duckdb::*;
 }
 
-/// Canonical Arrow IPC columnar egress protocol ([`purrdf_arrow`]).
+/// CanonArrow deterministic columnar-egress framing ([`purrdf_arrow`]) —
+/// not Arrow IPC; also rides the SPARQL results layer as the additive
+/// `canon-arrow` format.
 pub mod arrow {
     pub use purrdf_arrow::*;
 }

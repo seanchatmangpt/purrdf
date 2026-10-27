@@ -16,7 +16,5 @@
 //! responsibility.
 
 pub mod header;
-pub mod slab;
 
 pub use header::{ArrowEgressHeader, ArrowEgressHeaderError, canon_arrow_empty_v1};
-pub use slab::{ColumnKind, ColumnSpec, SLAB_ALIGNMENT, SlabLayout, pad_to_slab};

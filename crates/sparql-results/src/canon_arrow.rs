@@ -73,7 +73,7 @@ pub(crate) const ROWS_PER_BATCH: usize = 64;
 /// Trailing frame padding in bytes.
 const TRAILING_PADDING: u64 = 64;
 
-/// The slab column vocabulary (`SlabLayout`): the per-batch encoding a
+/// The slab column vocabulary: the per-batch encoding a
 /// `Solutions` slab uses, laid out per projected variable in projection order.
 ///
 /// For a batch of `r` rows and `c` columns, the slab is the concatenation, for
@@ -226,8 +226,15 @@ fn measure_solutions(
         }
         // Fixed slab region: kinds (`rows * cols` bytes) plus offset tables
         // (`(rows + 1)` little-endian u32s per column).
-        let fixed = u64::try_from(batch.len() * variables.len() * 5 + variables.len() * 4)
-            .map_err(|_| storage_overflow())?;
+        let fixed = u64::from_usize(batch.len())
+            .and_then(|rows| {
+                rows.checked_mul(u64::from_usize(variables.len()).ok_or(None)?)
+                    .and_then(|term| term.checked_mul(5))
+                    .and_then(|term| {
+                        term.checked_add(u64::from_usize(variables.len()).ok_or(None)? * 4)
+                    })
+            })
+            .map_err(|_: Option<()>| storage_overflow())?;
         payload = payload
             .checked_add(fixed)
             .and_then(|sum| sum.checked_add(lexical_total))
@@ -344,6 +351,14 @@ pub fn to_canon_arrow(result: &SparqlResult) -> Result<Vec<u8>, Error> {
         header.fits_in(frame.len() as u64),
         "frame header must fit the frame it was emitted in"
     );
+    // Release-compiled: the debug measure/emit asserts are no-ops in
+    // release, so the eager lane pins the payload length exactly — a
+    // measure/emit drift cannot ship a mis-describing frame here.
+    assert_eq!(
+        u64::try_from(frame.len() - ArrowEgressHeader::SIZE).expect("frame below u64"),
+        header.payload_byte_len + TRAILING_PADDING,
+        "frame payload region must equal the header's declared length"
+    );
     Ok(frame)
 }
 
@@ -417,7 +432,11 @@ fn emit_solutions(
 /// exactly one batch, which pass 3's emitted slab must equal once its lexical
 /// total is added back.
 fn slab_fixed_len(variables: &[String], batch: &[Vec<Option<TermValue>>]) -> u64 {
-    u64::try_from(batch.len() * variables.len() * 5 + variables.len() * 4)
+    let rows = batch.len() as u64;
+    let columns = variables.len() as u64;
+    rows.checked_mul(columns)
+        .and_then(|term| term.checked_mul(5))
+        .and_then(|term| term.checked_add(columns * 4))
         .expect("a bounded batch's fixed slab region cannot overflow u64")
 }
 

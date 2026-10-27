@@ -71,7 +71,7 @@ No source code was modified by the inspection; tickets are engineering specs onl
 | OPT-68 | `OPT-68-gts-canonarrow-cross-check.md` | ticket-writer (2026-10-27) | gts, arrow |
 | OPT-5S | `../OPT-5s-bounded-ceiling.md` | Agent C14 | bounded wrapper + hook + corpus, ENFORCED |
 
-Note (2026-10-27): `OPT-65-frozen-duckdb-endgame.md` exists on disk but has no
+Note (2026-10-27): `OPT-64 and OPT-65-frozen-duckdb-endgame.md` exists on disk but has no
 index row above — pre-existing drift, recorded here rather than silently
 repaired (row owner unknown). OPT-66/67/68 absorb the wave's OPT-18/19/20
 request; those IDs were taken by the Agent 18/19/20 wave tickets, so the next

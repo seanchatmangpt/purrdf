@@ -1167,7 +1167,7 @@ fn refuse_unenforceable_combinations(
     if options.provenance_namespace.is_some()
         && matches!(
             results_format.to_results_format(),
-            Some(SparqlResultsFormat::Csv | SparqlResultsFormat::Tsv)
+            Some(SparqlResultsFormat::Csv | SparqlResultsFormat::Tsv | SparqlResultsFormat::CanonArrow)
         )
     {
         return Err(CliError::Usage(format!(

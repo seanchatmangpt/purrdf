@@ -231,6 +231,11 @@ pub(crate) fn parse_sparql_results<'py>(
                 ))),
             },
         },
+        SparqlResultsFormat::CanonArrow => {
+            return Err(PyValueError::new_err(
+                "parsing canon-arrow is not supported; it is a write-only frame format",
+            ));
+        }
         SparqlResultsFormat::Csv | SparqlResultsFormat::Tsv => Err(PyValueError::new_err(format!(
             "parsing SPARQL results `{format}` is not supported (JSON/XML only)"
         ))),
