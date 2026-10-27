@@ -29,6 +29,10 @@ path = "src/lib.rs"
 name = "purrdf_core"
 
 [dependencies]
+# Branchless kernel primitives (no_std leaf, zero deps). The Eytzinger search
+# module's single home: this crate re-exports it instead of carrying its own
+# copy. wasm-clean.
+purrdf-branchless = { workspace = true }
 # The lexical layer: the one `TextOut` append target, the `IRIREF` and literal
 # escapers, the RDF 1.2 term syntax and the XML reader. A leaf over
 # `purrdf-hash` only, with no edge back to the core, and wasm-clean.

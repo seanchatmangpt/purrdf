@@ -1843,6 +1843,7 @@ name = "purrdf"
 version = "3.0.1"
 dependencies = [
  "purrdf-arrow",
+ "purrdf-branchless",
  "purrdf-columnar",
  "purrdf-core",
  "purrdf-datalog",
@@ -1899,6 +1900,13 @@ dependencies = [
  "purrdf-sparql-results",
  "purrdf-testkit",
  "purrdf-xsd",
+]
+
+[[package]]
+name = "purrdf-branchless"
+version = "3.0.1"
+dependencies = [
+ "purrdf-hash",
 ]
 
 [[package]]
@@ -1988,6 +1996,7 @@ version = "3.0.1"
 dependencies = [
  "hashbrown 0.17.1",
  "purrdf-alloc-probe",
+ "purrdf-branchless",
  "purrdf-cdt",
  "purrdf-deflate",
  "purrdf-events",
@@ -2008,6 +2017,7 @@ version = "3.0.1"
 dependencies = [
  "hashbrown 0.17.1",
  "purrdf-alloc-probe",
+ "purrdf-branchless",
  "purrdf-core",
  "purrdf-hash",
  "purrdf-lex",
@@ -2105,6 +2115,7 @@ name = "purrdf-geo-kernel"
 version = "3.0.1"
 dependencies = [
  "purrdf-alloc-probe",
+ "purrdf-branchless",
  "purrdf-core",
  "purrdf-hash",
  "purrdf-iri",
@@ -2255,6 +2266,7 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "purrdf-alloc-probe",
+ "purrdf-branchless",
  "purrdf-hash",
  "purrdf-iri",
  "purrdf-lex",
@@ -2429,6 +2441,7 @@ dependencies = [
  "getrandom 0.4.3",
  "hashbrown 0.17.1",
  "purrdf-alloc-probe",
+ "purrdf-branchless",
  "purrdf-cdt",
  "purrdf-core",
  "purrdf-geo-kernel",

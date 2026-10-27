@@ -132,7 +132,8 @@ where
                         if seed_in_cycle {
                             solution.sources.remove(0);
                         }
-                        solution.sources.sort_by_key(|source| source.body_index);
+                        // OPT-49: fixed inline network, zero allocation.
+                        join::sort_sources_by_body_index(&mut solution.sources);
                     }
                     self.output = Vec::with_capacity(solutions.len());
                     self.phase = Phase::Filter {

@@ -424,29 +424,8 @@ fn warp_denominator(n: u64) -> u128 {
     3 * u128::from(n) * u128::from(n)
 }
 
-fn hilbert_path(mut x: u32, mut y: u32, level: u8) -> u64 {
-    let mut size = 1_u32 << level;
-    let mut path = 0;
-    while size > 1 {
-        let half = size / 2;
-        let digit = if x < half && y < half {
-            core::mem::swap(&mut x, &mut y);
-            0
-        } else if x < half {
-            y -= half;
-            1
-        } else if y >= half {
-            x -= half;
-            y -= half;
-            2
-        } else {
-            (x, y) = (half - 1 - y, size - 1 - x);
-            3
-        };
-        path = (path << 2) | digit;
-        size = half;
-    }
-    path
+fn hilbert_path(x: u32, y: u32, level: u8) -> u64 {
+    purrdf_branchless::packing::hilbert_encode_2d(x, y, level)
 }
 
 #[cfg(test)]

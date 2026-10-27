@@ -3862,3 +3862,330 @@ enforced = true
 constants = []
 fingerprints = []
 names = []
+
+# --- branchless kernel families (v26.10.26 migration from BranchlessCInRust) ---
+
+[[job]]
+id = "branchless-swar-word-kernels"
+summary = "SWAR per-word byte kernels: match masks, lane range tests, classify, decimal parse"
+home = "purrdf_branchless::swar::find_byte_in_word"
+entry_points = [
+    "purrdf_branchless::swar::byte_lane_in_range",
+    "purrdf_branchless::swar::classify_bytes",
+    "purrdf_branchless::swar::parse_8_decimal_digits",
+    "purrdf_branchless::swar::horizontal_sum_u8x8",
+    "purrdf_branchless::swar::horizontal_max_u8x8",
+    "purrdf_branchless::swar::horizontal_min_u8x8",
+    "purrdf_branchless::swar::horizontal_count_eq_u8",
+    "purrdf_branchless::swar::horizontal_or_u8x8",
+    "purrdf_branchless::swar::horizontal_and_u8x8",
+    "purrdf_branchless::swar::horizontal_xor_u8x8",
+    "purrdf_branchless::swar::prefix_sum_u32x16",
+    "purrdf_branchless::swar::exclusive_scan_u32x16",
+    "purrdf_branchless::swar::segmented_prefix_sum_u32x8",
+    "purrdf_branchless::swar::prefix_max_u32x16",
+    "purrdf_branchless::swar::prefix_xor_u64x8",
+    "purrdf_branchless::swar::horizontal_or_u32",
+    "purrdf_branchless::swar::horizontal_and_u32",
+    "purrdf_branchless::swar::horizontal_xor_u32",
+    "purrdf_branchless::swar::reduce_min_u32",
+    "purrdf_branchless::swar::reduce_max_u32",
+    "purrdf_branchless::swar::reduce_sum_u64",
+]
+spec = "Mycroft zero-byte/cascade-safe match kernels and Hacker's Delight lane-range masks over u64 byte lanes; branchless, allocation-free"
+vectors = []
+bench = []
+sites = []
+replaces_external = []
+enforced = true
+
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []
+
+[[job]]
+id = "branchless-mask-minmax-select"
+summary = "Mask-form min/max and (a&!m)|(b&m) select kernels in u32/u64/u128 widths"
+home = "purrdf_branchless::select::min_u32"
+entry_points = [
+    "purrdf_branchless::select::max_u32",
+    "purrdf_branchless::select::min_u64",
+    "purrdf_branchless::select::max_u64",
+    "purrdf_branchless::select::select_u128",
+]
+spec = "const-stable XOR-mask/differencing min-max and all-ones-mask select; zero branches, Ord::min/max not required"
+vectors = []
+bench = []
+sites = []
+replaces_external = []
+enforced = true
+
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []
+
+[[job]]
+id = "branchless-clamp-family"
+summary = "Endpoint-ordered clamps and saturating scalar helpers in integer widths"
+home = "purrdf_branchless::saturation::clamp_u64"
+entry_points = [
+    "purrdf_branchless::saturation::clamp_i64",
+    "purrdf_branchless::saturation::clamp_slice_u64",
+]
+spec = "ordered-pair clamp (endpoints pre-ordered via mask min/max) so lo > hi cannot silently invert; saturating overflow helpers"
+vectors = []
+bench = []
+sites = []
+replaces_external = []
+enforced = true
+
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []
+
+[[job]]
+id = "branchless-compare-exchange"
+summary = "XOR-mask conditional compare-exchange behind every sorting network"
+home = "purrdf_branchless::sort_small::cswap"
+entry_points = [
+    "purrdf_branchless::sort16::cex",
+    "purrdf_branchless::sort_small::cswap_u64",
+    "purrdf_branchless::sort_small::sort_small_by_key",
+    "purrdf_branchless::sort16::FixedTopK8::push",
+    "purrdf_branchless::sort16::FixedTopK8::pop",
+    "purrdf_branchless::sort16::FixedTopK8::len",
+]
+spec = "(a>b) as u32; mask = 0.wrapping_sub(diff); xor by masked diff — guaranteed cmov form, no if+tmp. sort_small_by_key: u64-key small-N network promoted from datalog join.rs (OPT-49), origin-slot tie-break stability, keys < 2^56. FixedTopK8: bitonic-pq top-8-smallest (bcinr patterns/bitonic_pq.rs @ 1e92b213), u32::MAX tombstone, mask-gated lane-7 insert (guards the evict-max case bcinr leaves unguarded)"
+vectors = []
+bench = []
+sites = []
+replaces_external = []
+enforced = true
+
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []
+
+[[job]]
+id = "branchless-per-word-rank-select"
+summary = "Per-word inclusive rank and bit-parallel select over u64 bitsets"
+home = "purrdf_branchless::bitset::rank_u64"
+entry_points = [
+    "purrdf_branchless::bitset::select_bit_u64",
+    "purrdf_branchless::bitset::isolate_lowest_u64",
+    "purrdf_branchless::bitset::clear_lowest_u64",
+    "purrdf_branchless::bitset::mask_to_lowest_u64",
+    "purrdf_branchless::bitset::funnel_shift_right_u64",
+    "purrdf_branchless::bitset::funnel_shift_left_u64",
+]
+spec = "mask + popcount inclusive rank; six-halving-step bit-parallel select returning Option<usize>, pdep-free"
+vectors = []
+bench = []
+sites = []
+replaces_external = []
+enforced = true
+
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []
+
+[[job]]
+id = "branchless-pdep-pext-software"
+summary = "Safe software PDEP/PEXT emulation for non-BMI2 targets"
+home = "purrdf_branchless::simd_fallback::pdep_u64"
+entry_points = [
+    "purrdf_branchless::simd_fallback::pext_u64",
+]
+spec = "O(64) fixed-trip safe loops standing in for x86 BMI2 pdep/pext; forbid(unsafe_code) alternative"
+vectors = []
+bench = []
+sites = []
+replaces_external = []
+enforced = true
+
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []
+
+[[job]]
+id = "branchless-eytzinger"
+summary = "Branchless 1-based Eytzinger layout, search, subtree-size lower bound, permutation"
+home = "purrdf_branchless::eytzinger::search_eytzinger_u64"
+entry_points = [
+    "purrdf_branchless::eytzinger::build_eytzinger_layout",
+    "purrdf_branchless::eytzinger::lower_bound_eytzinger",
+    "purrdf_core::eytzinger::search_eytzinger_u64",
+]
+spec = "BFS layout builder + branchless descent (k = 2k + cmp), lower bound via parallel subtree-size accumulation; single home, rdf-core re-exports"
+vectors = []
+bench = []
+sites = []
+replaces_external = []
+enforced = true
+
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []
+
+[[distinct]]
+members = [
+    "purrdf_branchless::saturation::clamp_slice_u64",
+    "purrdf_branchless::saturation::clamp_u64",
+]
+kind = "body"
+criterion = "b"
+anchor = "purrdf_branchless::saturation::clamp_slice_u64"
+reason = "clamp_slice_u64 is the hardened copy: bcinr's clamp_slice_branchless clamped against an unordered pair and silently returned hi; this variant pre-orders the endpoints (same mask min/max composition as clamp_u64) so the contract is total. Both are const, mask-only single-expression clamps in one family job (branchless-clamp-family); the two-word body is too small to factor without a closure the const context cannot afford."
+
+[[distinct]]
+members = [
+    "purrdf_branchless::circuit_breaker::WcetFiber::default",
+    "purrdf_n3::ast::Document::default",
+]
+kind = "shim"
+criterion = "layering"
+anchor = "purrdf_branchless::circuit_breaker::WcetFiber"
+reason = "Two unrelated types above/below each other in the layer stack whose Default impls are both the clippy-required `Self::new()` forwarder; neither type shares a job, and delegating one to the other would invert layering (n3 is above branchless) or couple a WCET fiber to an RDF document AST."
+
+[[job]]
+id = "branchless-wyhash-fold"
+summary = "Wyhash-style 64-bit folding mixer and its multiply-mix primitive"
+home = "purrdf_branchless::hash::wyhash_64"
+entry_points = [
+    "purrdf_branchless::hash::wymix",
+]
+spec = "wymix (128-bit product fold, no carries kept) driving a whole-word/dword tail wyhash over &[u8]; one home for the fold, no per-caller re-inlining"
+vectors = []
+bench = []
+sites = []
+replaces_external = []
+enforced = true
+
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []
+
+[[job]]
+id = "branchless-probabilistic-filter-kernels"
+summary = "Branchless Bloom/XOR-filter membership kernels (word add/query/set ops, XOR fingerprint and 3-block probe)"
+home = "purrdf_branchless::filter::bloom_add"
+entry_points = [
+    "purrdf_branchless::filter::bloom_query",
+    "purrdf_branchless::filter::bloom_intersect",
+    "purrdf_branchless::filter::bloom_union",
+    "purrdf_branchless::filter::bloom_graph_visited",
+    "purrdf_branchless::filter::quotient_add",
+    "purrdf_branchless::filter::xor_fingerprint",
+    "purrdf_branchless::filter::xor_hash",
+    "purrdf_branchless::filter::xor_lookup",
+    "purrdf_branchless::filter::SwarTagFilter::new",
+    "purrdf_branchless::filter::SwarTagFilter::contains",
+    "purrdf_branchless::filter::SwarTagFilter::insert",
+]
+spec = "single-word Bloom bit-kernels and the XOR-filter fingerprint/3-block probe over caller-provided tables; SWAR byte-scan insert, mask-only queries, no heap. SwarTagFilter<N> container (bcinr patterns/swar_quotient.rs @ 1e92b213): contains via swar::has_byte_in_word, first-empty-lane mask insert with & 0x38 (fixes bcinr <<64 panic), N power-of-two, tag 0 reserved"
+vectors = []
+bench = []
+sites = []
+replaces_external = []
+enforced = true
+
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []
+
+[[job]]
+id = "branchless-straddling-field-kernels"
+summary = "Offset+width field deposit/extract across a two-word (u64,u64) boundary"
+home = "purrdf_branchless::packing::field_extract2"
+entry_points = [
+    "purrdf_branchless::packing::field_deposit2",
+]
+spec = "const branchless k in 1..=64 (never clamped to 63) fields over a 128-bit (hi:lo) u128-window; zero-alloc, forbid(unsafe_code); replaces the ticket's shift-by-64-hole snippet"
+vectors = []
+bench = []
+sites = []
+replaces_external = []
+enforced = true
+
+[[job]]
+id = "branchless-space-filling-keys"
+summary = "Morton 2D/3D spread/compact/encode/decode and Hilbert 2D encode/decode space-filling key kernels"
+home = "purrdf_branchless::packing::morton_encode_2d"
+entry_points = [
+    "purrdf_branchless::packing::morton_compact_2d",
+    "purrdf_branchless::packing::morton_spread_2d",
+    "purrdf_branchless::packing::morton_decode_2d",
+    "purrdf_branchless::packing::morton_spread_3d",
+    "purrdf_branchless::packing::morton_compact_3d_lane",
+    "purrdf_branchless::packing::morton_decode_3d",
+    "purrdf_branchless::packing::morton_encode_3d",
+    "purrdf_branchless::packing::hilbert_encode_2d",
+    "purrdf_branchless::packing::hilbert_decode_2d",
+]
+spec = "Morton composed over deposit_bits/compress_bits (no second pdep/pext body); Hilbert level 0..=30 fixed-32-step MSB-first form (level-parameterized derivation from bcinr hilbert_curve_{encode,decode}_u32.rs @ 1e92b213); geo-kernel hilbert_path delegates here"
+vectors = []
+bench = []
+sites = ["crates/geo-kernel/src/cells.rs (hilbert_path delegation)"]
+replaces_external = []
+enforced = true
+
+[[job]]
+id = "branchless-first-equal-lane-u64x8"
+summary = "Branchless first (lowest-index) matching u64 lane in an 8-lane pack, OR-accumulate + trailing_zeros"
+home = "purrdf_branchless::search::first_equal_lane_u64x8"
+entry_points = []
+spec = "Per-lane equality mask OR-accumulated (OR required: idempotent under duplicates), trailing_zeros + checked conversion answers Some(index) or None; i < 8 bound filter closes the full-miss hole on 32-bit targets. Ported from bcinr algorithms/linear_search_simd_u8.rs:33-46 @ 1e92b213, byte lanes widened to u64. Hash-staged callers must confirm scalar equality per hit (peel hits &= hits - 1) so a hash collision costs a scan step, never a wrong ordinal (see sparql-eval solution.rs position_hashed)"
+vectors = []
+bench = []
+sites = ["crates/sparql-eval/src/solution.rs", "crates/sparql-eval/src/substitute.rs"]
+replaces_external = []
+enforced = true
+
+[[job]]
+id = "branchless-small-n-sort-networks"
+summary = "Small-N fixed sorting networks and stable key-value sorts behind sparql-eval small-N helpers"
+home = "purrdf_branchless::sort_small::sort8"
+entry_points = [
+    "purrdf_branchless::sort16::batcher_sort16_u32",
+    "purrdf_branchless::sort16::batcher_sort16_u32_in_place",
+    "purrdf_branchless::select::sort_stable_key_value_u32x8",
+    "purrdf_branchless::select::merge_sorted_u32x8",
+]
+spec = "Dispatchers over the sanctioned networks for sparql-eval path-relation small-N sorts (OPT-48): sort_u32_list 0..=8/9..=16/fallback, sort_edges_small_n two-pass stable + cycle scatter; single home, no network body rehosted in sparql-eval"
+vectors = []
+bench = []
+sites = ["crates/sparql-eval/src/path_relation.rs"]
+replaces_external = []
+enforced = true
+
+[[job]]
+id = "branchless-wcet-fiber"
+summary = "WCET fiber: fixed-tick constant-shape execution fibers and the budget run-state machine"
+home = "purrdf_branchless::circuit_breaker::WcetFiber"
+entry_points = [
+    "purrdf_branchless::circuit_breaker::WcetFiber::execute_budget_fixed",
+    "purrdf_branchless::circuit_breaker::FiberState",
+    "purrdf_branchless::circuit_breaker::FiberState::advance",
+    "purrdf_branchless::circuit_breaker::BudgetRunState",
+    "purrdf_branchless::circuit_breaker::BudgetRunState::tick_once",
+]
+spec = "instruction-pointer advances by mask (& 1) with data-independent control flow; WcetFiber::new is the sole constructor (Default is the clippy-required forwarder, see the [[distinct]] shim row)"
+vectors = []
+bench = []
+sites = []
+replaces_external = []
+enforced = true
+
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []

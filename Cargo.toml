@@ -7,6 +7,7 @@ members = [
     "bindings/python",
     "crates/alloc-probe",
     "crates/arrow",
+    "crates/branchless",
     "crates/bench",
     "crates/cdt",
     "crates/cli",
@@ -89,6 +90,7 @@ purrdf-rs = { package = "purrdf", path = "crates/purrdf", version = "3.0.1" }
 # wasm32 lane (which builds `--lib`) never sees it.
 purrdf-alloc-probe = { path = "crates/alloc-probe" }
 purrdf-arrow = { path = "crates/arrow", version = "3.0.1" }
+purrdf-branchless = { path = "crates/branchless", version = "3.0.1" }
 purrdf-cdt = { path = "crates/cdt", version = "3.0.1" }
 purrdf-columnar = { path = "crates/columnar", version = "3.0.1" }
 purrdf-conformance-kit = { path = "crates/conformance-kit" }

@@ -852,6 +852,49 @@ enum ProbeRule {
     Shacl,
 }
 
+/// OPT-45: small-N probe lookup as a hash-staged lane-pack (compare 8×u64
+/// lanes, `trailing_zeros`) with the mandatory confirming scalar re-check, so
+/// a hash collision costs a scan step but never binds the wrong variable.
+/// Falls back to the scalar `.position()` oracle above 8 probes.
+// DIVERGENCE from bcinr: kernel basis is purrdf_branchless::swar's
+// first-match mask+tz pattern; single home: purrdf_branchless::search
+// (re-exported via crate::solution::first_equal_lane_u64x8).
+#[inline]
+fn probe_index(probes: &[(Variable, GroundTerm)], var: &Variable) -> Option<usize> {
+    if probes.len() > 8 {
+        return probes.iter().position(|(candidate, _)| candidate == var);
+    }
+    let target = purrdf_hash::fixed::hash_one(var);
+    let mut lanes = [0u64; 8];
+    for (lane, (candidate, _)) in lanes.iter_mut().zip(probes) {
+        *lane = purrdf_hash::fixed::hash_one(candidate);
+    }
+    let index = crate::solution::first_equal_lane_u64x8(&lanes, target)?;
+    // Padding lanes (index >= probes.len()) only fire when the target hash is
+    // zero — and they sort ABOVE every real lane, so a padding hit means no
+    // real lane's hash matched; treat it as a miss.
+    if index >= probes.len() {
+        return None;
+    }
+    (probes[index].0 == *var).then_some(index)
+}
+
+/// OPT-45: `probed.contains(&index)` as an equality-mask OR-accumulate (one
+/// u64 of lanes, no data-dependent branch per element); scalar fallback
+/// beyond 64 entries.
+// DIVERGENCE from bcinr: same basis as [`probe_index`].
+#[inline]
+fn probed_contains(probed: &[usize], index: usize) -> bool {
+    if probed.len() > 64 {
+        return probed.contains(&index);
+    }
+    let mut hits = 0u64;
+    for probed_index in probed {
+        hits |= u64::from(*probed_index == index).wrapping_neg();
+    }
+    hits != 0
+}
+
 fn probe_positions_with_memory<'a, S: purrdf_lex::allocation::Admission + ?Sized>(
     positions: impl IntoIterator<Item = ProbePosition<'a>>,
     probes: &[(Variable, GroundTerm)],
@@ -870,13 +913,12 @@ fn probe_positions_with_memory<'a, S: purrdf_lex::allocation::Admission + ?Sized
         match position {
             ProbePosition::Term(term) => match term {
                 TermPattern::Variable(var) => {
-                    let Some(index) = probes.iter().position(|(candidate, _)| candidate == var)
-                    else {
+                    let Some(index) = probe_index(probes, var) else {
                         continue;
                     };
                     let constant = term_pattern_from_ground_with_memory(&probes[index].1, memory)?;
                     if (constant.is_some() || matches!(rule, ProbeRule::Shacl))
-                        && !probed.contains(&index)
+                        && !probed_contains(probed, index)
                     {
                         memory.push(probed, index)?;
                     }
@@ -903,10 +945,10 @@ fn probe_positions_with_memory<'a, S: purrdf_lex::allocation::Admission + ?Sized
                 let NamedNodePattern::Variable(var) = predicate else {
                     continue;
                 };
-                let Some(index) = probes.iter().position(|(candidate, _)| candidate == var) else {
+                let Some(index) = probe_index(probes, var) else {
                     continue;
                 };
-                if !probed.contains(&index) {
+                if !probed_contains(probed, index) {
                     memory.push(probed, index)?;
                 }
                 if let Some(constant) = named_node_from_ground(&probes[index].1) {
@@ -7603,3 +7645,62 @@ fn for_each_child_pattern_mut<'p>(
 /// The prefix of the variable [`join_assignments_with_prebinding_with_memory`] moves an
 /// assignment of a pre-bound name to: `{ASSIGNED_PREFIX}{n}_{name}`.
 const ASSIGNED_PREFIX: &str = "__purrdf_assigned_";
+
+#[cfg(test)]
+mod opt45_tests {
+    //! OPT-45 differential courts for the probe-position lane-pack: the wired
+    //! lookups must equal the scalar `.position()` / `Vec::contains` oracles.
+
+    use super::*;
+
+    fn probe(name: &str, label: &str) -> (Variable, GroundTerm) {
+        (
+            Variable::new(name),
+            GroundTerm::NamedNode(NamedNode::new_unchecked(label)),
+        )
+    }
+
+    #[test]
+    fn probe_index_matches_scalar_oracle_all_widths() {
+        for n in 0..=10usize {
+            let probes: Vec<(Variable, GroundTerm)> = (0..n)
+                .map(|i| probe(&format!("?p{i}"), "http://example.org/x"))
+                .collect();
+            for probe_index_wanted in 0..=n {
+                let target = Variable::new(&format!("?p{probe_index_wanted}"));
+                assert_eq!(
+                    probe_index(&probes, &target),
+                    probes
+                        .iter()
+                        .position(|(candidate, _)| candidate == &target),
+                    "n={n} probe={probe_index_wanted}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn probe_index_duplicates_first_hit_and_miss() {
+        let probes: Vec<(Variable, GroundTerm)> = ["?a", "?b", "?a", "?c", "?b", "?a", "?d", "?a"]
+            .iter()
+            .map(|name| probe(name, "http://example.org/x"))
+            .collect();
+        assert_eq!(probe_index(&probes, &Variable::new("?a")), Some(0));
+        assert_eq!(probe_index(&probes, &Variable::new("?b")), Some(1));
+        assert_eq!(probe_index(&probes, &Variable::new("?zz")), None);
+    }
+
+    #[test]
+    fn probed_contains_matches_scalar_oracle() {
+        let probed: Vec<usize> = vec![3, 0, 7, 3, 5];
+        for index in 0..=8usize {
+            assert_eq!(probed_contains(&probed, index), probed.contains(&index));
+        }
+        assert!(!probed_contains(&[], 0));
+        // Above the 64-lane bound the scalar fallback must still hold.
+        let wide: Vec<usize> = (0..100).filter(|i| i % 3 != 0).collect();
+        for index in (0..100).step_by(7) {
+            assert_eq!(probed_contains(&wide, index), wide.contains(&index));
+        }
+    }
+}

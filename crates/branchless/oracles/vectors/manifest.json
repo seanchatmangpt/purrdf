@@ -1,0 +1,25 @@
+{
+ "files": {
+  "bitset": {
+   "blake3": "caa463fc3eeee9bac3d164c8314e37405da11e7c556178dfe9ad3f1d8dcedd98",
+   "cases": 1619
+  },
+  "eytzinger": {
+   "blake3": "6fef6e36a2ddddc8e95944f5941e19575497312a9194ec1e2eaf06fa359fb98f",
+   "cases": 1380
+  },
+  "packing": {
+   "blake3": "0962260d911001ffbd419a558230f8575f4570081b72885271ba545554e1ecdf",
+   "cases": 1494
+  },
+  "sort_small": {
+   "blake3": "ec833467cb67060d374a447f2f961d38e7c95a199139770310deebae37040b0c",
+   "cases": 1343
+  },
+  "swar": {
+   "blake3": "3376bcacee087d22597b840c30bdbe40c9f164f0c13481c239fb3061a3ea69c7",
+   "cases": 1460
+  }
+ },
+ "schema": 1
+}

@@ -1,0 +1,22 @@
+# [OPT-39] Bench Coverage for the New Kernels; Helpers-Census Receipt; Ratio-Fence Gap
+
+## 1. TARGET CONTEXT
+- **Crate & File:** `crates/rdf-core/benches/` (19 `[[bench]]` targets, none referencing the new kernels); `crates/rdf-core/src/eytzinger.rs`, `primitives.rs`; `crates/testkit/src/bench/{mod,stats}.rs`; `scripts/check-shared-helpers.py`; `Makefile:356-357,507-512`
+- **Subsystem:** Qualification (bench + gates)
+- **Inspection Agent:** Agent 20 (Sociable Chicago Bench & Layer Validation)
+
+## 2. MECHANICAL PATHOLOGY
+- **Current Code Construct:** `eytzinger.rs` and all four `primitives.rs` kernels (`swar_find_delimiter_u64`, `sort_quad_lanes_branchless`, `bitset_intersect_u64`, `clamped_scaling_u64`) are exercised only by `tests/primitives_hotpath_tests.rs` toy unit tests — **no bench target references any of them**; the only SWAR bench is a local reimplementation inside `duckdb/benches/sieve_bench.rs:21-61`, not the shipped primitive. Harness methodology is otherwise solid: 100 flat samples sized to 5 s after 3 s doubling warm-up (`mod.rs:903-943`), 10,000-resample 95% bootstrap percentile CI seeded via `purrdf_hash` SplitMix64 (`stats.rs:27-30,150-165` — fully reproducible), Tukey 1.5/3.0 IQR fences reported-never-removed (`stats.rs:95-115`), type-7 quantiles, ±1% noise band verdicts, bit-exact estimates round-trip, Linux perf instruction counting (`counter.rs`), sleep-free timed paths. **Gaps:** no ratio-fence check (criterion-style outlier-structure disagreement discredits a comparison) — cross-record comparisons must eyeball printed outlier counts; and a **live pre-existing gate failure**: `python3 scripts/check-shared-helpers.py` exits 1 with 323 FAIL lines ("stale, duplicate or incomplete source proof" capacity proofs across `crates/rdf-core/src/ir/*.rs` and `turtle_render.rs`) — `make helpers-hygiene` would fail. Not session-introduced; recorded here as existing state.
+- **Hardware-Level Impact:** unbenchmarked kernels cannot back the performance claims of OPT-01/03/11/13/22; per CLAUDE.md, "perf changes need a bench."
+- **Baseline Cost:** 0 measured baselines for the branchless primitives.
+
+## 3. PROPOSED SPEED-LIMIT REPLACEMENT
+- **Architectural Proposal:** (1) new bench targets under `crates/rdf-core/benches/` (crate already carries 19 `[[bench]]` targets; `make bench` at Makefile:357 already includes `-p purrdf-core`): one **primitives suite** — SWAR delimiter scan vs `iter().position`, branchless quad-lane sort vs `sort_unstable` (4/8/16 lanes after OPT-11), `bitset_intersect_u64` word-AND, `clamped_scaling_u64`, each with declared `Throughput::Elements`; one **eytzinger suite** — `search_eytzinger_u64` + `lower_bound` vs `binary_search`/`partition_point` at 10³–10⁷ dictionary sizes, hit/miss/gaussian-skew patterns, plus `build_eytzinger_layout` build cost. Use `--save-baseline` for ratio tracking. (2) Optional harness extension: a ratio fence (comparison discredited when base and new samples disagree in outlier structure) — matches the no-sleep-doctrine's ratio-fence law (relative fence against an independent sleep-free baseline, paired rounds, min-of-N); absolute-ms bounds stay banned. (3) Receipt: rerun `check-shared-helpers.py` post-optimization; the 323 stale capacity-proof failures are pre-existing — any optimization ticket that touches a cited file must not add failures and must record the count delta in its receipt (`make helpers-hygiene` is the boundary gate). (4) Layer edge count receipt: `python3 scripts/check-layers.py` → "OK: 270 first-party normal edges across 51 members" is the standing baseline every ticket's Layer Boundary section cites.
+- **Hard Bounds Applied:** bench is report-only, never a gate (house rule, docs/BENCHMARKS.md:5-9); Min sample size 10; all comparisons sleep-free.
+- **Proposed Type Layout & Signatures:** N/A (harness usage); follow existing `[[bench]]` + `purrdf_testkit::bench` conventions.
+
+## 4. VERIFICATION INVARIANT & ACCEPTANCE CRITERIA
+- **Branchless Assertion:** asm inspection of the network/scan kernels happens on the bench target build (OPT-11 acceptance cites it).
+- **Allocation Invariant:** N/A; alloc-probe receipts ride the individual optimization tickets.
+- **Benchmark Target:** every kernel wired by OPT-01/03/11/13/22 has a measured baseline + saved baseline before its landing; bootstrap CI + Tukey fences reported on every run.
+- **Layer Boundary:** `check-layers.py` stays at 270 clean edges; `check-shared-helpers.py` failure count recorded (323 pre-existing) and never increased by optimization work.

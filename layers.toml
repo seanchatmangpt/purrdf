@@ -148,6 +148,7 @@ deps = [
 [[crate]]
 name = "purrdf-core"
 deps = [
+    "purrdf-branchless",
     "purrdf-cdt",
     "purrdf-deflate",
     "purrdf-events",
@@ -173,11 +174,11 @@ deps = ["purrdf-core", "purrdf-hash", "purrdf-lex"]
 
 [[crate]]
 name = "purrdf-datalog"
-deps = ["purrdf-core", "purrdf-hash", "purrdf-lex"]
+deps = ["purrdf-branchless", "purrdf-core", "purrdf-hash", "purrdf-lex"]
 
 [[crate]]
 name = "purrdf-n3"
-deps = ["purrdf-hash", "purrdf-iri", "purrdf-lex", "purrdf-rdf"]
+deps = ["purrdf-branchless", "purrdf-hash", "purrdf-iri", "purrdf-lex", "purrdf-rdf"]
 
 [[crate]]
 name = "purrdf-json"
@@ -234,6 +235,7 @@ deps = [
     "purrdf-hash",
     "purrdf-iri",
     "purrdf-lex",
+    "purrdf-branchless",
     "purrdf-sparql-algebra",
     "purrdf-sparql-results",
     "purrdf-stack",
@@ -247,6 +249,7 @@ deps = ["purrdf-geo-kernel", "purrdf-sparql-eval"]
 [[crate]]
 name = "purrdf-geo-kernel"
 deps = [
+    "purrdf-branchless",
     "purrdf-core",
     "purrdf-hash",
     "purrdf-iri",
@@ -295,6 +298,7 @@ deps = [
     "purrdf-core",
     "purrdf-hash",
     "purrdf-lex",
+    { name = "purrdf-branchless", pending = true },
     "purrdf-sparql-algebra",
     "purrdf-sparql-eval",
     "purrdf-text",
@@ -309,6 +313,7 @@ deps = [
     "purrdf-iri",
     "purrdf-lex",
     "purrdf-rdf",
+    { name = "purrdf-branchless", pending = true },
     "purrdf-sparql-algebra",
 ]
 
@@ -323,6 +328,7 @@ deps = [
     "purrdf-lex",
     "purrdf-rdf",
     "purrdf-slice",
+    { name = "purrdf-branchless", pending = true },
     "purrdf-sparql-algebra",
     "purrdf-sparql-eval",
     "purrdf-stack",
@@ -383,9 +389,16 @@ deps = [
 ]
 
 [[crate]]
+name = "purrdf-branchless"
+deps = [
+    "purrdf-hash",
+]
+
+[[crate]]
 name = "purrdf"
 deps = [
     "purrdf-arrow",
+    "purrdf-branchless",
     "purrdf-columnar",
     "purrdf-datalog",
     "purrdf-duckdb",
@@ -469,6 +482,7 @@ deps = [
     "purrdf-iri",
     "purrdf-lex",
     "purrdf-shapes",
+    { name = "purrdf-branchless", pending = true },
     "purrdf-sparql-algebra",
     "purrdf-sparql-eval",
     "purrdf-sparql-results",
@@ -484,6 +498,7 @@ deps = [
     "purrdf-events",
     "purrdf-lex",
     "purrdf-shapes",
+    { name = "purrdf-branchless", pending = true },
     "purrdf-sparql-algebra",
     "purrdf-sparql-eval",
     "purrdf-sparql-results",

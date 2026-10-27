@@ -40,6 +40,9 @@ purrdf-lex = { workspace = true }
 # because wasm32 has no entropy source and iteration order must never reach an
 # output path.
 purrdf-hash = { workspace = true }
+# SWAR digit-run scan in the tokenizer (OPT-46/OPT-51): the lexer consumes
+# [0-9]{8k} whole words via purrdf_branchless::swar::byte_lane_in_range.
+purrdf-branchless = { workspace = true }
 # Formula-scoped dictionaries and the backward prover's premise tables hash
 # with the same `FixedHasher` (declared above). Fixed-key (not RandomState)
 # for wasm32's absent entropy source and deterministic output paths.

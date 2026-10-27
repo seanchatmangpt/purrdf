@@ -87,7 +87,9 @@ impl SchemaBuilder {
         if let Some(ordinal) = if indexed {
             self.index.get(&variable).copied()
         } else {
-            self.columns.iter().position(|column| column == &variable)
+            // OPT-45: small-N scan as a lane-pack + trailing_zeros, hash-staged
+            // with a confirming scalar re-check (collision-safe).
+            position_hashed(&self.columns, &variable)
         } {
             return Ok(ordinal);
         }
@@ -179,6 +181,43 @@ impl std::hash::Hash for VarSchema {
 /// again — see those modules' `index_of_call_count`-guarded tests, which fail if
 /// a future caller reintroduces `index_of` into a row loop.
 const INDEXED_ABOVE: usize = 8;
+
+// OPT-45 kernel home: purrdf_branchless::search, ported from bcinr
+// algorithms/linear_search_simd_u8.rs:33-46.
+pub(crate) use purrdf_branchless::search::first_equal_lane_u64x8;
+
+/// Hash-staged lane-pack lookup of `var` among `keys` (N <= 8): compare the
+/// [`purrdf_hash::fixed::hash_one`] lane pack against the target hash, take
+/// `trailing_zeros`, then CONFIRM with scalar [`Eq`] so a hash collision
+/// resolves to the true ordinal, never a wrong-but-colliding one (the
+/// OPT-45 valid-neighbor invariant).
+///
+/// Falls back to the scalar `.position()` above 8 keys (the required fallback,
+/// per OPT-45) and past any lane whose hash matches but whose scalar re-check
+/// fails, so a collision can only cost the scan, never the answer.
+// kernel home: purrdf_branchless::search::first_equal_lane_u64x8
+#[inline]
+pub(crate) fn position_hashed(keys: &[Variable], var: &Variable) -> Option<usize> {
+    if keys.len() > 8 {
+        return keys.iter().position(|candidate| candidate == var);
+    }
+    let target = purrdf_hash::fixed::hash_one(var);
+    let mut hits = 0u64;
+    for candidate in keys {
+        hits |= u64::from(purrdf_hash::fixed::hash_one(candidate) == target).wrapping_neg();
+    }
+    // Walk only the hash-hit lanes (trailing_zeros peel); each still owes the
+    // confirming scalar equality before it may answer.
+    let mut hits = hits;
+    while hits != 0 {
+        let index = hits.trailing_zeros() as usize;
+        if keys[index] == *var {
+            return Some(index);
+        }
+        hits &= hits - 1;
+    }
+    None
+}
 
 // Test-only: counts calls to `VarSchema::index_of`, process-wide. A guard against
 // a per-ROW caller of `index_of` regressing silently: a caller that resolves
@@ -350,7 +389,9 @@ impl VarSchema {
             return None;
         };
         if data.index.is_empty() {
-            data.cols.iter().position(|column| column == var)
+            // OPT-45: small-N scan as a lane-pack + trailing_zeros, hash-staged
+            // with a confirming scalar re-check (collision-safe).
+            position_hashed(&data.cols, var)
         } else {
             data.index
                 .find(purrdf_hash::fixed::hash_one(var), |entry| &entry.0 == var)
@@ -1442,6 +1483,10 @@ pub fn compatible<I: ViewTermId>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn var(name: &str) -> Variable {
+        Variable::new(name)
+    }
     use purrdf_core::TermId;
 
     fn var(name: &str) -> Variable {
@@ -1838,5 +1883,151 @@ mod tests {
         empty.retain_search_evidence(owned);
         assert!(!empty.may_have_evidence_attachment());
         assert!(!empty.search_evidence().is_virtual());
+    }
+}
+
+#[cfg(test)]
+mod opt45_tests {
+    //! OPT-45 differential courts: the lane-pack kernels must equal the scalar
+    //! `.position()` oracle exactly (a DIFFERENT formulation — linear walk with
+    //! a per-element branch) on hit, miss, duplicate and fallback shapes.
+
+    use super::*;
+
+    fn oracle(keys: &[Variable], var: &Variable) -> Option<usize> {
+        keys.iter().position(|candidate| candidate == var)
+    }
+
+    #[test]
+    fn lane_pack_kernel_matches_scalar_first_hit() {
+        // Duplicate lanes: lowest index wins; padding zero lanes must never
+        // answer when the target hash is zero.
+        let lanes = [7u64, 0, 7, 0, 9, 7, 0, 1];
+        assert_eq!(first_equal_lane_u64x8(&lanes, 7), Some(0));
+        assert_eq!(first_equal_lane_u64x8(&lanes, 0), Some(1));
+        assert_eq!(first_equal_lane_u64x8(&lanes, 9), Some(4));
+        assert_eq!(first_equal_lane_u64x8(&lanes, 42), None);
+        assert_eq!(first_equal_lane_u64x8(&[], 0), None);
+        assert_eq!(first_equal_lane_u64x8(&[0u64; 8], 0), Some(0));
+    }
+
+    #[test]
+    fn position_hashed_matches_oracle_all_widths() {
+        // N = 0..=10 covers every small-N pack width, the N == 8 boundary, and
+        // the required >8 scalar fallback.
+        for n in 0..=10usize {
+            let keys: Vec<Variable> = (0..n).map(|i| var(&format!("?v{i}"))).collect();
+            for probe in 0..=n {
+                let target = var(&format!("?v{probe}"));
+                assert_eq!(
+                    position_hashed(&keys, &target),
+                    oracle(&keys, &target),
+                    "n={n} probe={probe}"
+                );
+            }
+            // A miss that shares prefixes with real keys.
+            let miss = var(&format!("?v{n}x"));
+            assert_eq!(position_hashed(&keys, &miss), oracle(&keys, &miss));
+        }
+    }
+
+    #[test]
+    fn position_hashed_duplicates_and_first_hit() {
+        let keys: Vec<Variable> = ["?a", "?b", "?a", "?c", "?b", "?a", "?d", "?a"]
+            .iter()
+            .map(|name| var(name))
+            .collect();
+        for probe in &keys {
+            assert_eq!(position_hashed(&keys, probe), oracle(&keys, probe));
+        }
+        // First occurrence, not last.
+        assert_eq!(position_hashed(&keys, &var("?a")), Some(0));
+        assert_eq!(position_hashed(&keys, &var("?b")), Some(1));
+    }
+
+    /// The OPT-45 valid-neighbor court: `purrdf_hash::fixed::hash_one` CAN
+    /// collide, and `position_hashed` must still answer with the TRUE ordinal
+    /// of the probed variable, never the ordinal of a hash twin. Deterministic
+    /// brute-force search over generated variable names finds two distinct
+    /// names with colliding hashes (bounded; loud failure if no pair appears
+    /// within budget), then both twins are probed against packs containing
+    /// both — tight, split by an interleaved key — and each probe must return
+    /// its own ordinal.
+    #[test]
+    fn position_hashed_resolves_hash_collision_to_true_ordinal() {
+        // Deterministic collision search: linear probe over ?c0..?cN, keeping
+        // one stored name per hash. `?c…` names are generated, never parsed
+        // input; the budget is generous relative to the 64-bit hash space
+        // (birthday bound ~2^32) but finite, so the failure mode when the
+        // hash is NOT a collision-capable function is a loud panic, not a
+        // silent skip.
+        const BUDGET: u64 = 1 << 22;
+        let mut seen: hashbrown::HashMap<u64, Variable> = hashbrown::HashMap::new();
+        let (twin_a, twin_b) = {
+            let mut pair = None;
+            for i in 0..BUDGET {
+                let variable = var(&format!("?c{i}"));
+                let hash = purrdf_hash::fixed::hash_one(&variable);
+                if let Some(first) = seen.insert(hash, variable.clone()) {
+                    pair = Some((first, variable));
+                    break;
+                }
+            }
+            pair.unwrap_or_else(|| {
+                panic!(
+                    "no hash collision found among {BUDGET} generated names; \
+                     purrdf_hash::fixed::hash_one is not behaving as a \
+                     collision-capable 64-bit hash"
+                )
+            })
+        };
+        assert_ne!(twin_a, twin_b, "twins must be distinct variables");
+        assert_eq!(
+            purrdf_hash::fixed::hash_one(&twin_a),
+            purrdf_hash::fixed::hash_one(&twin_b),
+            "the found pair must actually collide"
+        );
+
+        // Pack containing both twins: each must resolve to its OWN ordinal
+        // (first-occurrence semantics from the scalar oracle, preserved).
+        let keys = vec![twin_a.clone(), twin_b.clone()];
+        assert_eq!(position_hashed(&keys, &twin_a), Some(0));
+        assert_eq!(position_hashed(&keys, &twin_b), Some(1));
+
+        // Twins separated by an interleaved non-colliding key, both sides of
+        // the split, must still land on their own slots.
+        let interleaved = vec![twin_b.clone(), var("?mid"), twin_a.clone()];
+        assert_eq!(position_hashed(&interleaved, &twin_a), Some(2));
+        assert_eq!(position_hashed(&interleaved, &twin_b), Some(0));
+
+        // At the >8 fallback boundary the collision walk is bypassed entirely;
+        // a wide pack of twins-and-neighbors must still answer per-variable.
+        let wide: Vec<Variable> = (0..9)
+            .map(|i| var(&format!("?w{i}")))
+            .chain([twin_a.clone(), twin_b.clone()])
+            .collect();
+        assert_eq!(position_hashed(&wide, &twin_a), Some(9));
+        assert_eq!(position_hashed(&wide, &twin_b), Some(10));
+    }
+
+    #[test]
+    fn schema_push_small_n_matches_oracle_across_threshold() {
+        // End-to-end court on the wired [`Schema::push`] fallback: the wired
+        // lookup must agree with a scalar `.position()` oracle over the whole
+        // build sequence, across the INDEXED_ABOVE crossing.
+        let workspace = crate::WorkspaceCapability::resident();
+        let mut builder = SchemaBuilder::new(&workspace);
+        let mut built: Vec<Variable> = Vec::new();
+        for i in 0..(INDEXED_ABOVE * 2 + 3) {
+            let name = format!("?v{i}");
+            let variable = var(&name);
+            let got = builder.push(variable.clone()).expect("push succeeds");
+            assert_eq!(got, built.len(), "fresh ordinal for {name}");
+            built.push(variable.clone());
+            // Every column, including those pushed before the index existed.
+            for (want, probe) in built.iter().enumerate() {
+                assert_eq!(builder.push(probe.clone()).expect("push succeeds"), want);
+            }
+        }
     }
 }

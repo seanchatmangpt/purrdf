@@ -390,9 +390,8 @@ where
                     solution.sources.remove(0);
                 }
                 if anchor.reordered {
-                    solution
-                        .sources
-                        .sort_unstable_by_key(|source| source.body_index);
+                    // OPT-49: fixed inline network, zero allocation.
+                    sort_sources_by_body_index(&mut solution.sources);
                 } else {
                     let swaps = match self.mode {
                         Mode::Binary { .. } => plan.operator_source_order_swaps(),
@@ -482,6 +481,17 @@ where
     }
 }
 
+/// OPT-49: fixed inline network, zero allocation. Single home:
+/// purrdf_branchless::sort_small (promoted from this file; the
+/// datalog -> branchless dependency edge is coordinator-sanctioned).
+pub(super) fn sort_sources_by_body_index<I: TermIdentity, const N: usize>(
+    sources: &mut [super::SourceRow<I, N>],
+) where
+    Arity<N>: StoreShape<N>,
+{
+    purrdf_branchless::sort_small::sort_small_by_key(sources, |source| source.body_index as u64);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -490,6 +500,42 @@ mod tests {
     use crate::store::RelationStore;
     use crate::test_support::{HostDictionary, SourceLost};
     use std::sync::atomic::Ordering;
+
+    /// OPT-49 wrapper court: over a deterministic xorshift corpus with heavy
+    /// duplicate `body_index` values, the promoted branchless network must
+    /// equal the std stable `sort_by_key` result — ties keep authored order
+    /// (origin-slot tie-break lives in the single home now).
+    #[test]
+    fn wrapper_matches_stable_sort_with_duplicate_body_index() {
+        struct Rng(u64);
+        impl Rng {
+            fn next(&mut self) -> u64 {
+                self.0 ^= self.0 >> 12;
+                self.0 ^= self.0 << 25;
+                self.0 ^= self.0 >> 27;
+                self.0.wrapping_mul(0x2545_F491_4F6C_DD1D)
+            }
+        }
+        let mut rng = Rng(0x5EED_1A7E_5EED_1A7E);
+        for len in 0..=12usize {
+            for round in 0..32 {
+                let universe = 1 + rng.next() % 4;
+                let mut sources: Vec<crate::seminaive::SourceRow<u64, 4>> = (0..len)
+                    .map(|tag| crate::seminaive::SourceRow::<u64, 4> {
+                        source: crate::clause::ReadSource::Evaluation,
+                        body_index: usize::try_from(rng.next() % universe).unwrap_or(0),
+                        terms: [u64::try_from(tag).unwrap_or(0); 4],
+                        row: crate::id::RowId::from_index(u64::try_from(tag).unwrap_or(0))
+                            .expect("row index in range"),
+                    })
+                    .collect();
+                let mut expected = sources.clone();
+                expected.sort_by_key(|source| source.body_index);
+                sort_sources_by_body_index(&mut sources);
+                assert_eq!(sources, expected, "len {len}, round {round}");
+            }
+        }
+    }
 
     fn check_cuts<const N: usize>(
         plan: &RulePlan<N>,

@@ -1955,15 +1955,42 @@ fn shallow_order_admitted<V: std::borrow::Borrow<XsdValue>>(
 /// duplicates are preserved (an `ORDER BY` applies no `DISTINCT`).
 #[must_use]
 pub fn order_values(values: Vec<TermValue>, descending: bool) -> Vec<TermValue> {
-    // The keys BORROW their value, so the projection is taken per comparison
-    // over an index permutation rather than stored beside the value. A
-    // `SortKey<'_>` cannot outlive the `TermValue` it reads, and moving the
-    // values into a keyed pair would invalidate every borrow.
+    // The keys BORROW their value, so the envelope is built over a borrow of
+    // the values and sorts an index permutation; moving the values into a
+    // keyed pair would invalidate every borrow. // OPT-47
+    //
+    // OPT-47: the projection runs exactly ONCE per value, not per comparison.
+    // Each `SortKey` is reprojected 2·n·log n times otherwise — for triple
+    // terms a work-list walk with heap staging on every single comparator
+    // call. Each row stores its [`SortKey::rank`] byte beside the key, so the
+    // comparator's first stage is one u8 compare and the full match tower in
+    // [`total_order`] runs only on a rank tie (the same-rank deep case).
+    // Ordering is EXACTLY [`total_order`]'s: it too decides mixed-kind pairs
+    // by `rank()` (the `_` arm of `shallow_order_admitted`), so comparing the
+    // precomputed rank first and deferring to `total_order` on a tie changes
+    // no pair's outcome — only how much of the tower runs to reach it.
+    let envelope: Vec<(u8, SortKey<'_>)> = values
+        .iter()
+        .map(|value| {
+            let key = project(Some(value));
+            let rank = key.rank();
+            (rank, key)
+        })
+        .collect();
     let mut order: Vec<usize> = (0..values.len()).collect();
     order.sort_by(|&i, &j| {
-        let ord = total_order(&project(Some(&values[i])), &project(Some(&values[j])));
+        let (rank_i, key_i) = &envelope[i];
+        let (rank_j, key_j) = &envelope[j];
+        let ord = if rank_i == rank_j {
+            total_order(key_i, key_j)
+        } else {
+            rank_i.cmp(rank_j)
+        };
         if descending { ord.reverse() } else { ord }
     });
+    // Minimal unblock (OPT-42 wave B, compile-freeze SLA): `envelope` borrows
+    // `values` only for the sort; drop it before the values are moved.
+    drop(envelope);
     let mut slots: Vec<Option<TermValue>> = values.into_iter().map(Some).collect();
     order
         .into_iter()
@@ -9071,7 +9098,9 @@ mod sort_key_walk_tests {
     //! hundred thousand levels deep, projected, compared and released on a thread with
     //! a 128 KiB stack.
 
-    use super::{SortKey, TripleKey, project, project_shallow, shallow_order, total_order};
+    use super::{
+        SortKey, TripleKey, order_values, project, project_shallow, shallow_order, total_order,
+    };
     use purrdf_core::{BlankScope, TermBox, TermValue};
     use std::cmp::Ordering;
 
@@ -9170,6 +9199,107 @@ mod sort_key_walk_tests {
             };
         }
         term
+    }
+
+    /// OPT-47 differential court: the envelope sort (one projection per value,
+    /// precomputed rank first) must order EXACTLY as the old per-comparison
+    /// formulation — project inside the comparator, full `total_order` every
+    /// call — over tie-heavy adversarial bags, in both directions, with the
+    /// permutation compared elementwise (stability observable).
+    #[test]
+    fn order_values_matches_the_per_comparison_projection_reference() {
+        let reference = |values: &[TermValue], descending: bool| -> Vec<usize> {
+            let mut order: Vec<usize> = (0..values.len()).collect();
+            // The OLD body: `project` inside the comparator, fresh key per call.
+            order.sort_by(|&i, &j| {
+                let ord = total_order(&project(Some(&values[i])), &project(Some(&values[j])));
+                if descending { ord.reverse() } else { ord }
+            });
+            order
+        };
+
+        for seed in 0..24u64 {
+            let mut choices = Choices::new(
+                seed.wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(0x9E37_79B9),
+            );
+            // Tie-heavy: 40 distinct generated terms reused across a 240-value
+            // bag, so rank ties and full-key ties are the common case, and the
+            // mix spans every kind the order ranks (unbound excluded —
+            // `order_values` takes bound values; the unbound rank is exercised
+            // through the ORDER BY node path).
+            let pool: Vec<TermValue> = (0..40)
+                .filter_map(|_| {
+                    let mut budget = 3;
+                    value(&mut choices, &mut budget)
+                })
+                .collect();
+            let values: Vec<TermValue> = (0..240)
+                .map(|_| pool[choices.choose(pool.len())].clone())
+                .collect();
+
+            for descending in [false, true] {
+                let got = order_values(values.clone(), descending);
+                let want_perm = reference(&values, descending);
+                let want: Vec<TermValue> = want_perm.iter().map(|&i| values[i].clone()).collect();
+                assert_eq!(got, want, "seed {seed}, descending {descending}");
+            }
+        }
+    }
+
+    /// OPT-47 tie-only deep-compare mirror: two values sharing a rank but
+    /// differing in their value space must still order exactly as the
+    /// reference comparator does (the valid-neighbor invariant — the
+    /// rank fast path may not swallow a same-rank difference).
+    #[test]
+    fn order_values_orders_same_rank_different_value_pairs_like_the_reference() {
+        fn int(n: &str) -> TermValue {
+            TermValue::Literal {
+                lexical_form: n.to_owned(),
+                datatype: XSD_INTEGER.to_owned(),
+                language: None,
+                direction: None,
+            }
+        }
+        fn ex_iri(local: &str) -> TermValue {
+            TermValue::Iri(format!("{EX}{local}"))
+        }
+        fn ex_blank(label: &str) -> TermValue {
+            TermValue::Blank {
+                label: label.to_owned(),
+                scope: BlankScope::default(),
+            }
+        }
+        fn ex_triple(s: TermValue, p: TermValue, o: TermValue) -> TermValue {
+            TermValue::Triple {
+                s: TermBox::new(s),
+                p: TermBox::new(p),
+                o: TermBox::new(o),
+            }
+        }
+        let pairs: Vec<(TermValue, TermValue)> = vec![
+            // two numerics, value order vs lexical order
+            (int("2"), int("10")),
+            // two IRIs, different lexical forms
+            (ex_iri("a"), ex_iri("b")),
+            // two blanks
+            (ex_blank("b0"), ex_blank("b1")),
+            // two strings
+            (literal("a", XSD_STRING), literal("b", XSD_STRING)),
+            // nested triples differing only in the innermost object
+            (
+                ex_triple(ex_iri("s"), ex_iri("p"), ex_iri("a")),
+                ex_triple(ex_iri("s"), ex_iri("p"), ex_iri("b")),
+            ),
+        ];
+        for (a, b) in pairs {
+            // Both directions, plus the equal pair, against the reference.
+            assert_eq!(
+                order_values(vec![b.clone(), a.clone()], false),
+                vec![a.clone(), b.clone()]
+            );
+            assert_eq!(order_values(vec![a.clone(), b.clone()], false), vec![a, b]);
+        }
     }
 
     #[test]

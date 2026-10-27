@@ -846,7 +846,7 @@ impl PathGraph {
         }
         let mut edge_count = 0usize;
         for list in &mut adjacency {
-            list.sort_unstable_by_key(|edge| (edge.to, edge.statement));
+            sort_edges_small_n(list);
             // Merges only entries identical in BOTH fields — see the type docs.
             list.dedup_by_key(|edge| (edge.to, edge.statement));
             edge_count += list.len();
@@ -1023,7 +1023,7 @@ impl PathGraph {
                 }
             }
             for list in &mut reverse {
-                list.sort_unstable();
+                sort_u32_list(list);
                 list.dedup();
             }
             reverse
@@ -1193,6 +1193,99 @@ fn edge_set_digest(edges: &[(TermValue, TermValue, TermValue)]) -> [u8; 32] {
         state.update(&bytes);
     }
     state.finalize().into()
+}
+
+/// Sorts a u32 neighbour list by the branch-free fixed-depth sort networks of
+/// [`purrdf_branchless`]: `len <= 8` runs the 19-comparator `sort8` network on a
+/// stack `[u32; 8]` (sentinel `u32::MAX` fill), `9..=16` runs the 63-comparator
+/// Batcher `batcher_sort16_u32_in_place` on a stack `[u32; 16]`, and any longer
+/// span falls back to [`slice::sort_unstable`] — the network is only claimed for
+/// the short, fan-out-shaped lists property-path adjacency produces.
+// from OPT-48 (docs/jira/v26.10.26/optimization/OPT-48-path-relation-small-n-sorts.md);
+// kernels from bcinr via purrdf_branchless::sort_small / purrdf_branchless::sort16.
+fn sort_u32_list(list: &mut [u32]) {
+    match list.len() {
+        0..=8 => {
+            let mut buf = [u32::MAX; 8];
+            buf[..list.len()].copy_from_slice(list);
+            purrdf_branchless::sort_small::sort8(&mut buf);
+            list.copy_from_slice(&buf[..list.len()]);
+        }
+        9..=16 => {
+            let mut buf = [u32::MAX; 16];
+            buf[..list.len()].copy_from_slice(list);
+            purrdf_branchless::sort16::batcher_sort16_u32_in_place(&mut buf);
+            list.copy_from_slice(&buf[..list.len()]);
+        }
+        // DIVERGENCE from bcinr: none — the std fallback is the OPT-48 ticket's own
+        // `_ => list.sort_unstable()` arm for spans the networks do not cover.
+        _ => list.sort_unstable(),
+    }
+}
+
+/// Sorts an adjacency [`Edge`] list by the composite key `(to, statement)`, exactly as
+/// `sort_unstable_by_key(|edge| (edge.to, edge.statement))` did, with the branch-free
+/// stable rank-scatter network for `len <= 8`: two stable passes over
+/// [`purrdf_branchless::select::sort_stable_key_value_u32x8`] (statement first, then
+/// `to`) compose into the lexicographic `(to, statement)` order — the stable-sorts-by-
+/// single-key form of the same radix argument that makes LSD radix sorting correct.
+/// Longer spans keep the std composite-key sort.
+// from OPT-48; kernel from bcinr via purrdf_branchless::select.
+fn sort_edges_small_n(list: &mut [Edge]) {
+    if list.len() > 8 {
+        list.sort_unstable_by_key(|edge| (edge.to, edge.statement));
+        return;
+    }
+    // Pass 1: stable sort of (statement, position) by statement.
+    let mut pairs: [(u32, u32); 8] = [(u32::MAX, u32::MAX); 8];
+    for (i, edge) in list.iter().enumerate() {
+        pairs[i] = (edge.statement, u32::try_from(i).unwrap_or(u32::MAX));
+    }
+    let by_statement = purrdf_branchless::select::sort_stable_key_value_u32x8(pairs);
+    // Pass 2: stable sort of (to, position) by to. Positions are read from the
+    // pass-1 result so the two stable orders compose into (to, statement).
+    let mut pass2: [(u32, u32); 8] = [(u32::MAX, u32::MAX); 8];
+    for (i, (_, position)) in by_statement.iter().enumerate() {
+        let source = *position as usize;
+        let key = if source < list.len() {
+            list[source].to
+        } else {
+            u32::MAX
+        };
+        pass2[i] = (key, *position);
+    }
+    let by_to = purrdf_branchless::select::sort_stable_key_value_u32x8(pass2);
+    // Scatter the edges through the composed permutation. Entries equal in BOTH key
+    // fields carry equal fold_bytes (a function of the statement and the target node),
+    // so the scatter is observably identical to the std sort it replaces.
+    let order: [usize; 8] = by_to.map(|(_, position)| position as usize);
+    // In-place cycle permutation by move; the placeholder is a zero-length boxed slice,
+    // which allocates nothing, so the whole reorder stays allocation-free.
+    let placeholder = || Edge {
+        to: u32::MAX,
+        statement: u32::MAX,
+        fold_bytes: Vec::new().into_boxed_slice(),
+    };
+    let mut settled = [false; 8];
+    for start in 0..list.len() {
+        if settled[start] || order[start] == start {
+            settled[start] = true;
+            continue;
+        }
+        let hold = std::mem::replace(&mut list[start], placeholder());
+        let mut cur = start;
+        loop {
+            settled[cur] = true;
+            let next = order[cur];
+            if next == start {
+                list[cur] = hold;
+                break;
+            }
+            let moved = std::mem::replace(&mut list[next], placeholder());
+            list[cur] = moved;
+            cur = next;
+        }
+    }
 }
 
 /// The dense index of `value` within an already-sorted, deduplicated table it is known to
@@ -2317,6 +2410,153 @@ impl WitnessTraversal for ShortestPathWitnessCursor {
 
     fn step(&mut self) -> Result<bool, EvalError> {
         Self::step(self)
+    }
+}
+
+#[cfg(test)]
+mod sort_small_n_tests {
+    use super::{sort_edges_small_n, sort_u32_list};
+    use crate::path_relation::Edge;
+
+    /// std-sort oracle: a DIFFERENT formulation (generic comparison sort) than the
+    /// fixed-depth comparator networks under test.
+    fn oracle(mut v: Vec<u32>) -> Vec<u32> {
+        v.sort();
+        v
+    }
+
+    fn edges_from(to_statement: &[(u32, u32)]) -> Vec<Edge> {
+        to_statement
+            .iter()
+            .map(|&(to, statement)| Edge {
+                to,
+                statement,
+                fold_bytes: Vec::new().into_boxed_slice(),
+            })
+            .collect()
+    }
+
+    fn edge_keys(list: &[Edge]) -> Vec<(u32, u32)> {
+        list.iter().map(|edge| (edge.to, edge.statement)).collect()
+    }
+
+    #[test]
+    fn sort_u32_list_matches_std_oracle_all_lengths() {
+        // Every length across both networks and the std fallback, incl. duplicate keys,
+        // sentinels, boundaries 0 / 1 / 8 / 9 / 16 / 17 and u32::MAX payloads.
+        let lengths = [0usize, 1, 2, 7, 8, 9, 15, 16, 17, 32];
+        for len in lengths {
+            let mut base = Vec::new();
+            let mut seed = u64::from(len as u32)
+                .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                .wrapping_add(1);
+            for i in 0..len {
+                seed = seed
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                // Bias toward duplicates and extremes, incl. the sentinel value itself.
+                let value = match (seed >> 33) % 4 {
+                    0 => (seed >> 33) as u32,
+                    1 => u32::MAX,
+                    2 => u32::from((seed >> 33) as u16),
+                    _ => (seed >> 33) as u32 % (len as u32).max(1),
+                };
+                let _ = i;
+                base.push(value);
+            }
+            let mut got = base.clone();
+            sort_u32_list(&mut got);
+            assert_eq!(got, oracle(base), "len {len}");
+        }
+    }
+
+    #[test]
+    fn sort_u32_list_adversarial_shapes() {
+        for mut case in [
+            Vec::new(),
+            vec![u32::MAX],
+            vec![u32::MAX; 8],
+            vec![u32::MAX; 16],
+            vec![0; 16],
+            (0..8).rev().collect::<Vec<u32>>(),
+            (0..16).rev().collect::<Vec<u32>>(),
+            vec![7, 7, 7, 1, 1, 9, 9, 2],
+            vec![5, 4, 3, 2, 1, 5, 4, 3, 2, 1],
+        ] {
+            let expected = oracle(case.clone());
+            sort_u32_list(&mut case);
+            assert_eq!(case, expected);
+        }
+    }
+
+    #[test]
+    fn sort_edges_small_n_matches_composite_std_oracle() {
+        // Composite (to, statement) order with duplicate `to`, duplicate `statement`,
+        // and fully-duplicate keys, across all n <= 8 plus the n > 8 std fallback.
+        let cases: &[&[(u32, u32)]] = &[
+            &[],
+            &[(1, 9)],
+            &[(2, 1), (1, 9)],
+            &[(1, 1), (1, 2), (2, 1), (2, 2)],
+            &[(3, 1), (1, 3), (3, 1), (1, 1), (2, 2)],
+            &[(5, 5); 8],
+            &[
+                (9, 1),
+                (0, 9),
+                (9, 1),
+                (0, 9),
+                (5, 5),
+                (5, 5),
+                (1, 1),
+                (0, 0),
+            ],
+            &[(u32::MAX, 1), (1, u32::MAX), (u32::MAX, 1)],
+            &[
+                (4, 4),
+                (1, 1),
+                (3, 3),
+                (2, 2),
+                (5, 5),
+                (0, 0),
+                (7, 7),
+                (6, 6),
+                (8, 8),
+            ], // n = 9: std fallback
+        ];
+        for case in cases {
+            let mut got = edges_from(case);
+            let mut expected = edges_from(case);
+            sort_edges_small_n(&mut got);
+            expected.sort_unstable_by_key(|edge| (edge.to, edge.statement));
+            assert_eq!(edge_keys(&got), edge_keys(&expected));
+        }
+    }
+
+    #[test]
+    fn sort_edges_small_n_is_a_true_permutation_of_payloads() {
+        // fold_bytes must travel with its (to, statement): label each edge's payload
+        // with its origin and assert the multiset of triples survives the reorder.
+        let mut list = edges_from(&[(2, 1), (1, 1), (2, 0), (1, 0), (2, 1), (0, 5)]);
+        for (i, edge) in list.iter_mut().enumerate() {
+            edge.fold_bytes = Vec::from(&[u8::try_from(i).unwrap(), 0xFF][..]).into_boxed_slice();
+        }
+        sort_edges_small_n(&mut list);
+        let mut labelled: Vec<(u32, u32, u8)> = list
+            .iter()
+            .map(|edge| (edge.to, edge.statement, edge.fold_bytes[0]))
+            .collect();
+        labelled.sort_unstable();
+        assert_eq!(
+            labelled,
+            vec![
+                (0, 5, 5),
+                (1, 0, 3),
+                (1, 1, 1),
+                (2, 0, 2),
+                (2, 1, 0),
+                (2, 1, 4)
+            ]
+        );
     }
 }
 

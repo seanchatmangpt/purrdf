@@ -10,6 +10,7 @@
 //! first and build Old/Full context only for productive anchors. Source coordinates
 //! always remain authored.
 
+use crate::seminaive::join::sort_sources_by_body_index;
 use crate::store::{Arity, StoreShape};
 
 mod execution;
@@ -359,7 +360,8 @@ where
         if seed_in_cycle {
             solution.sources.remove(0);
         }
-        solution.sources.sort_by_key(|source| source.body_index);
+        // OPT-49: branchless network sort replaces the scalar `sort_by_key` call.
+        sort_sources_by_body_index(&mut solution.sources);
         let mut blocked = false;
         for &index in &factor.negated {
             if governor.spent()
@@ -844,7 +846,8 @@ where
             }
             solution.sources.extend_from_slice(&original.sources);
         }
-        solution.sources.sort_by_key(|source| source.body_index);
+        // OPT-49: branchless network sort replaces the scalar `sort_by_key` call.
+        sort_sources_by_body_index(&mut solution.sources);
         let witness = match evidence.as_mut() {
             Some(owner) => Some(owner.product(chosen)?),
             None => None,

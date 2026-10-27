@@ -781,3 +781,26 @@ fn combined_scale_selection_reuses_exact_factors_under_one_default_admission() {
         assert_eq!(selected, None);
     }
 }
+
+#[test]
+fn hilbert_path_matches_branchless_kernel() {
+    for level in 0_u8..=16 {
+        for &(x, y) in &[
+            (0, 0),
+            ((1_u32 << level) - 1, 0),
+            (0, (1_u32 << level) - 1),
+            ((1_u32 << level) - 1, (1_u32 << level) - 1),
+            (1, 0),
+            (
+                1_u32 << level.saturating_sub(1),
+                1_u32 << level.saturating_sub(1),
+            ),
+        ] {
+            assert_eq!(
+                hilbert_path(x, y, level),
+                purrdf_branchless::packing::hilbert_encode_2d(x, y, level),
+                "level {level}, point ({x},{y})"
+            );
+        }
+    }
+}

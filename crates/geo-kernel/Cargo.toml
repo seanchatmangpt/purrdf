@@ -30,6 +30,8 @@ purrdf-hash = { workspace = true }
 purrdf-iri = { workspace = true }
 purrdf-lex = { workspace = true }
 purrdf-xsd = { workspace = true }
+# OPT-53: hilbert_path delegates to the single-home kernel in branchless (level 1 leaf).
+purrdf-branchless = { workspace = true }
 
 [dev-dependencies]
 purrdf-alloc-probe = { workspace = true }
