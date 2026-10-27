@@ -39,7 +39,10 @@ the installed package surface used by this probe.
 
 ## Capability Probe
 
-> STATUS: UNVERIFIED — no bench receipt; see docs/design/bench-coverage-report.md
+> STATUS: UNVERIFIED — the entire file (footprint table, capability
+> probe, raw JSON) is one stale 2026-07-30 run with no persisted
+> bench receipt; the banner-discussion lives at
+> docs/design/bench-coverage-report.md §3.4
 
 | Package | Version | Parse | Serialize | SELECT | Property path | Aggregation | Graph identity | RDF 1.2 triple terms / directional literals |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

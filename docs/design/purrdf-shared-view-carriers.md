@@ -25,6 +25,8 @@ identity. On the output side the same consolidation happened again: the frozen
 `SnapshotBuilder::add_view[_scoped]` surface both run through a single ingestion
 body, so a refusal, a checkpoint and the poison flag mean the same thing on both.
 
+> STATUS: UNVERIFIED — measured figures below are self-labeled non-normative single-run, single-machine prose attestations with no persisted bench receipt (pre-wave doc); see docs/design/bench-coverage-report.md
+
 This document records the decisions behind that surface which a reader would
 otherwise take for oversights: the graphs the wire format does not carry, the
 refusal that looks like over-strictness, the second identity that is not a

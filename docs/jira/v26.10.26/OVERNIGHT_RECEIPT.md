@@ -145,6 +145,14 @@ remote CI run (`.github/workflows/bounded-gates.yml`) receipts it. Nothing below
   check-toolchain-pin rc 0 (F5)
 - check-doc-claims rc 1 — BLOCKED, flips at commit-1 tracking (F5)
 - `fb-budgets.json` contents verified on disk; `fb-receipts.jsonl` absent-by-design (F2)
+- Lane V16 re-receipt (2026-10-27): `scripts/bounded python3 scripts/fb-court.py check`
+  -> rc 0, all four tiers PASS (t1 p95 0.284s/0.5s, t2 p95 0.52s/0.8s, t3 p95
+  0.135s/1.5s, total p95 1.009s/2.5s, 1/5 breaches, "court PASS, no drift alarm").
+  One ladder run: `scripts/bounded bash scripts/fb-ladder.sh` -> rc 0, VERDICT PASS
+  (`FB t1 static 3 289 PASS` / `FB t2 oracles 7296 752 PASS` /
+  `FB t3 leaf-probe 1 218 PASS`, total 1272ms, court re-ran warm, 0/5 breaches).
+  Court scope note: the court owns the agent-iteration law; bench batch runs are
+  outside its scope (operator law).
 
 ### UNVERIFIED until remote CI (Rust-executed, CI-bound)
 

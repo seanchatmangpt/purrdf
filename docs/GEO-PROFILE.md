@@ -3,6 +3,8 @@
 
 # Geographic profiles and requests
 
+> STATUS: UNVERIFIED — measured figures below are single-run prose attestations with no persisted bench receipt; no receipt artifact is named for any section (pre-wave doc); see docs/design/bench-coverage-report.md
+
 Rust, SPARQL, Python, C, WebAssembly and the CLI use the same geographic
 kernel. The string boundary is `purrdf_validate::geo`: its profile, request
 and response records have version `1`, reject duplicate and unknown fields,

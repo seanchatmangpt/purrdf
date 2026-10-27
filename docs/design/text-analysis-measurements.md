@@ -3,6 +3,8 @@
 
 # Text analysis measurement dossier
 
+> STATUS: UNVERIFIED — measured figures below are methodology-only prose attestations with no persisted bench receipt (pre-wave doc); see docs/design/bench-coverage-report.md
+
 These measurements support the declared kernel choices and expose their costs.
 They establish neither a universal optimal analyzer nor a full public-benchmark
 retrieval score. Production analysis, ranking and fusion use deterministic
