@@ -10,7 +10,7 @@
 //! - `Solutions` encodes its rows as record-batch slabs under the slab-layout
 //!   vocabulary below — one slab per [`ROWS_PER_BATCH`] rows.
 //! - `Boolean`, `Graph`, and a `Solutions` with no rows or no projected
-///   variables are non-tabular they emit
+//!   variables are non-tabular: they emit
 //!   the fixed 192-byte canon-empty frame (header + 64 bytes of trailing
 //!   padding) with both digests set to the domain digest
 //!   [`purrdf_arrow::canon_arrow_empty_v1`].
@@ -170,16 +170,20 @@ fn encode_batch(variables: &[String], batch: &[Vec<Option<TermValue>>]) -> Resul
         slab.resize(offsets_at + (batch.len() + 1) * 4, 0);
         let mut offset: u32 = 0;
         for (row_index, row) in batch.iter().enumerate() {
-            let offsets = &mut slab[offsets_at + row_index * 4..offsets_at + (row_index + 1) * 4];
+            // Kinds and offset bytes are written by index, never through a
+            // held sub-slice: a held `&mut slab[...]` would overlap the other
+            // region's write (E0499) and split the slab into two live borrows.
             let Some(value) = row.get(column).and_then(Option::as_ref) else {
                 slab[kinds_at + row_index] = kind::UNBOUND;
                 // The offset repeats: an empty lexical range marks the cell.
-                offsets.copy_from_slice(&offset.to_le_bytes());
+                slab[offsets_at + row_index * 4..offsets_at + (row_index + 1) * 4]
+                    .copy_from_slice(&offset.to_le_bytes());
                 continue;
             };
             slab[kinds_at + row_index] = term_kind(value);
             let token = lexical(value)?;
-            offsets.copy_from_slice(&offset.to_le_bytes());
+            slab[offsets_at + row_index * 4..offsets_at + (row_index + 1) * 4]
+                .copy_from_slice(&offset.to_le_bytes());
             let end = u32::try_from(token.len())
                 .ok()
                 .and_then(|len| offset.checked_add(len))
@@ -243,7 +247,7 @@ fn measure_solutions(
         let fixed = rows
             .checked_mul(columns)
             .and_then(|term| term.checked_mul(5))
-            .and_then(|term| term.checked_add(columns.checked_mul(4).ok_or_else(storage_overflow)?))
+            .and_then(|term| term.checked_add(columns.checked_mul(4)?))
             .ok_or_else(storage_overflow)?;
         payload = payload
             .checked_add(fixed)
