@@ -900,9 +900,16 @@ const fn results_pair(format: SparqlResultsFormat) -> (&'static str, &'static st
     (format.token(), format.media_type())
 }
 
-/// The formats a solutions result is offered in, in server preference order: every SPARQL
-/// results format, in [`SparqlResultsFormat::ALL`]'s order. The first is the default
+/// The formats a solutions result is offered in, in server preference order: the four W3C
+/// SPARQL results formats, in [`SparqlResultsFormat::ALL`]'s order. The first is the default
 /// (SPARQL 1.1 Query Results JSON).
+/// The formats a solutions result is offered in, in server preference order: ///
+/// The formats a solutions result is offered in, in server preference order: /// [`SparqlResultsFormat::CanonArrow`] is deliberately excluded from server
+/// The formats a solutions result is offered in, in server preference order: /// content negotiation: it is a private binary frame, not a W3C format an
+/// The formats a solutions result is offered in, in server preference order: /// HTTP client may assume, so this endpoint never offers or selects it.
+/// The formats a solutions result is offered in, in server preference order: /// A client that wants it must ask explicitly via `queryCanonArrow`, which
+/// The formats a solutions result is offered in, in server preference order: /// bypasses `Accept` negotiation entirely (an `Accept` of only the
+/// The formats a solutions result is offered in, in server preference order: /// canon-arrow media type alone is answered `406`).
 const SOLUTION_FORMATS: [(&str, &str); 4] = {
     let all = SparqlResultsFormat::ALL;
     [

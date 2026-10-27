@@ -311,10 +311,19 @@ never compared against serial-lane numbers within one claim — any cross-series
 comparison needs both series re-run under the same lane on the same machine
 state, and must be labeled as its own receipt.
 
-First speed receipt (placeholder — to be filled with real numbers): phase-5
-proof run on `lex` and `cdt` vs. serial baselines 243 s (`purrdf-lex`) and
-131 s (`purrdf-cdt`). Expected result: ESTIMATE only until the proof run
-executes; do not round an ESTIMATE into a measured figure.
+First speed receipt (phase-5 proof run, EXECUTED 2026-10-27 — cross-series,
+measurement-bound observation, not a like-for-like speedup): fast-lane lex
+214 s vs serial-lane 243 s (~12% wall); fast-lane cdt 123 s vs serial 131 s
+(~6%). Splits: lex compile 31 s cold / 0 s warm + measure 214 s; cdt compile
+21 s / 0 s + measure 123 s. Receipts: register-fast.txt, runner-fast.log,
+purrdf-{lex.scan,cdt.parse_render}.fast.log. Caveats: these two crates are
+measurement-bound (serial wall was also mostly sampling), so the compile
+lever's full win shows on re-runs (0 s compile), not singletons; and the
+sccache cache was misdirected to the ambient default cache during this run
+(fixed in sccache-fast.sh post-run), so the 31 s/21 s cold compiles were
+UNAIDED — a stronger floor, not a weaker one. register-fast.txt rows
+produced by the pre-fix orchestrator; branchless compile red there is stale
+(fix landed post-run).
 
 ---
 

@@ -291,6 +291,9 @@ pub mod duckdb {
 /// CanonArrow deterministic columnar-egress framing ([`purrdf_arrow`]) —
 /// not Arrow IPC; also rides the SPARQL results layer as the additive
 /// `canon-arrow` format.
+/// The CanonArrow wire schema (`ArrowEgressHeader::SCHEMA_VERSION`)
+/// is public API of this facade via this re-export and changes
+/// only across semver majors.
 pub mod arrow {
     pub use purrdf_arrow::*;
 }

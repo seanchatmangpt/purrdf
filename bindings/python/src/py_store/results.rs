@@ -34,7 +34,7 @@ use crate::{RdfDatasetBuilder, SparqlResult, TermValue};
 fn parse_format(name: &str) -> PyResult<SparqlResultsFormat> {
     SparqlResultsFormat::from_name(name).ok_or_else(|| {
         PyValueError::new_err(format!(
-            "unknown SPARQL results format `{name}` (expected json/xml/csv/tsv or a SPARQL \
+            "unknown SPARQL results format `{name}` (expected json/xml/csv/tsv (canon-arrow is write-only) or a SPARQL \
              results media type)"
         ))
     })

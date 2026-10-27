@@ -9,7 +9,8 @@
 //!
 //! - `Solutions` encodes its rows as record-batch slabs under the slab-layout
 //!   vocabulary below — one slab per [`ROWS_PER_BATCH`] rows.
-//! - `Boolean`, `Graph` and a zero-row `Solutions` are non-tabular: they emit
+//! - `Boolean`, `Graph`, and a `Solutions` with no rows or no projected
+///   variables are non-tabular they emit
 //!   the fixed 192-byte canon-empty frame (header + 64 bytes of trailing
 //!   padding) with both digests set to the domain digest
 //!   [`purrdf_arrow::canon_arrow_empty_v1`].
@@ -75,6 +76,11 @@ const TRAILING_PADDING: u64 = 64;
 
 /// The slab column vocabulary: the per-batch encoding a
 /// `Solutions` slab uses, laid out per projected variable in projection order.
+///
+/// This is the WIRE term-kind encoding, owned here by its only consumer; it
+/// is deliberately not a `purrdf_arrow` storage-class vocabulary: that
+/// described layout algebra no code uses, and the two axes (logical term
+/// kind vs physical storage class) do not correspond.
 ///
 /// For a batch of `r` rows and `c` columns, the slab is the concatenation, for
 /// each column in order, of:
@@ -368,7 +374,9 @@ fn emit_into(result: &SparqlResult, out: &mut TextSink<'_>) -> Result<(), Error>
     match result {
         SparqlResult::Solutions {
             variables, rows, ..
-        } if !rows.is_empty() => emit_solutions(variables, rows, out),
+        } if !rows.is_empty() && !variables.is_empty() => {
+            emit_solutions(variables, rows, out)
+        }
         SparqlResult::Solutions { .. } | SparqlResult::Boolean(_) | SparqlResult::Graph(_) => {
             out.push_bytes(&canon_empty_frame());
             Ok(())
@@ -489,6 +497,19 @@ mod tests {
                 *purrdf_arrow::canon_arrow_empty_v1()
             );
         }
+    }
+
+    #[test]
+    fn a_zero_column_solutions_emits_the_canon_empty_frame() {
+        // Reachable via the crate's own readers: {"head":{"vars":[]},
+        // "results":{"bindings":[{},{},{}]}} parses to variables=[] with rows.
+        let result = select_result(Vec::new(), vec![Vec::new(); 3]);
+        let frame = to_canon_arrow(&result).expect("zero-column frame");
+        assert_eq!(frame.len(), 192);
+        let header = header_of(&frame);
+        assert_eq!(header.batch_count, 1);
+        assert_eq!(header.payload_byte_len, 0);
+        assert_eq!(header.triples_digest, *purrdf_arrow::canon_arrow_empty_v1());
     }
 
     #[test]

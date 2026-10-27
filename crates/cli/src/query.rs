@@ -438,7 +438,7 @@ fn emit_result(
                 };
                 return Err(CliError::Runtime(format!(
                     "{kind} result cannot be serialized to the RDF syntax `{}`: a SELECT/ASK \
-                     result needs a SPARQL-results format (json/xml/csv/tsv)",
+                     result needs a SPARQL-results format (json/xml/csv/tsv/canon-arrow)",
                     results_format.token()
                 )));
             };

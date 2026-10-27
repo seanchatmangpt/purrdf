@@ -299,7 +299,16 @@ pub(crate) fn write_results(
         namespace,
         target.writer(),
     ) {
-        Ok(_) => target.finish(),
+        Ok(outcome) => {
+            if outcome.provenance_dropped {
+                eprintln!(
+                    "purrdf: provenance requested but --results-format {} \
+                     carries no provenance extension; it was dropped",
+                    format.token()
+                );
+            }
+            target.finish()
+        }
         Err(error) => match target.abandon(error.into()) {
             // The reader went away; what it asked for is complete enough for it.
             CliError::DownstreamClosed => Ok(()),
