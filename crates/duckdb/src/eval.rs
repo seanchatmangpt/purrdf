@@ -23,8 +23,11 @@ pub const ROW_ENVELOPE_LIMIT: &str = "duckdb_result_rows";
 /// Projected RDF triple from a tabular relational row.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RdfTriple {
+    /// Projected subject IRI (or blank-node label) of the triple.
     pub subject: String,
+    /// Projected predicate IRI of the triple.
     pub predicate: String,
+    /// Projected object term of the triple.
     pub object: TermValue,
 }
 
@@ -46,8 +49,11 @@ pub enum EvaluatorError {
     DuckDb(frozen_duckdb::DuckDBError),
     /// The candidate envelope bound was exceeded during materialization.
     RowEnvelopeExceeded {
+        /// Resource-limit name that was exceeded (always [`ROW_ENVELOPE_LIMIT`]).
         limit: &'static str,
+        /// Number of rows actually materialized when the bound tripped.
         observed: usize,
+        /// Candidate envelope ceiling that was exceeded.
         max: usize,
     },
     /// Path conversion or IO error.
@@ -58,7 +64,11 @@ impl fmt::Display for EvaluatorError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::DuckDb(e) => write!(f, "duckdb execution error: {e}"),
-            Self::RowEnvelopeExceeded { limit, observed, max } => write!(
+            Self::RowEnvelopeExceeded {
+                limit,
+                observed,
+                max,
+            } => write!(
                 f,
                 "candidate envelope exceeded for {limit}: observed {observed} rows, ceiling is {max}"
             ),
@@ -96,12 +106,13 @@ impl purrdf_hash::error::StructuredError for EvaluatorError {
                     purrdf_hash::error::ErrorValue::Message(msg),
                 );
             }
-            Self::RowEnvelopeExceeded { limit, observed, max } => {
+            Self::RowEnvelopeExceeded {
+                limit,
+                observed,
+                max,
+            } => {
                 visitor.variant("duckdb-row-envelope-exceeded");
-                visitor.value(
-                    Some("limit"),
-                    purrdf_hash::error::ErrorValue::Code(limit),
-                );
+                visitor.value(Some("limit"), purrdf_hash::error::ErrorValue::Code(limit));
                 visitor.value(
                     Some("observed"),
                     purrdf_hash::error::ErrorValue::Unsigned(*observed as u128),
@@ -165,10 +176,7 @@ impl PurRdfDuckDB {
     }
 
     /// Registers the canonical 5-table PurRDF Parquet views (`terms`, `quads`, `reifiers`, `annotations`, `blobs`).
-    pub fn register_purrdf_parquet_views(
-        &self,
-        directory: &Path,
-    ) -> Result<(), EvaluatorError> {
+    pub fn register_purrdf_parquet_views(&self, directory: &Path) -> Result<(), EvaluatorError> {
         for table in purrdf_columnar::Table::ALL {
             let file_path = directory.join(table.file_name());
             let path_str = file_path

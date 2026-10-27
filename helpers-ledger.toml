@@ -1127,7 +1127,7 @@ home = "purrdf_toml::analyze"
 entry_points = ["purrdf_toml::Document", "purrdf_toml::project", "purrdf_toml::encode", "purrdf_toml::decode_document"]
 spec = "TOML 1.1.0 and crates/toml/SPEC.md; declaration identity, typed values, scalar/structure cover and exact reparse verification"
 vectors = ["crates/toml/tests/suite/files-toml-1.1.0"]
-bench = []
+bench = ["purrdf-toml:parse"]
 sites = []
 replaces_external = []
 enforced = true
@@ -3894,7 +3894,7 @@ entry_points = [
 ]
 spec = "Mycroft zero-byte/cascade-safe match kernels and Hacker's Delight lane-range masks over u64 byte lanes; branchless, allocation-free"
 vectors = []
-bench = []
+bench = ["purrdf-branchless:kernel_table"]
 sites = []
 replaces_external = []
 enforced = true
@@ -4024,7 +4024,7 @@ entry_points = [
 ]
 spec = "BFS layout builder + branchless descent (k = 2k + cmp), lower bound via parallel subtree-size accumulation; single home, rdf-core re-exports"
 vectors = []
-bench = []
+bench = ["purrdf-branchless:kernel_table"]
 sites = []
 replaces_external = []
 enforced = true
@@ -4063,7 +4063,7 @@ entry_points = [
 ]
 spec = "wymix (128-bit product fold, no carries kept) driving a whole-word/dword tail wyhash over &[u8]; one home for the fold, no per-caller re-inlining"
 vectors = []
-bench = []
+bench = ["purrdf-branchless:kernel_table"]
 sites = []
 replaces_external = []
 enforced = true
@@ -4116,6 +4116,11 @@ sites = []
 replaces_external = []
 enforced = true
 
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []
+
 [[job]]
 id = "branchless-space-filling-keys"
 summary = "Morton 2D/3D spread/compact/encode/decode and Hilbert 2D encode/decode space-filling key kernels"
@@ -4133,10 +4138,15 @@ entry_points = [
 ]
 spec = "Morton composed over deposit_bits/compress_bits (no second pdep/pext body); Hilbert level 0..=30 fixed-32-step MSB-first form (level-parameterized derivation from bcinr hilbert_curve_{encode,decode}_u32.rs @ 1e92b213); geo-kernel hilbert_path delegates here"
 vectors = []
-bench = []
+bench = ["purrdf-branchless:kernel_table"]
 sites = ["crates/geo-kernel/src/cells.rs (hilbert_path delegation)"]
 replaces_external = []
 enforced = true
+
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []
 
 [[job]]
 id = "branchless-first-equal-lane-u64x8"
@@ -4150,6 +4160,11 @@ sites = ["crates/sparql-eval/src/solution.rs", "crates/sparql-eval/src/substitut
 replaces_external = []
 enforced = true
 
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []
+
 [[job]]
 id = "branchless-small-n-sort-networks"
 summary = "Small-N fixed sorting networks and stable key-value sorts behind sparql-eval small-N helpers"
@@ -4162,10 +4177,15 @@ entry_points = [
 ]
 spec = "Dispatchers over the sanctioned networks for sparql-eval path-relation small-N sorts (OPT-48): sort_u32_list 0..=8/9..=16/fallback, sort_edges_small_n two-pass stable + cycle scatter; single home, no network body rehosted in sparql-eval"
 vectors = []
-bench = []
+bench = ["purrdf-branchless:kernel_table"]
 sites = ["crates/sparql-eval/src/path_relation.rs"]
 replaces_external = []
 enforced = true
+
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []
 
 [[job]]
 id = "branchless-wcet-fiber"
@@ -4181,6 +4201,101 @@ entry_points = [
 spec = "instruction-pointer advances by mask (& 1) with data-independent control flow; WcetFiber::new is the sole constructor (Default is the clippy-required forwarder, see the [[distinct]] shim row)"
 vectors = []
 bench = []
+sites = []
+replaces_external = []
+enforced = true
+
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []
+
+[[job]]
+id = "cdt-list-map-canonical-lexical"
+summary = "CDT list/map parse and the canonical lexical form of a canonical datatype literal"
+home = "purrdf_cdt::parse_list"
+entry_points = ["purrdf_cdt::parse_map", "purrdf_cdt::canonical_lexical"]
+spec = "Canonical datatype literal round-trip: parse_list/parse_map read the canonical lexical form and canonical_lexical renders it back byte-exact; scan/render cost is the bench surface"
+vectors = []
+bench = ["purrdf-cdt:parse_render"]
+sites = []
+replaces_external = []
+enforced = true
+
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []
+
+[[job]]
+id = "mime-analyze-decode"
+summary = "MIME document analysis: profile-driven limits, vocabulary admission and base64/quoted-printable decode"
+home = "purrdf_mime::analyze"
+entry_points = [
+    "purrdf_mime::Document",
+    "purrdf_mime::SourceDocument",
+    "purrdf_mime::Profile",
+    "purrdf_mime::Limits",
+    "purrdf_mime::Vocabulary",
+]
+spec = "The one MIME analyzer over a SourceDocument: profile limits gate the decode, the vocabulary admits the parts, and canonical base64/quoted-printable (purrdf_xsd) do the octet work"
+vectors = []
+bench = ["purrdf-mime:decode"]
+sites = []
+replaces_external = []
+enforced = true
+
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []
+
+[[job]]
+id = "glob-compile-execute"
+summary = "Glob compilation and execution: pattern compile, set compile and match over candidate paths"
+home = "purrdf_glob::CompiledGlob"
+entry_points = ["purrdf_glob::Mode", "purrdf_glob::CompiledGlobSet"]
+spec = "One compiler and one matcher for glob patterns and glob sets; execute-over-compiled is the bench surface, compile is the sanctioned anchor for the distinct-body census"
+vectors = []
+bench = ["purrdf-glob:execute"]
+sites = []
+replaces_external = []
+enforced = true
+
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []
+
+[[job]]
+id = "purrdf-facade-pipeline"
+summary = "Facade pipeline: parse a dataset, query it with the native SPARQL engine, serialize it back"
+home = "purrdf::parse_dataset"
+entry_points = ["purrdf::RdfDataset", "purrdf::sparql::NativeSparqlEngine", "purrdf::sparql::QueryOptions"]
+spec = "The end-to-end consumer surface: ingress (parse_dataset), evaluation (NativeSparqlEngine) and egress (serialize) through the one facade; the bench surface is parse -> query -> serialize"
+vectors = []
+bench = ["purrdf:pipeline_e2e"]
+sites = []
+replaces_external = []
+enforced = true
+
+[job.forbidden]
+constants = []
+fingerprints = []
+names = []
+
+[[job]]
+id = "duckdb-sql-rdf-pipeline"
+summary = "SQL-in-RDF pipeline over the embedded DuckDB engine: Parquet stage, virtual view mount, compiled-SQL projection"
+home = "purrdf_duckdb::PurRdfDuckDB"
+entry_points = [
+    "purrdf_duckdb::PurRdfDuckDB::register_purrdf_parquet_views",
+    "purrdf_duckdb::ExecutionResult",
+    "purrdf_duckdb::DEFAULT_ROW_ENVELOPE",
+]
+spec = "The embedded-engine pipeline: stage a dataset as five-table Parquet, mount it zero-copy as virtual views (register_purrdf_parquet_views), evaluate a compile_turtle-compiled SQL-in-RDF query and project rows to triples"
+vectors = []
+bench = ["purrdf-duckdb:sql_rdf_e2e"]
 sites = []
 replaces_external = []
 enforced = true

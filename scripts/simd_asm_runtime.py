@@ -21,6 +21,22 @@ import uuid
 
 SCHEMA = 1
 
+# A single build graph's ceiling, named rather than inline. The slowest measured
+# graph completes far inside five minutes, so a graph that reaches this has
+# wedged (a hung rustc or codegen backend), and the lane must fail loudly
+# instead of waiting on it forever. On expiry the child's whole process group is
+# SIGKILLed — `start_new_session` made the child a session and group leader, so
+# killpg reaches every cargo/rustc descendant — and the typed GateError names
+# this constant and the log that holds whatever the graph printed last.
+ASM_LANE_TIMEOUT_S = 300
+
+# How long a configuration may wait for the shared context lease before the
+# wait itself is declared wedged. The 0.1s cancellation poll is kept: a stop is
+# still observed within a tenth of a second. The deadline converts the previous
+# unbounded BlockingIOError retry into a typed failure, so a lease holder that
+# died without releasing cannot stall the matrix past this bound.
+LEASE_WAIT_S = 600
+
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
@@ -112,7 +128,16 @@ class Runner:
                 )
             self.children.add(child)
         try:
-            child.wait()
+            try:
+                child.wait(timeout=ASM_LANE_TIMEOUT_S)
+            except subprocess.TimeoutExpired:
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(child.pid, signal.SIGKILL)
+                child.wait()
+                raise self.gate.GateError(
+                    f"assembly graph exceeded ASM_LANE_TIMEOUT_S={ASM_LANE_TIMEOUT_S}s; "
+                    f"its process group was killed; log: {stderr_path}"
+                ) from None
             return subprocess.CompletedProcess(cmd, child.returncode, stdout_path.read_text(), stderr_path.read_text())
         finally:
             with self.lock:
@@ -125,6 +150,7 @@ class Runner:
         lock = self.root / "lease.lock"
         lock.parent.mkdir(parents=True, exist_ok=True)
         with lock.open("a+") as lease:
+            deadline = time.monotonic() + LEASE_WAIT_S
             while True:
                 try:
                     fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -132,6 +158,11 @@ class Runner:
                 except BlockingIOError:
                     if self.stopped.wait(0.1):
                         raise self.gate.GateError("assembly run cancelled while waiting for its context")
+                    if time.monotonic() >= deadline:
+                        raise self.gate.GateError(
+                            f"LEASE_TIMEOUT: the context lease was not acquired within "
+                            f"LEASE_WAIT_S={LEASE_WAIT_S}s; its holder is wedged or gone"
+                        ) from None
             root.mkdir(parents=True, exist_ok=True)
             self.log_directory = root
             yield root, key, lease.fileno()

@@ -80,7 +80,10 @@ fn test_chicago_end_to_end_purrdf_sqlrdf_duckdb_pipeline() {
     "#;
 
     let compiled = compile_turtle(query_ttl).expect("compile SQL-in-RDF AST");
-    assert!(compiled.sql.contains("LIMIT 64"), "must push down candidate envelope limit");
+    assert!(
+        compiled.sql.contains("LIMIT 64"),
+        "must push down candidate envelope limit"
+    );
 
     // 6. Execute query on DuckDB against mounted Parquet views
     let result = db

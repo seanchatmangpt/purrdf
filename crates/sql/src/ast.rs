@@ -301,7 +301,7 @@ impl FrameBound {
                             RefusalCode::MalformedAst,
                             refusal_arm::FRAME_BOUND,
                         )
-                        .with_ident(token))
+                        .with_ident(token));
                     }
                 };
                 let n: u64 = n.parse().map_err(|_| {
@@ -380,7 +380,9 @@ pub enum SqlExpr {
     },
     /// Composite list literal `[a, b, ...]` (SQLRDF-25 Row 4,
     /// `sql:listLiteral`). Depth-capped.
-    ListLiteral { items: Vec<SqlExpr> },
+    ListLiteral {
+        items: Vec<SqlExpr>,
+    },
     /// Element access `base[index]` (SQLRDF-25 Row 4, `sql:indexAccess`) —
     /// the `->` operator doubles as index access in DuckDB, so this is the
     /// shared render site with Row 5's JsonExtract token.
@@ -422,21 +424,17 @@ impl SqlExpr {
     pub fn validate_composite(&self) -> Result<(), AstError> {
         fn walk(expr: &SqlExpr, depth: usize) -> Result<(), AstError> {
             if depth > MAX_COMPOSITE_DEPTH {
-                return Err(AstError::new(
-                    RefusalCode::MalformedAst,
-                    refusal_arm::COMPOSITE_DEPTH,
-                )
-                .with_num(depth));
+                return Err(
+                    AstError::new(RefusalCode::MalformedAst, refusal_arm::COMPOSITE_DEPTH)
+                        .with_num(depth),
+                );
             }
             match expr {
                 SqlExpr::StructLiteral { fields } => {
                     for (key, value) in fields {
                         validate_identifier(key).map_err(|_| {
-                            AstError::new(
-                                RefusalCode::MalformedAst,
-                                refusal_arm::COMPOSITE_MEMBER,
-                            )
-                            .with_ident(key)
+                            AstError::new(RefusalCode::MalformedAst, refusal_arm::COMPOSITE_MEMBER)
+                                .with_ident(key)
                         })?;
                         walk(value, depth + 1)?;
                     }
@@ -681,7 +679,6 @@ pub struct CompiledDocument {
     /// the whole document in BEGIN/COMMIT with ROLLBACK on member failure.
     pub atomic: bool,
 }
-
 
 // Number of RDFC-1.0 canonicalizations performed by this module. Instrument
 // for the R1 receipt-cost reduction: canonicalization is amortized to once

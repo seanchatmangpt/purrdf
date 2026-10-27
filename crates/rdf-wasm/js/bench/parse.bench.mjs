@@ -11,24 +11,45 @@
 // feature. This benchmark is how the SIMD build's win is measured: it prints a
 // compact, greppable summary line you compare against a prior run to spot a
 // throughput regression. It is report-only — it asserts correctness (parsed
-// size) but never gates on throughput and stores no baseline, so a regression
-// is caught by reading the numbers, not automatically. wasm SIMD codegen only
-// exists once the module runs in V8, so a native criterion bench cannot see it.
+// size) but never gates on throughput, and the bench itself stores no
+// baseline: persistence is opt-in via the committed-snapshot pattern below, so
+// a regression is caught by reading the numbers, not automatically. wasm SIMD
+// codegen only exists once the module runs in V8, so a native criterion bench
+// cannot see it.
 //
 // Usage:
-//   node bench/parse.bench.mjs
+//   node bench/parse.bench.mjs [--out <path>]
 // Tunables (env):
 //   BENCH_TRIPLES  number of triples in the corpus   (default 150000)
 //   BENCH_ITERS    timed iterations after warm-up     (default 7)
 //   BENCH_WARMUP   warm-up iterations (discarded)     (default 2)
+//
+// Persistence and the committed-snapshot pattern: the summary lines always
+// print to stdout, and by default the full result document (every per-sample
+// timing, not just medians) prints to stdout as JSON after them. With
+// `--out <path>` the JSON is written to that path instead. Snapshots are
+// deliberately NOT gitignored, and live under docs/benchmarks/<suite>-<date>-<host>/
+// (one directory per run: suite name, date, host). When a change touches the
+// parse hot path, run
+//
+//   node bench/parse.bench.mjs --out docs/benchmarks/parse-<date>-<host>/result.json
+//
+// and COMMIT the snapshot alongside the change it measured. A snapshot
+// committed with its change is the baseline a future run is read against.
+// Never overwrite an existing snapshot — write a new dated file.
 
 import { ready, CompiledJsonLdContext, Dataset } from "../index.mjs";
+import { parseOutArg, writeResultDocument } from "./persist.mjs";
+import { readFile } from "node:fs/promises";
 
 await ready();
 
 const TRIPLES = Number(process.env.BENCH_TRIPLES ?? 150_000);
 const ITERS = Number(process.env.BENCH_ITERS ?? 7);
 const WARMUP = Number(process.env.BENCH_WARMUP ?? 2);
+// --out <path> persists the full result document there (see the header);
+// without it the document prints to stdout.
+const OUT = parseOutArg(process.argv.slice(2));
 
 // Deterministic corpus generation — no Math.random, no fixture files (nothing
 // under vectors/ is touched). The shape mixes IRI objects, plain string
@@ -146,3 +167,42 @@ console.log(
     `serialize_median_ms=${fmt(median(serializeSamples))} ` +
     `parse_median_ms=${fmt(median(parseSamples))}`,
 );
+
+// Full result document: every per-sample timing, not just the medians, so a
+// committed snapshot carries the spread the summary lines collapse away.
+const round6 = (x) => Number(x.toFixed(6));
+const { version: packageVersion } = JSON.parse(
+  await readFile(new URL("../package.json", import.meta.url), "utf8"),
+);
+const resultDocument = {
+  bench: "parse",
+  package_version: packageVersion,
+  generated_at: new Date().toISOString(),
+  node: process.version,
+  platform: `${process.platform} ${process.arch}`,
+  corpus: { triples: TRIPLES, bytes },
+  tunables: { iters: ITERS, warmup: WARMUP },
+  results: {
+    ntriples_parse: {
+      median_ms: round6(med),
+      min_ms: round6(min),
+      samples_ms: samples.map(round6),
+      triples_per_s: Math.round(triplesPerSec),
+      mb_per_s: round6(mbPerSec),
+    },
+    jsonld_compile: {
+      median_ms: round6(median(compileSamples)),
+      samples_ms: compileSamples.map(round6),
+    },
+    jsonld_serialize: {
+      median_ms: round6(median(serializeSamples)),
+      samples_ms: serializeSamples.map(round6),
+    },
+    jsonld_parse: {
+      median_ms: round6(median(parseSamples)),
+      samples_ms: parseSamples.map(round6),
+    },
+  },
+};
+const persistedPath = await writeResultDocument(resultDocument, OUT);
+if (persistedPath) console.log(`BENCH parse persisted: ${persistedPath}`);

@@ -3,12 +3,12 @@
 
 //! Enterprise Sovereign Migration & Sociable Chicago Conformance Court under EU AI Act Regulation (EU) 2024/1689.
 
-use std::time::Instant;
 use core::mem::{align_of, size_of};
 use purrdf_arrow::header::ArrowEgressHeader;
 use purrdf_duckdb::PurRdfDuckDB;
 use purrdf_hash::blake3;
 use purrdf_hash::hex;
+use std::time::Instant;
 
 /// Setup test environment: open in-memory DuckDB with low-memory sandbox configuration.
 fn setup_court_db() -> PurRdfDuckDB {
@@ -140,11 +140,17 @@ fn test_chicago_taxi_trips_100k_sieve() {
     }
 
     let elapsed = t0.elapsed();
-    println!("Taxi 100k sieve completed in {:?} with {} candidate quads", elapsed, count);
+    println!(
+        "Taxi 100k sieve completed in {:?} with {} candidate quads",
+        elapsed, count
+    );
 
     // Assert: Sieve isolated exactly 32 quads within statutory envelope (<= 64 quads)
     assert_eq!(count, 32, "exactly 32 candidate rows must be isolated");
-    assert!(count <= 64, "must strictly conform to statutory envelope bound <= 64 quads");
+    assert!(
+        count <= 64,
+        "must strictly conform to statutory envelope bound <= 64 quads"
+    );
     assert!(
         elapsed.as_millis() < 60,
         "100k sieve must be fast (measured {:?})",
@@ -251,18 +257,36 @@ fn test_sec_edgar_insider_trades_article10_lineage() {
     }
 
     let elapsed = t0.elapsed();
-    println!("SEC EDGAR Sieve isolated {} illicit insider trades in {:?}", non_compliant.len(), elapsed);
+    println!(
+        "SEC EDGAR Sieve isolated {} illicit insider trades in {:?}",
+        non_compliant.len(),
+        elapsed
+    );
 
     // Invariants: Exactly 14 non-compliant trades isolated
-    assert_eq!(non_compliant.len(), 14, "must isolate exactly 14 non-compliant trades");
-    assert!(non_compliant.len() <= 64, "must satisfy statutory candidate envelope limit <= 64 quads");
+    assert_eq!(
+        non_compliant.len(),
+        14,
+        "must isolate exactly 14 non-compliant trades"
+    );
+    assert!(
+        non_compliant.len() <= 64,
+        "must satisfy statutory candidate envelope limit <= 64 quads"
+    );
 
     // Verify Article 10 exact lineage (source XML digest and byte offset preserved)
     for (idx, (id, _owner, ticker, digest, offset)) in non_compliant.iter().enumerate() {
         assert_eq!(*ticker, "ACME");
         assert_eq!(*id, 1001 + idx as i64);
-        assert!(!digest.is_empty(), "lineage source XML digest must be non-empty");
-        assert_eq!(*offset, (1001 + idx as i64) * 4096, "lineage byte offset must be exact");
+        assert!(
+            !digest.is_empty(),
+            "lineage source XML digest must be non-empty"
+        );
+        assert_eq!(
+            *offset,
+            (1001 + idx as i64) * 4096,
+            "lineage byte offset must be exact"
+        );
     }
 }
 
@@ -460,9 +484,15 @@ fn test_tpch_tco_cost_collapse_sub_5ms() {
     }
 
     let elapsed = t0.elapsed();
-    println!("TPC-H SF Analytical Query executed in {:?} (results: {})", elapsed, result_rows);
+    println!(
+        "TPC-H SF Analytical Query executed in {:?} (results: {})",
+        elapsed, result_rows
+    );
 
-    assert!(result_rows <= 64, "must stay within statutory candidate envelope <= 64");
+    assert!(
+        result_rows <= 64,
+        "must stay within statutory candidate envelope <= 64"
+    );
     assert!(result_rows > 0, "must produce valid aggregated rows");
 
     // 4. Verify Memory Ceiling Invariant (32MB limit preserved)
@@ -475,7 +505,10 @@ fn test_tpch_tco_cost_collapse_sub_5ms() {
         .expect("read max_memory setting");
     println!("Verified DuckDB max_memory setting: {}", memory_limit);
     assert!(
-        memory_limit.contains("30.5 MiB") || memory_limit.contains("32.0 MiB") || memory_limit.contains("32MB") || memory_limit.contains("33554432"),
+        memory_limit.contains("30.5 MiB")
+            || memory_limit.contains("32.0 MiB")
+            || memory_limit.contains("32MB")
+            || memory_limit.contains("33554432"),
         "max_memory must be locked to 32MB"
     );
 

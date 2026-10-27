@@ -39,11 +39,7 @@ fn refuse(input: &str, base: Option<&str>, what: &str) -> Result<(String, Option
 }
 
 fn expect(condition: bool, what: String) -> Result<(), String> {
-    if condition {
-        Ok(())
-    } else {
-        Err(what)
-    }
+    if condition { Ok(()) } else { Err(what) }
 }
 
 fn literal_of(t: &Term) -> Result<&purrdf_n3::ast::Literal, String> {
@@ -60,7 +56,11 @@ fn formula_of<'a>(t: &'a Term) -> Result<&'a purrdf_n3::ast::Graph, String> {
     }
 }
 
-fn fact<'a>(doc: &'a Document, pred: impl Fn(&Triple) -> bool, what: &str) -> Result<&'a Triple, String> {
+fn fact<'a>(
+    doc: &'a Document,
+    pred: impl Fn(&Triple) -> bool,
+    what: &str,
+) -> Result<&'a Triple, String> {
     doc.facts
         .iter()
         .find(|t| pred(t))
@@ -130,7 +130,10 @@ fn literals_with_lang_tag_and_datatype() -> Result<(), String> {
         Some("en"),
         "language tag must round-trip"
     );
-    assert!(l.datatype.is_none(), "tagged literal carries no explicit datatype");
+    assert!(
+        l.datatype.is_none(),
+        "tagged literal carries no explicit datatype"
+    );
 
     let age = fact(
         &doc,
@@ -251,8 +254,16 @@ fn for_all_registers_root_universals() -> Result<(), String> {
         Some(BASE),
     )
     .map_err(|e| e.to_string())?;
-    assert_eq!(doc.universals.len(), 2, "universals were {:?}", doc.universals);
-    assert!(doc.facts.len() >= 1, "the quantified statement must still parse as a fact");
+    assert_eq!(
+        doc.universals.len(),
+        2,
+        "universals were {:?}",
+        doc.universals
+    );
+    assert!(
+        doc.facts.len() >= 1,
+        "the quantified statement must still parse as a fact"
+    );
     Ok(())
 }
 
@@ -266,7 +277,12 @@ fn for_some_registers_root_existentials() -> Result<(), String> {
         Some(BASE),
     )
     .map_err(|e| e.to_string())?;
-    assert_eq!(doc.existentials.len(), 1, "existentials were {:?}", doc.existentials);
+    assert_eq!(
+        doc.existentials.len(),
+        1,
+        "existentials were {:?}",
+        doc.existentials
+    );
     Ok(())
 }
 
@@ -308,7 +324,10 @@ fn error_invalid_language_tag_is_refused() -> Result<(), String> {
     // to a refusal court as part of the F8 fix receipt.
     let src = "@prefix : <http://example.org/> .\n:x :label \"hi\"@e--n .\n";
     let (message, offset) = refuse(src, Some(BASE), "malformed langtag must refuse on N3 too")?;
-    expect(message.contains("language tag"), format!("error must name the construct, got: {}", message))?;
+    expect(
+        message.contains("language tag"),
+        format!("error must name the construct, got: {}", message),
+    )?;
     expect(
         offset == Some(src.find("@e--n").unwrap()),
         format!("refusal must point at the langtag itself, got {:?}", offset),
@@ -336,7 +355,10 @@ fn language_tag_case_folds_on_n3_profile() -> Result<(), String> {
     tags.dedup();
     expect(
         tags == vec![purrdf_n3::ast::Name::from("en")],
-        format!("case-folded tags must collapse to one identity, got {:?}", tags),
+        format!(
+            "case-folded tags must collapse to one identity, got {:?}",
+            tags
+        ),
     )
 }
 
@@ -362,7 +384,10 @@ fn source_label_lands_in_rendered_diagnostic() -> Result<(), String> {
         "rendered diagnostic must be label-anchored, got: {}",
         rendered
     );
-    assert!(rendered.contains('^'), "rendered diagnostic must include a caret line");
+    assert!(
+        rendered.contains('^'),
+        "rendered diagnostic must include a caret line"
+    );
     Ok(())
 }
 
@@ -387,7 +412,12 @@ fn verb_path_chain_triples_are_kept_forward() -> Result<(), String> {
     )?;
     let path_label = match &chain.o {
         Term::Blank(b) => b.as_str().to_string(),
-        other => return Err(format!("chain object must be the fresh path node, got {:?}", other)),
+        other => {
+            return Err(format!(
+                "chain object must be the fresh path node, got {:?}",
+                other
+            ));
+        }
     };
     let asserted = fact(
         &doc,
@@ -425,7 +455,12 @@ fn verb_path_chain_triples_are_kept_reverse() -> Result<(), String> {
     )?;
     let path_label = match &chain.s {
         Term::Blank(b) => b.as_str().to_string(),
-        other => return Err(format!("chain subject must be the fresh path node, got {:?}", other)),
+        other => {
+            return Err(format!(
+                "chain subject must be the fresh path node, got {:?}",
+                other
+            ));
+        }
     };
     let asserted = fact(
         &doc,
@@ -463,7 +498,12 @@ fn verb_path_chains_survive_verb_lists() -> Result<(), String> {
         )?;
         match &chain.o {
             Term::Blank(_) => {}
-            other => return Err(format!("chain object must be the fresh path node, got {:?}", other)),
+            other => {
+                return Err(format!(
+                    "chain object must be the fresh path node, got {:?}",
+                    other
+                ));
+            }
         }
     }
     Ok(())
@@ -487,7 +527,12 @@ fn is_of_path_keeps_chain_and_orientation() -> Result<(), String> {
     )?;
     let path_label = match &chain.o {
         Term::Blank(b) => b.as_str().to_string(),
-        other => return Err(format!("chain object must be the fresh path node, got {:?}", other)),
+        other => {
+            return Err(format!(
+                "chain object must be the fresh path node, got {:?}",
+                other
+            ));
+        }
     };
     let asserted = fact(
         &doc,
@@ -522,7 +567,12 @@ fn triple_term_predicate_path_chain_is_kept() -> Result<(), String> {
     )?;
     let path_label = match &chain.o {
         Term::Blank(b) => b.as_str().to_string(),
-        other => return Err(format!("chain object must be the fresh path node, got {:?}", other)),
+        other => {
+            return Err(format!(
+                "chain object must be the fresh path node, got {:?}",
+                other
+            ));
+        }
     };
     let nested = fact(
         &doc,
@@ -530,7 +580,10 @@ fn triple_term_predicate_path_chain_is_kept() -> Result<(), String> {
         "triple-term fact",
     )?;
     let g = formula_of(&nested.o)?;
-    expect(g.triples.len() == 1, format!("one nested triple expected, got {:?}", g.triples))?;
+    expect(
+        g.triples.len() == 1,
+        format!("one nested triple expected, got {:?}", g.triples),
+    )?;
     match &g.triples[0].p {
         Term::Blank(b) if b.as_str() == path_label => Ok(()),
         other => Err(format!(
@@ -546,16 +599,29 @@ fn error_bare_word_is_refused_not_fabricated() -> Result<(), String> {
     // Audit C4 (lane U1-SYNTAX F3): a colon-less word used to fall through
     // expand_pname's tail to `http://example.org/{}` — fabricated silently.
     let src = "nope nope nope .";
-    let (message, offset) = refuse(src, Some(BASE), "bare word must refuse, not mint example.org")?;
-    expect(message.contains("nope"), format!("error must name the construct, got: {}", message))?;
-    expect(offset == Some(0), format!("offense starts at byte 0, got {:?}", offset))?;
+    let (message, offset) = refuse(
+        src,
+        Some(BASE),
+        "bare word must refuse, not mint example.org",
+    )?;
+    expect(
+        message.contains("nope"),
+        format!("error must name the construct, got: {}", message),
+    )?;
+    expect(
+        offset == Some(0),
+        format!("offense starts at byte 0, got {:?}", offset),
+    )?;
     Ok(())
 }
 
 fn error_bare_word_datatype_is_refused() -> Result<(), String> {
     let src = "@prefix : <http://example.org/> .\n:x :p \"1\"^^foo .\n";
     let (message, offset) = refuse(src, Some(BASE), "bare datatype word must refuse")?;
-    expect(message.contains("foo"), format!("error must name the construct, got: {}", message))?;
+    expect(
+        message.contains("foo"),
+        format!("error must name the construct, got: {}", message),
+    )?;
     expect(
         offset == Some(src.find("foo").unwrap()),
         format!("refusal must point at the bare word, got {:?}", offset),
@@ -571,8 +637,14 @@ fn error_at_prefix_suffix_word_is_refused() -> Result<(), String> {
     // into a complete (invalid) prefix declaration that parse_prefix consumed.
     let src = "@prefixfr: <http://x/> .\n";
     let (message, offset) = refuse(src, None, "@prefix-suffixed word is not a directive")?;
-    expect(message.contains("prefixfr"), format!("error must name the construct, got: {}", message))?;
-    expect(offset == Some(0), format!("offense starts at byte 0, got {:?}", offset))?;
+    expect(
+        message.contains("prefixfr"),
+        format!("error must name the construct, got: {}", message),
+    )?;
+    expect(
+        offset == Some(0),
+        format!("offense starts at byte 0, got {:?}", offset),
+    )?;
     Ok(())
 }
 
@@ -586,11 +658,18 @@ fn langtag_prefix_word_keeps_its_language() -> Result<(), String> {
         Some(BASE),
     )
     .map_err(|e| e.to_string())?;
-    let lit = fact(&doc, |t| ground_iri(&t.p) == Some("http://example.org/p"), "langtag fact")?;
+    let lit = fact(
+        &doc,
+        |t| ground_iri(&t.p) == Some("http://example.org/p"),
+        "langtag fact",
+    )?;
     let l = literal_of(&lit.o)?;
     expect(
         l.language.as_ref().map(|n| n.as_str()) == Some("prefixfr"),
-        format!("the language must survive the lexer's @-word dispatch, got {:?}", l.language),
+        format!(
+            "the language must survive the lexer's @-word dispatch, got {:?}",
+            l.language
+        ),
     )
 }
 
@@ -606,9 +685,15 @@ fn error_number_without_exponent_digit_is_refused() -> Result<(), String> {
             Some(BASE),
             &format!("`{}` has no exponent digit and must be refused", tail),
         )?;
-        expect(message.contains("exponent"), format!("error must name the construct, got: {}", message))?;
+        expect(
+            message.contains("exponent"),
+            format!("error must name the construct, got: {}", message),
+        )?;
         let want = src.find(tail).unwrap();
-        expect(offset == Some(want), format!("refusal must point at the number, got {:?}", offset))?;
+        expect(
+            offset == Some(want),
+            format!("refusal must point at the number, got {:?}", offset),
+        )?;
     }
     // Conforming exponents keep parsing, with the same lexical form.
     let doc = parse_n3(
@@ -616,11 +701,18 @@ fn error_number_without_exponent_digit_is_refused() -> Result<(), String> {
         Some(BASE),
     )
     .map_err(|e| e.to_string())?;
-    expect(doc.facts.len() == 1, format!("one fact expected, got {:?}", doc.facts))?;
-    let lit = literal_of(&doc.facts[0].o)?;
-    expect(lit.value.as_str() == "1e5", format!("lexical form preserved, got {:?}", lit.value))?;
     expect(
-        lit.datatype.as_ref().map(|n| n.as_str()) == Some("http://www.w3.org/2001/XMLSchema#double"),
+        doc.facts.len() == 1,
+        format!("one fact expected, got {:?}", doc.facts),
+    )?;
+    let lit = literal_of(&doc.facts[0].o)?;
+    expect(
+        lit.value.as_str() == "1e5",
+        format!("lexical form preserved, got {:?}", lit.value),
+    )?;
+    expect(
+        lit.datatype.as_ref().map(|n| n.as_str())
+            == Some("http://www.w3.org/2001/XMLSchema#double"),
         format!("exponent literal is xsd:double, got {:?}", lit.datatype),
     )?;
     Ok(())
@@ -633,8 +725,10 @@ fn spaced_path_operators_parse_like_unspaced() -> Result<(), String> {
     // around a path operator) is the same path as `:p1!:p2`; the standalone
     // operator word used to die in split_unescaped_path.
     let src = "@prefix : <http://example.org/> .\n";
-    let spaced = parse_n3(&format!("{}\n:s :p1 ! :p2 :o .\n", src), None).map_err(|e| e.to_string())?;
-    let unspaced = parse_n3(&format!("{}\n:s :p1!:p2 :o .\n", src), None).map_err(|e| e.to_string())?;
+    let spaced =
+        parse_n3(&format!("{}\n:s :p1 ! :p2 :o .\n", src), None).map_err(|e| e.to_string())?;
+    let unspaced =
+        parse_n3(&format!("{}\n:s :p1!:p2 :o .\n", src), None).map_err(|e| e.to_string())?;
     expect(
         spaced.facts == unspaced.facts,
         format!(
@@ -666,7 +760,12 @@ fn spaced_reverse_path_operator_orients_the_chain_backwards() -> Result<(), Stri
     )?;
     let path_label = match &chain.s {
         Term::Blank(b) => b.as_str().to_string(),
-        other => return Err(format!("chain subject must be the fresh path node, got {:?}", other)),
+        other => {
+            return Err(format!(
+                "chain subject must be the fresh path node, got {:?}",
+                other
+            ));
+        }
     };
     let asserted = fact(
         &doc,
@@ -690,8 +789,10 @@ fn spaced_path_composite_item_splits_correctly() -> Result<(), String> {
     // (`:p1 ! :p2^:p3` == `:p1!:p2^:p3`); the spaced operator orients the
     // item's first component, later components keep their own operators.
     let src = "@prefix : <http://example.org/> .\n";
-    let spaced = parse_n3(&format!("{}\n:s :p1 ! :p2^:p3 :o .\n", src), None).map_err(|e| e.to_string())?;
-    let unspaced = parse_n3(&format!("{}\n:s :p1!:p2^:p3 :o .\n", src), None).map_err(|e| e.to_string())?;
+    let spaced =
+        parse_n3(&format!("{}\n:s :p1 ! :p2^:p3 :o .\n", src), None).map_err(|e| e.to_string())?;
+    let unspaced =
+        parse_n3(&format!("{}\n:s :p1!:p2^:p3 :o .\n", src), None).map_err(|e| e.to_string())?;
     expect(
         spaced.facts == unspaced.facts,
         format!(
@@ -701,7 +802,10 @@ fn spaced_path_composite_item_splits_correctly() -> Result<(), String> {
     )?;
     expect(
         spaced.facts.len() == 3,
-        format!("two chain steps + asserted expected, got {:?}", spaced.facts),
+        format!(
+            "two chain steps + asserted expected, got {:?}",
+            spaced.facts
+        ),
     )
 }
 
@@ -718,25 +822,58 @@ fn error_leading_path_operator_still_refused() -> Result<(), String> {
 
 fn main() {
     let cases: &[(&str, fn() -> Result<(), String>)] = &[
-        ("turtle_style_prefixes_resolve", turtle_style_prefixes_resolve),
+        (
+            "turtle_style_prefixes_resolve",
+            turtle_style_prefixes_resolve,
+        ),
         (
             "default_prefix_and_relative_iri_resolution",
             default_prefix_and_relative_iri_resolution,
         ),
-        ("literals_with_lang_tag_and_datatype", literals_with_lang_tag_and_datatype),
-        ("nested_triple_term_becomes_formula_term", nested_triple_term_becomes_formula_term),
-        ("parenthesized_triple_term_is_accepted", parenthesized_triple_term_is_accepted),
-        ("formula_context_as_term_and_rule", formula_context_as_term_and_rule),
-        ("for_all_registers_root_universals", for_all_registers_root_universals),
-        ("for_some_registers_root_existentials", for_some_registers_root_existentials),
+        (
+            "literals_with_lang_tag_and_datatype",
+            literals_with_lang_tag_and_datatype,
+        ),
+        (
+            "nested_triple_term_becomes_formula_term",
+            nested_triple_term_becomes_formula_term,
+        ),
+        (
+            "parenthesized_triple_term_is_accepted",
+            parenthesized_triple_term_is_accepted,
+        ),
+        (
+            "formula_context_as_term_and_rule",
+            formula_context_as_term_and_rule,
+        ),
+        (
+            "for_all_registers_root_universals",
+            for_all_registers_root_universals,
+        ),
+        (
+            "for_some_registers_root_existentials",
+            for_some_registers_root_existentials,
+        ),
         (
             "error_unclosed_triple_term_names_the_construct_with_offset",
             error_unclosed_triple_term_names_the_construct_with_offset,
         ),
-        ("error_unknown_prefix_is_refused_with_position", error_unknown_prefix_is_refused_with_position),
-        ("error_invalid_language_tag_is_refused", error_invalid_language_tag_is_refused),
-        ("error_dangling_statement_is_refused", error_dangling_statement_is_refused),
-        ("source_label_lands_in_rendered_diagnostic", source_label_lands_in_rendered_diagnostic),
+        (
+            "error_unknown_prefix_is_refused_with_position",
+            error_unknown_prefix_is_refused_with_position,
+        ),
+        (
+            "error_invalid_language_tag_is_refused",
+            error_invalid_language_tag_is_refused,
+        ),
+        (
+            "error_dangling_statement_is_refused",
+            error_dangling_statement_is_refused,
+        ),
+        (
+            "source_label_lands_in_rendered_diagnostic",
+            source_label_lands_in_rendered_diagnostic,
+        ),
         (
             "language_tag_case_folds_on_n3_profile",
             language_tag_case_folds_on_n3_profile,
@@ -749,7 +886,10 @@ fn main() {
             "verb_path_chain_triples_are_kept_reverse",
             verb_path_chain_triples_are_kept_reverse,
         ),
-        ("verb_path_chains_survive_verb_lists", verb_path_chains_survive_verb_lists),
+        (
+            "verb_path_chains_survive_verb_lists",
+            verb_path_chains_survive_verb_lists,
+        ),
         (
             "is_of_path_keeps_chain_and_orientation",
             is_of_path_keeps_chain_and_orientation,
@@ -762,12 +902,18 @@ fn main() {
             "error_bare_word_is_refused_not_fabricated",
             error_bare_word_is_refused_not_fabricated,
         ),
-        ("error_bare_word_datatype_is_refused", error_bare_word_datatype_is_refused),
+        (
+            "error_bare_word_datatype_is_refused",
+            error_bare_word_datatype_is_refused,
+        ),
         (
             "error_at_prefix_suffix_word_is_refused",
             error_at_prefix_suffix_word_is_refused,
         ),
-        ("langtag_prefix_word_keeps_its_language", langtag_prefix_word_keeps_its_language),
+        (
+            "langtag_prefix_word_keeps_its_language",
+            langtag_prefix_word_keeps_its_language,
+        ),
         (
             "error_number_without_exponent_digit_is_refused",
             error_number_without_exponent_digit_is_refused,

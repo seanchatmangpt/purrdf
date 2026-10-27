@@ -19,9 +19,6 @@ categories = ["text-processing", "data-structures"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 # rlib-only. The crate is a library seam: it hands ranked rows to the evaluator's
 # property-function table and is never a binary or a cdylib of its own. It must
@@ -114,3 +111,6 @@ harness = false
 [[bench]]
 name = "emoji"
 harness = false
+
+[lints]
+workspace = true

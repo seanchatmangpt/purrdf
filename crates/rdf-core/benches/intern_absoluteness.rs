@@ -40,12 +40,24 @@
 //!    `pub(crate)` and so deliberately unreachable from a bench; this group is the
 //!    cost it avoids paying, once per term per page per seal.
 //!
+//! 5. `arena_push_all_misses` — 100k distinct simple literals into a fresh
+//!    `GlobalDictionary`. Every intern is a miss, so each one appends its lexical
+//!    bytes through the string-arena writer (`push_arena_str_with_memory`,
+//!    `src/ir/term.rs`), the checked-offset admission the frozen tables read back
+//!    with `arena_str`. Element-throughput row: cost per pushed string.
+//! 6. `arena_mixed_hit_miss_lookups` — against the dictionary preloaded by (5)'s
+//!    fixture, a per-iteration stream that is half already-resident (hits: hash
+//!    lookup then an `arena_str` range compare) and half fresh per iteration
+//!    (misses: append). A plain ns/op row — no throughput, it is a lookup cost.
+//!
 //! Inputs are generated deterministically (no RNG, no time source), so the measured
 //! set is identical across runs.
 
-use purrdf_core::RdfDatasetBuilder;
+use std::cell::Cell;
+
 use purrdf_core::ir::{GlobalDictionary, TermValue};
-use purrdf_testkit::bench::{BatchSize, Bench, bench_group, bench_main, black_box};
+use purrdf_core::RdfDatasetBuilder;
+use purrdf_testkit::bench::{bench_group, bench_main, black_box, BatchSize, Bench, Throughput};
 
 /// Number of intern calls per measured iteration.
 const N: u32 = 10_000;
@@ -53,6 +65,9 @@ const N: u32 = 10_000;
 /// The fixed vocabulary size in the mixed group — a handful of predicates and
 /// datatypes, the way a real document reuses them.
 const VOCABULARY: u32 = 16;
+
+/// Distinct strings pushed through the string arena in the arena group.
+const ARENA_N: u32 = 100_000;
 
 /// N distinct IRIs: every intern of this set is a MISS.
 fn distinct_iris() -> Vec<String> {
@@ -157,11 +172,95 @@ fn bench_global_dictionary_all_misses(c: &mut Bench) {
     group.finish();
 }
 
+/// The arena group's distinct simple-literal lexical forms: exactly the bytes the
+/// string arena receives on a miss. Same deterministic `format!` generator the IRI
+/// fixtures use.
+fn arena_lexicals() -> Vec<String> {
+    (0..ARENA_N)
+        .map(|i| format!("http://example.org/text/{i}"))
+        .collect()
+}
+
+/// Group 5: 100k distinct simple literals into a fresh dictionary — every miss
+/// appends its bytes through the string-arena writer, so this row reads as the
+/// per-string cost of `push_arena_str_with_memory` under real interning traffic.
+fn bench_arena_push_all_misses(c: &mut Bench) {
+    let lexicals = arena_lexicals();
+    let mut group = c.benchmark_group("arena");
+    group.throughput(Throughput::Elements(u64::from(ARENA_N)));
+    group.bench_function("push_all_misses", |b| {
+        b.iter_batched(
+            || lexicals.clone(),
+            |lexicals| {
+                let mut dictionary = GlobalDictionary::new();
+                for lexical in &lexicals {
+                    let value = TermValue::simple_literal(black_box(lexical));
+                    black_box(
+                        dictionary
+                            .intern(black_box(&value))
+                            .expect("bench fixtures are valid literals"),
+                    );
+                }
+                black_box(dictionary)
+            },
+            BatchSize::LargeInput,
+        );
+    });
+    group.finish();
+}
+
+/// Group 6: mixed hit/miss lookups against a preloaded dictionary. Half the
+/// per-iteration stream is already resident (hits resolve through the hash table
+/// and an `arena_str` range compare); half is fresh per iteration (misses append).
+/// Plain ns/op lookup-cost row, so no throughput is set.
+fn bench_arena_mixed_hit_miss_lookups(c: &mut Bench) {
+    let hits = arena_lexicals();
+    let mut resident = GlobalDictionary::new();
+    for lexical in &hits {
+        resident
+            .intern(&TermValue::simple_literal(lexical))
+            .expect("bench fixtures are valid literals");
+    }
+    let round = Cell::new(0u64);
+    let mut group = c.benchmark_group("arena");
+    group.bench_function("mixed_hit_miss_lookups", |b| {
+        b.iter_batched(
+            || {
+                let r = round.get();
+                round.set(r + 1);
+                hits.iter()
+                    .map(|lexical| format!("{lexical}?round={r}"))
+                    .collect::<Vec<_>>()
+            },
+            |misses| {
+                for (hit, miss) in hits.iter().zip(misses.iter()) {
+                    let hit_value = TermValue::simple_literal(black_box(hit));
+                    black_box(
+                        resident
+                            .intern(black_box(&hit_value))
+                            .expect("bench fixtures are valid literals"),
+                    );
+                    let miss_value = TermValue::simple_literal(black_box(miss));
+                    black_box(
+                        resident
+                            .intern(black_box(&miss_value))
+                            .expect("bench fixtures are valid literals"),
+                    );
+                }
+            },
+            BatchSize::LargeInput,
+        );
+    });
+    group.finish();
+}
+
 bench_group!(
     benches,
     bench_distinct_iris_all_misses,
     bench_repeated_iri_all_hits,
     bench_realistic_mixed_vocabulary,
-    bench_global_dictionary_all_misses
+    bench_global_dictionary_all_misses,
+    bench_arena_push_all_misses,
+    bench_arena_mixed_hit_miss_lookups
 );
 bench_main!(benches);

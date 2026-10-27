@@ -17,9 +17,6 @@ categories = ["encoding", "data-structures", "wasm"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 crate-type = ["rlib"]
 path = "src/lib.rs"
@@ -48,7 +45,11 @@ harness = false
 
 [[bench]]
 # End-to-end fixed-schema writer/reader latency over a representative RDF 1.2
-# dataset and blob store, and the PLAIN INT64 value codec on its own at three
-# null densities. Report-only; no performance winner is asserted.
+# dataset and blob store at the 1k-quad and 100k-quad scales, and the PLAIN
+# INT64 value codec on its own at three null densities. Report-only; no
+# performance winner is asserted.
 name = "codec"
 harness = false
+
+[lints]
+workspace = true

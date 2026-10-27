@@ -13,7 +13,7 @@ use std::collections::BTreeSet;
 
 use purrdf_n3::ast::{Name, Term};
 use purrdf_n3::parser::parse_n3;
-use purrdf_n3::reasoner::{ReasonerOptions, ReasonerResult, ReasonerLimit, reason};
+use purrdf_n3::reasoner::{ReasonerLimit, ReasonerOptions, ReasonerResult, reason};
 
 use purrdf_testkit::harness::{self, Trial};
 
@@ -35,7 +35,11 @@ fn reason_ok(program: &str) -> ReasonerResult {
         "reasoning must complete: {:?}",
         result.incomplete_summary()
     );
-    assert!(result.errors.is_empty(), "no semantic errors: {:?}", result.errors);
+    assert!(
+        result.errors.is_empty(),
+        "no semantic errors: {:?}",
+        result.errors
+    );
     result
 }
 
@@ -114,7 +118,6 @@ fn main() -> std::process::ExitCode {
             );
             Ok(())
         }),
-
         // ================================================== fixpoint
         Trial::test("recursive_rules_reach_fixpoint", || {
             // Transitive closure over a 5-node chain (4 edges): 10 pairs.
@@ -131,13 +134,21 @@ fn main() -> std::process::ExitCode {
             let anc = so_pairs(&result, "http://example.org/ancestor");
             let expect: BTreeSet<(Term, Term)> = (0..5usize)
                 .flat_map(|i| (i + 1..5).map(move |j| (i, j)))
-                .map(|(i, j)| (iri(&format!("http://example.org/n{i}")), iri(&format!("http://example.org/n{j}"))))
+                .map(|(i, j)| {
+                    (
+                        iri(&format!("http://example.org/n{i}")),
+                        iri(&format!("http://example.org/n{j}")),
+                    )
+                })
                 .collect();
-            assert_eq!(anc.len(), 10, "closure of a 5-node chain is 10 ordered pairs: {anc:?}");
+            assert_eq!(
+                anc.len(),
+                10,
+                "closure of a 5-node chain is 10 ordered pairs: {anc:?}"
+            );
             assert_eq!(anc, expect, "fixpoint must be the exact transitive closure");
             Ok(())
         }),
-
         // ================================================== math builtins
         Trial::test("builtin_math_family", || {
             let program = format!(
@@ -149,13 +160,16 @@ fn main() -> std::process::ExitCode {
             );
             let result = reason_ok(&program);
             assert_eq!(
-                object_values(&result, "http://example.org/card", "http://example.org/total"),
+                object_values(
+                    &result,
+                    "http://example.org/card",
+                    "http://example.org/total"
+                ),
                 BTreeSet::from(["5".to_string()]),
                 "math:sum over (2 3) must bind ?t to 5"
             );
             Ok(())
         }),
-
         // ================================================== string builtins
         Trial::test("builtin_string_family", || {
             let program = format!(
@@ -172,18 +186,25 @@ fn main() -> std::process::ExitCode {
             );
             let result = reason_ok(&program);
             assert_eq!(
-                object_values(&result, "http://example.org/greeting", "http://example.org/text"),
+                object_values(
+                    &result,
+                    "http://example.org/greeting",
+                    "http://example.org/text"
+                ),
                 BTreeSet::from(["Hello, world".to_string()]),
                 "string:concatenation must join the two parts in order"
             );
             assert_eq!(
-                object_values(&result, "http://example.org/greeting", "http://example.org/greeting"),
+                object_values(
+                    &result,
+                    "http://example.org/greeting",
+                    "http://example.org/greeting"
+                ),
                 BTreeSet::from(["yes".to_string()]),
                 "string:startsWith premise must hold on the derived text"
             );
             Ok(())
         }),
-
         // ================================================== list builtins
         Trial::test("builtin_list_family", || {
             let program = format!(
@@ -197,11 +218,18 @@ fn main() -> std::process::ExitCode {
                 }} => {{ ?h :sorted ?s }} ."
             );
             let result = reason_ok(&program);
-            let sorted = list_values(&result, "http://example.org/hand", "http://example.org/sorted");
-            assert_eq!(sorted, vec![vec!["1", "2", "3"]], "reverse-then-sort must yield ( 1 2 3 )");
+            let sorted = list_values(
+                &result,
+                "http://example.org/hand",
+                "http://example.org/sorted",
+            );
+            assert_eq!(
+                sorted,
+                vec![vec!["1", "2", "3"]],
+                "reverse-then-sort must yield ( 1 2 3 )"
+            );
             Ok(())
         }),
-
         // ================================================== cyclic data
         Trial::test("termination_on_cyclic_data", || {
             let program = format!(
@@ -220,7 +248,6 @@ fn main() -> std::process::ExitCode {
             );
             Ok(())
         }),
-
         // ================================================== budgets
         Trial::test("budget_closure_facts_limit", || {
             let program = format!(
@@ -233,7 +260,10 @@ fn main() -> std::process::ExitCode {
             let mut opts = ReasonerOptions::default();
             opts.max_closure_facts = 3; // chain closure derives 6; budget affords 3
             let result = reason(&doc, &opts);
-            assert!(!result.is_complete(), "a three-fact budget cannot close a 4-node chain");
+            assert!(
+                !result.is_complete(),
+                "a three-fact budget cannot close a 4-node chain"
+            );
             assert!(
                 result.limits_reached.contains(&ReasonerLimit::ClosureFacts),
                 "the closure-fact limit must be reported: {:?}",
@@ -245,7 +275,6 @@ fn main() -> std::process::ExitCode {
             );
             Ok(())
         }),
-
         Trial::test("budget_iterations_limit", || {
             let program = format!(
                 "{HEAD}
@@ -257,7 +286,10 @@ fn main() -> std::process::ExitCode {
             let mut opts = ReasonerOptions::default();
             opts.max_iterations = 2;
             let result = reason(&doc, &opts);
-            assert!(!result.is_complete(), "a two-step budget cannot close a cycle");
+            assert!(
+                !result.is_complete(),
+                "a two-step budget cannot close a cycle"
+            );
             assert!(
                 result.limits_reached.contains(&ReasonerLimit::Iterations),
                 "the iteration limit must be reported: {:?}",
@@ -265,7 +297,6 @@ fn main() -> std::process::ExitCode {
             );
             Ok(())
         }),
-
         // ================================================== F1: formula identity
         Trial::test("formula_binder_sets_mint_distinct_skolems", || {
             use purrdf_n3::ast::{Document, Graph, Rule, Triple};
@@ -281,8 +312,16 @@ fn main() -> std::process::ExitCode {
                     Term::Blank(Name::from("q")),
                 )]
             };
-            let f_a = Graph { universals: BTreeSet::new(), existentials: BTreeSet::new(), triples: same_triples() };
-            let f_b = Graph { universals: BTreeSet::new(), existentials: [Name::from("q")].into(), triples: same_triples() };
+            let f_a = Graph {
+                universals: BTreeSet::new(),
+                existentials: BTreeSet::new(),
+                triples: same_triples(),
+            };
+            let f_b = Graph {
+                universals: BTreeSet::new(),
+                existentials: [Name::from("q")].into(),
+                triples: same_triples(),
+            };
             // The terms are distinct...
             assert_ne!(
                 Term::Formula(f_a.clone()),
@@ -300,8 +339,16 @@ fn main() -> std::process::ExitCode {
             let log_skolem = iri("http://www.w3.org/2000/10/swap/log#skolem");
             let skolem_rule = |subject: Term, predicate: &'static str| {
                 Rule::new(
-                    Graph::from(vec![Triple::new(subject, log_skolem.clone(), Term::var("sk"))]),
-                    vec![Triple::new(iri("http://example.org/w"), iri(predicate), Term::var("sk"))],
+                    Graph::from(vec![Triple::new(
+                        subject,
+                        log_skolem.clone(),
+                        Term::var("sk"),
+                    )]),
+                    vec![Triple::new(
+                        iri("http://example.org/w"),
+                        iri(predicate),
+                        Term::var("sk"),
+                    )],
                     true,
                 )
             };
@@ -312,7 +359,11 @@ fn main() -> std::process::ExitCode {
             ];
             // Conclusions: `:w :first_genid ?sk` / `:w :second_genid ?sk`.
             let result = reason(&doc, &ReasonerOptions::default());
-            assert!(result.is_complete(), "run must complete: {:?}", result.incomplete_summary());
+            assert!(
+                result.is_complete(),
+                "run must complete: {:?}",
+                result.incomplete_summary()
+            );
 
             let genid = |predicate: &str| -> BTreeSet<String> {
                 result
@@ -327,8 +378,16 @@ fn main() -> std::process::ExitCode {
             };
             let first = genid("http://example.org/first_genid");
             let second = genid("http://example.org/second_genid");
-            assert_eq!(first.len(), 1, "rule over formula A must fire once: {first:?}");
-            assert_eq!(second.len(), 1, "rule over formula B must fire once: {second:?}");
+            assert_eq!(
+                first.len(),
+                1,
+                "rule over formula A must fire once: {first:?}"
+            );
+            assert_eq!(
+                second.len(),
+                1,
+                "rule over formula B must fire once: {second:?}"
+            );
             assert!(
                 first.is_disjoint(&second),
                 "two formulas differing only in existential binder sets must mint \
@@ -336,7 +395,6 @@ fn main() -> std::process::ExitCode {
             );
             Ok(())
         }),
-
         // ================================================== F4: unknown builtins
         Trial::test("unknown_builtin_is_typed_error_not_silent_complete", || {
             let program = format!(
@@ -361,7 +419,6 @@ fn main() -> std::process::ExitCode {
             );
             Ok(())
         }),
-
         Trial::test("known_builtins_still_complete_without_errors", || {
             // Guard against the unknown-builtin gate over-firing: rule-as-data
             // (log:implies as a fact predicate) and ordinary rdf:type must keep
@@ -380,7 +437,6 @@ fn main() -> std::process::ExitCode {
             );
             Ok(())
         }),
-
         // ================================================== F5: math:equalTo
         Trial::test("math_equalTo_compares_decimals_exactly", || {
             let program = format!(
@@ -402,7 +458,6 @@ fn main() -> std::process::ExitCode {
             );
             Ok(())
         }),
-
         Trial::test("math_equalTo_handles_nan_and_big_decimals", || {
             let program = format!(
                 "{HEAD}
@@ -412,7 +467,13 @@ fn main() -> std::process::ExitCode {
                 {{ \"100000000000000000001\"^^xsd:decimal math:equalTo \"100000000000000000000\"^^xsd:decimal . }} => {{ :w :bigeq \"yes\" }} ."
             );
             let result = reason_ok(&program);
-            let val = |p: &str| object_values(&result, "http://example.org/w", &format!("http://example.org/{p}"));
+            let val = |p: &str| {
+                object_values(
+                    &result,
+                    "http://example.org/w",
+                    &format!("http://example.org/{p}"),
+                )
+            };
             assert_eq!(
                 val("nanneq"),
                 BTreeSet::from(["yes".to_string()]),
@@ -433,7 +494,6 @@ fn main() -> std::process::ExitCode {
             );
             Ok(())
         }),
-
         Trial::test("math_equalTo_still_equates_equal_decimals", || {
             // The fix must not lose ordinary equality: equal lexical values,
             // equivalent forms, and integer/decimal crossings stay equal.
@@ -443,7 +503,13 @@ fn main() -> std::process::ExitCode {
                 {{ 3 math:equalTo 3.0 . }} => {{ :w :cross \"yes\" }} ."
             );
             let result = reason_ok(&program);
-            let val = |p: &str| object_values(&result, "http://example.org/w", &format!("http://example.org/{p}"));
+            let val = |p: &str| {
+                object_values(
+                    &result,
+                    "http://example.org/w",
+                    &format!("http://example.org/{p}"),
+                )
+            };
             assert_eq!(
                 val("equiv"),
                 BTreeSet::from(["yes".to_string()]),
@@ -456,7 +522,6 @@ fn main() -> std::process::ExitCode {
             );
             Ok(())
         }),
-
         // ================================================== F6: exponentiation gates
         Trial::test("exponentiation_never_mints_non_finite_literals", || {
             let program = format!(
@@ -468,15 +533,23 @@ fn main() -> std::process::ExitCode {
             let result = reason_ok(&program);
             for p in ["overflow", "base1", "negbase"] {
                 assert!(
-                    object_values(&result, "http://example.org/w", &format!("http://example.org/{p}")).is_empty(),
+                    object_values(
+                        &result,
+                        "http://example.org/w",
+                        &format!("http://example.org/{p}")
+                    )
+                    .is_empty(),
                     "non-finite exponentiation results must fail the premise, not mint \
                      INF/NaN as xsd:decimal ({p} fired: {:?})",
-                    object_values(&result, "http://example.org/w", &format!("http://example.org/{p}"))
+                    object_values(
+                        &result,
+                        "http://example.org/w",
+                        &format!("http://example.org/{p}")
+                    )
                 );
             }
             Ok(())
         }),
-
         Trial::test("exponentiation_still_computes_finite_results", || {
             // Guard: the finiteness gates must not take real arithmetic down.
             let program = format!(

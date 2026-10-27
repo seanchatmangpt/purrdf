@@ -2,8 +2,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
 #![forbid(unsafe_code)]
-#![doc(html_logo_url = "https://raw.githubusercontent.com/Blackcat-Informatics/purrdf/main/docs/purrdf-logo.svg")]
-#![doc(html_favicon_url = "https://raw.githubusercontent.com/Blackcat-Informatics/purrdf/main/docs/purrdf-logo.svg")]
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/Blackcat-Informatics/purrdf/main/docs/purrdf-logo.svg"
+)]
+#![doc(
+    html_favicon_url = "https://raw.githubusercontent.com/Blackcat-Informatics/purrdf/main/docs/purrdf-logo.svg"
+)]
 
 //! PurRDF native Notation3: parsing, reasoning and proofs over RDF 1.2.
 //!
@@ -18,17 +22,23 @@
 //! module paths. Identical input yields byte-identical output on every target
 //! — no map iteration order reaches an output path.
 
+/// The N3 abstract syntax tree: terms, graphs, rules, documents, and the builtin vocabulary constants.
 pub mod ast;
+/// The error and result types shared by parsing and reasoning.
 pub mod error;
+/// The N3/Turtle lexer.
 pub mod lexer;
+/// The N3 parser (plus Turtle, TriG, N-Quads and RDF Message Log inputs) producing `Document`s.
 pub mod parser;
+/// Serializing documents, triples and reasoner output back to N3/TriG text.
 pub mod printing;
-/// Writing an N3 proof document for what the reasoner derived.
-pub mod proof_writer;
 /// Checking a proof document: the reference implementation, and its N3 reader.
 pub mod proof_check;
 pub mod proof_check_n3;
+/// Writing an N3 proof document for what the reasoner derived.
+pub mod proof_writer;
 pub mod rdf_compat;
+/// Compatibility helpers for the RDF syntaxes the N3 reasoner consumes.
 pub mod reasoner;
 pub mod sudoku;
 
@@ -44,8 +54,8 @@ pub use printing::{
 };
 pub use proof_writer::proof_to_n3;
 pub use reasoner::{
-    reason as reason_document, CompletionStatus, FiredFuse, PreparedReasoner, ReasonerError,
-    ReasonerLimit, ReasonerOptions, ReasonerResult, ReasonerStatistics,
+    CompletionStatus, FiredFuse, PreparedReasoner, ReasonerError, ReasonerLimit, ReasonerOptions,
+    ReasonerResult, ReasonerStatistics, reason as reason_document,
 };
 
 /// Parse an N3 string, run the forward reasoner, and return the N3 output for
@@ -58,7 +68,10 @@ pub fn reason(input: &str) -> Result<String> {
     };
     // Only `.derived` is read below: skip the `.explicit`/`.explicit_sources`
     // clone of every fact in `doc` that this function has no use for.
-    let options = ReasonerOptions { include_explicit: false, ..ReasonerOptions::default() };
+    let options = ReasonerOptions {
+        include_explicit: false,
+        ..ReasonerOptions::default()
+    };
     let result = reason_document(&doc, &options);
     if let Some(summary) = result.incomplete_summary() {
         return Err(EyeronError::new(summary));
@@ -94,21 +107,16 @@ mod tests {
         )
         .unwrap();
         let prepared = PreparedReasoner::new(program);
-        let first = parse_n3(
-            "@prefix : <http://example.org/> . :first :input 1 .",
-            None,
-        )
-        .unwrap();
-        let second = parse_n3(
-            "@prefix : <http://example.org/> . :second :input 2 .",
-            None,
-        )
-        .unwrap();
+        let first = parse_n3("@prefix : <http://example.org/> . :first :input 1 .", None).unwrap();
+        let second =
+            parse_n3("@prefix : <http://example.org/> . :second :input 2 .", None).unwrap();
 
         let first_result = prepared.reason(&first, &ReasonerOptions::default());
         let second_result = prepared.reason(&second, &ReasonerOptions::default());
 
-        assert!(result_to_string(&first.prefixes, &first_result.derived).contains(":first :output 1"));
+        assert!(
+            result_to_string(&first.prefixes, &first_result.derived).contains(":first :output 1")
+        );
         let second_output = result_to_string(&second.prefixes, &second_result.derived);
         assert!(second_output.contains(":second :output 2"));
         assert!(!second_output.contains(":first"));

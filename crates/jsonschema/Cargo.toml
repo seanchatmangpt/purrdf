@@ -29,9 +29,6 @@ exclude = [
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 # rlib-only leaf: the JSON value model, the regex engine
 # the ECMA-262 `pattern` translation targets, and the workspace's one RFC 3986
@@ -91,3 +88,6 @@ harness = false
 name = "suite_draft7"
 path = "tests/suite_draft7.rs"
 harness = false
+
+[lints]
+workspace = true

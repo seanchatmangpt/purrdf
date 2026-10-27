@@ -17,9 +17,6 @@ categories = ["algorithms", "data-structures"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 crate-type = ["rlib"]
 path = "src/lib.rs"
@@ -119,3 +116,6 @@ harness = false
 # is pinned as WORK in `purrdf-validate`'s step ledger.
 name = "schema_scan"
 harness = false
+
+[lints]
+workspace = true

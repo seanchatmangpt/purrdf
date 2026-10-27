@@ -860,7 +860,7 @@ mod tests {
 
     #[test]
     fn swar_tag_filter_rejects_all_nonzero_tags_when_empty() {
-        let f = SwarTagFilter::<8>::new();
+        let mut f = SwarTagFilter::<8>::new();
         let mut next = xorshift();
         for _ in 0..5_000 {
             let tag = (next() & 0xFF) as u8;

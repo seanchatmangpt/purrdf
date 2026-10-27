@@ -32,7 +32,7 @@
 //! Report-only, per this repository's rule: benches exist so a later change has a
 //! number to move, never so a speedup can be asserted. Nothing here fails a build.
 
-use purrdf_testkit::bench::{Bench, BenchmarkId, bench_group, bench_main};
+use purrdf_testkit::bench::{Bench, BenchmarkId, Throughput, bench_group, bench_main, black_box};
 
 use purrdf_datalog::clause::{ClauseAtom, ClauseTerm, DlClause};
 use purrdf_datalog::seminaive::{Evaluation, compile, evaluate};
@@ -147,7 +147,7 @@ fn fanout(c: &mut Bench) {
     for width in [8_usize, 24, 48] {
         let store = fanout_store(width);
         group.bench_with_input(BenchmarkId::from_parameter(width), &width, |bch, _| {
-            bch.iter(|| run(fanout_rules(), store.clone()));
+            bch.iter(|| black_box(run(fanout_rules(), store.clone())));
         });
     }
     group.finish();
@@ -158,7 +158,7 @@ fn frame_width(c: &mut Bench) {
     for pairs in [2_usize, 6, 12] {
         let store = chain_store(pairs);
         group.bench_with_input(BenchmarkId::from_parameter(pairs), &pairs, |bch, _| {
-            bch.iter(|| run(frame_rules(pairs), store.clone()));
+            bch.iter(|| black_box(run(frame_rules(pairs), store.clone())));
         });
     }
     group.finish();
@@ -169,11 +169,50 @@ fn recursion(c: &mut Bench) {
     for n in [16_usize, 48, 96] {
         let store = chain_store(n);
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |bch, _| {
-            bch.iter(|| run(closure_rules(), store.clone()));
+            bch.iter(|| black_box(run(closure_rules(), store.clone())));
         });
     }
     group.finish();
 }
 
-bench_group!(benches, fanout, frame_width, recursion);
+/// Real-scale throughput. The three groups above pin one cost axis at toy N;
+/// this one asks the only question a rate number can: how many facts per second
+/// does `compile` + `evaluate` move when the seeded EDB is at the 10^5–10^6 mark
+/// the fixture builders reach by turning their `width`/`n` knob up. Rate rows set
+/// `Throughput::Elements`, so the harness reports elements-per-second directly.
+///
+/// Report-only, like everything in this file: a number to move, never a speedup
+/// to assert.
+fn facts_per_second(c: &mut Bench) {
+    let mut group = c.benchmark_group("seminaive_facts_per_second");
+
+    // derive_1m_facts — the recursive closure program over the dense fanout EDB
+    // at width 707: 707 * 707 = 499,849 `p` facts and the same `q` facts, so the
+    // seeded EDB holds 999,698 facts. `closure_rules` derives the 499,849-fact
+    // copy of `p` plus the 499,849-fact join through it — 999,698 derived facts
+    // at fixpoint, i.e. the ~1M row the name claims, from a ~10^6-fact EDB.
+    let width = 707_usize;
+    let derived = (width * width + width * width) as u64;
+    let store = fanout_store(width);
+    group.throughput(Throughput::Elements(derived));
+    group.bench_function("derive_1m_facts", |bch| {
+        bch.iter(|| black_box(run(closure_rules(), store.clone())))
+    });
+
+    // join_steps_per_sec — the single-pass binary join (`fanout_rules` is not
+    // recursive, so evaluation is one delta pass) over the same generator at
+    // three widths. Each solution the join materializes is one join step, so
+    // `Throughput::Elements(width * width)` is steps per second.
+    for width in [112_usize, 224, 448] {
+        let solutions = (width * width) as u64;
+        let store = fanout_store(width);
+        group.throughput(Throughput::Elements(solutions));
+        group.bench_with_input(BenchmarkId::from_parameter(width), &width, |bch, _| {
+            bch.iter(|| black_box(run(fanout_rules(), store.clone())))
+        });
+    }
+    group.finish();
+}
+
+bench_group!(benches, fanout, frame_width, recursion, facts_per_second);
 bench_main!(benches);

@@ -159,7 +159,7 @@ pub mod refusal_arm {
         })
     }
 
-        /// REFUSAL-01 arm (SQLRDF-27 dialect gap #1, appended append-only): a
+    /// REFUSAL-01 arm (SQLRDF-27 dialect gap #1, appended append-only): a
     /// `sql:SetOperationStatement` node carries no `sql:setRight` — the
     /// rendered SQL would be `( SELECT … ) UNION ` with an empty right
     /// operand. A set operation is binary by construction. Recovery: attach
@@ -376,11 +376,6 @@ impl AstError {
     #[inline]
     pub(super) fn with_num(mut self, num: usize) -> Self {
         self.ctx.num = num as u32;
-        self
-    }
-    #[inline]
-    pub(super) fn with_aux_num(mut self, aux_num: usize) -> Self {
-        self.ctx.aux_num = aux_num as u32;
         self
     }
     #[inline]

@@ -13,9 +13,6 @@ rust-version.workspace = true
 keywords = ["arrow", "ipc", "columnar", "rdf", "egress"]
 categories = ["data-structures", "encoding"]
 
-[lints]
-workspace = true
-
 [lib]
 crate-type = ["rlib"]
 path = "src/lib.rs"
@@ -25,3 +22,14 @@ purrdf-hash = { workspace = true }
 
 [dev-dependencies]
 purrdf-testkit = { workspace = true }
+
+[[bench]]
+# End-to-end egress frame cost of the CanonArrow wire format over a seeded
+# 100k-row batch: payload digest + 128-byte header wire form + frame assembly
+# on encode, header parse + payload digest verification on decode, bytes per
+# second over the full frame. Report-only; no GB/s winner is asserted in-tree.
+name = "ipc_egress"
+harness = false
+
+[lints]
+workspace = true

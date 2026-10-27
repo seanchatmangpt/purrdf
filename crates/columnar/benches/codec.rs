@@ -5,7 +5,8 @@
 // not asked of their items.
 #![allow(missing_docs)]
 
-//! Report-only end-to-end measurements for the five-table columnar codec.
+//! Report-only end-to-end measurements for the five-table columnar codec,
+//! at the 1k-quad and the 100k-quad scale.
 
 use std::sync::Arc;
 
@@ -17,11 +18,21 @@ use purrdf_testkit::rng::splitmix64_next as mix;
 
 const ROWS: u32 = 500;
 
-fn fixture() -> (Arc<RdfDataset>, ContentStore) {
+/// Quads per fixture row: a subject-side quad in the default graph and a
+/// blank-node quad in the named graph, so the fixed five-table schema sees
+/// both shapes at every scale.
+const QUADS_PER_ROW: u64 = 2;
+
+/// Rows in the 100k-quad fixture: memory-bounded at 100k quads, not the
+/// 1M-100M egress scales; the step from 1k shows how the codec's cost moves
+/// with scale.
+const ROWS_100K: u32 = 50_000;
+
+fn fixture(rows: u32) -> (Arc<RdfDataset>, ContentStore) {
     let mut builder = RdfDatasetBuilder::new();
     let predicate = builder.intern_iri("https://example.org/p").unwrap();
     let graph = builder.intern_iri("https://example.org/g").unwrap();
-    for row in 0..ROWS {
+    for row in 0..rows {
         let subject = builder
             .intern_iri(&format!("https://example.org/s{row}"))
             .unwrap();
@@ -50,10 +61,21 @@ fn fixture() -> (Arc<RdfDataset>, ContentStore) {
 }
 
 fn bench_codec(c: &mut Bench) {
-    let (dataset, blobs) = fixture();
+    bench_codec_at(c, ROWS);
+}
+
+/// The same write/read rows at the 100k-quad scale.
+fn bench_codec_100k(c: &mut Bench) {
+    bench_codec_at(c, ROWS_100K);
+}
+
+fn bench_codec_at(c: &mut Bench, rows: u32) {
+    let (dataset, blobs) = fixture(rows);
+    let quads = u64::from(rows) * QUADS_PER_ROW;
     let encoded = write(&*dataset, &blobs, Compression::Zstd)
         .expect("benchmark fixture encodes as ZSTD Parquet");
-    let mut group = c.benchmark_group("columnar_codec_1000_quads");
+    let mut group = c.benchmark_group(format!("columnar_codec_{quads}_quads"));
+    group.throughput(Throughput::Elements(quads));
     group.bench_function("write_uncompressed", |bencher| {
         bencher.iter(|| {
             std::hint::black_box(
@@ -125,5 +147,5 @@ fn bench_plain_int64(c: &mut Bench) {
     group.finish();
 }
 
-bench_group!(benches, bench_codec, bench_plain_int64);
+bench_group!(benches, bench_codec, bench_codec_100k, bench_plain_int64);
 bench_main!(benches);

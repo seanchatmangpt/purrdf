@@ -20,18 +20,24 @@
 //! same value.
 
 use crate::ast::{Graph, Literal, Name, Term, Triple};
-use purrdf_rdf::{RdfLiteral, RdfTerm, RdfTriple, RdfTextDirection};
+use purrdf_rdf::{RdfLiteral, RdfTerm, RdfTriple};
 
 /// RDF syntax families accepted by the RDF compatibility layer (parser-facing).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RdfFormat {
+    /// Turtle — Terse RDF Triple Language.
     Turtle,
+    /// N-Triples — line-based RDF.
     NTriples,
+    /// N-Quads — line-based RDF datasets.
     NQuads,
+    /// TriG — Turtle with named graphs.
     Trig,
 }
 
 impl RdfFormat {
+    /// Parses a human-facing format name or file extension (e.g. `"ttl"`,
+    /// `"n-quads"`), returning [`None`] for unknown names.
     pub fn parse(value: &str) -> Option<Self> {
         match value.to_ascii_lowercase().as_str() {
             "turtle" | "ttl" => Some(Self::Turtle),
@@ -92,10 +98,7 @@ impl core::fmt::Display for ConversionError {
                 f,
                 "RDF 1.2 triple term has no dedicated N3 term variant; refusing rather than flattening into a formula"
             ),
-            Self::Variable(name) => write!(
-                f,
-                "N3 variable ?{name} has no RDF term equivalent"
-            ),
+            Self::Variable(name) => write!(f, "N3 variable ?{name} has no RDF term equivalent"),
             Self::LiteralPredicate => write!(
                 f,
                 "N3 triple predicate is a literal; an RDF triple predicate must be an IRI"
@@ -104,14 +107,8 @@ impl core::fmt::Display for ConversionError {
                 f,
                 "N3 triple predicate is a blank node; an RDF triple predicate must be an IRI"
             ),
-            Self::List(len) => write!(
-                f,
-                "N3 list of {len} items has no RDF term equivalent"
-            ),
-            Self::Formula => write!(
-                f,
-                "N3 formula has no RDF term equivalent"
-            ),
+            Self::List(len) => write!(f, "N3 list of {len} items has no RDF term equivalent"),
+            Self::Formula => write!(f, "N3 formula has no RDF term equivalent"),
         }
     }
 }
@@ -224,9 +221,10 @@ pub fn literal_to_rdf_literal(literal: &Literal) -> RdfLiteral {
     RdfLiteral {
         lexical_form: literal.value.to_string(),
         datatype: literal.datatype.as_ref().map(Name::to_string),
-        language: literal.language.as_ref().map(|tag| {
-            purrdf_iri::langtag::identity_fold(tag.as_str())
-        }),
+        language: literal
+            .language
+            .as_ref()
+            .map(|tag| purrdf_iri::langtag::identity_fold(tag.as_str())),
         direction: None,
     }
 }
@@ -249,24 +247,26 @@ pub fn rdf_literal_to_literal(literal: &RdfLiteral) -> Result<Literal, Conversio
             language: literal
                 .language
                 .as_deref()
-                .map_or_else(String::new, |tag| {
-                    purrdf_iri::langtag::identity_fold(tag)
-                }),
+                .map_or_else(String::new, |tag| purrdf_iri::langtag::identity_fold(tag)),
             direction: direction.as_str().to_string(),
         });
     }
     Ok(Literal {
         value: Name::from(literal.lexical_form.as_str()),
         datatype: literal.datatype.as_deref().map(Name::from),
-        language: literal.language.as_deref().map(|tag| {
-            Name::from(purrdf_iri::langtag::identity_fold(tag).as_str())
-        }),
+        language: literal
+            .language
+            .as_deref()
+            .map(|tag| Name::from(purrdf_iri::langtag::identity_fold(tag).as_str())),
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    // Minimal unblock (OPT-42 wave B, compile-freeze SLA): purrdf-rdf's
+    // re-export moved; restore the name the tests reference.
+    use purrdf_rdf::RdfTextDirection;
 
     fn lit(value: &str) -> Literal {
         Literal {
@@ -305,7 +305,10 @@ mod tests {
             rdf_lit.datatype.as_deref(),
             Some("http://www.w3.org/2001/XMLSchema#integer")
         );
-        assert_eq!(rdf_term_to_term(&up).expect("reverse"), Term::Literal(typed));
+        assert_eq!(
+            rdf_term_to_term(&up).expect("reverse"),
+            Term::Literal(typed)
+        );
 
         // Language tags fold to the BCP-47 value space (ASCII lowercase).
         let tagged = Literal {

@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
 use purrdf_sql::{
-    compile_turtle, refusal_arm, AggregateFunction, AstError, Operator, RefusalCode,
-    SelectItem, SelectStatement, SqlExpr, SqlLiteral, TableRef,
+    AggregateFunction, AstError, Operator, RefusalCode, SelectItem, SelectStatement, SqlExpr,
+    SqlLiteral, TableRef, compile_turtle, refusal_arm,
 };
 
 #[test]
@@ -94,7 +94,9 @@ fn test_mandatory_candidate_envelope_pushdown() {
         limit: Some(100),
         ..stmt_unbounded
     };
-    let err = stmt_excessive.compile().expect_err("limit > 64 must be refused");
+    let err = stmt_excessive
+        .compile()
+        .expect_err("limit > 64 must be refused");
     assert_eq!(err.code, RefusalCode::MalformedAst);
     assert_eq!(err.ctx.shape_id, refusal_arm::LIMIT_EXCEEDS_ENVELOPE);
 }
@@ -142,7 +144,11 @@ fn test_compile_turtle_select() {
     "#;
 
     let compiled = compile_turtle(ttl).expect("compile turtle");
-    assert!(compiled.sql.starts_with("SELECT batch_id FROM telemetry_events"));
+    assert!(
+        compiled
+            .sql
+            .starts_with("SELECT batch_id FROM telemetry_events")
+    );
     assert!(compiled.sql.contains("WHERE (latency_ms > $1)"));
     assert!(compiled.sql.contains("LIMIT 64"));
     assert_eq!(compiled.params, vec![SqlLiteral::Integer(400)]);

@@ -17,9 +17,6 @@ categories = ["compression", "encoding", "wasm"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 # rlib-only. Its one runtime dependency is purrdf-hash (the CRC-32 of the gzip
 # trailer), itself zero-dependency. No threads, no filesystem, no clock and no
@@ -48,3 +45,6 @@ harness = false
 [[test]]
 name = "deflate_conformance"
 harness = false
+
+[lints]
+workspace = true

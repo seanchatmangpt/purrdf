@@ -33,7 +33,7 @@
 
 use std::sync::Arc;
 
-use purrdf_testkit::bench::{Bench, BenchmarkId, bench_group, bench_main};
+use purrdf_testkit::bench::{Bench, BenchmarkId, bench_group, bench_main, black_box};
 
 use purrdf_core::{BlankScope, RdfDataset, RdfDatasetBuilder, TermId};
 use purrdf_entail::reasoner::Reasoner;
@@ -138,7 +138,10 @@ fn terminology(classes: usize) -> Arc<RdfDataset> {
 
 fn bench_classify(c: &mut Bench) {
     let mut group = c.benchmark_group("owl_direct_classify");
-    for classes in [32usize, 128, 512] {
+    // The 10_000 row is a scale probe, not a regression point: classification cost
+    // is superlinear in the SIGNATURE, so this row shows where the classifying
+    // saturation stops being interactive as an ontology grows classes. Report-only.
+    for classes in [32usize, 128, 512, 10_000] {
         let dataset = terminology(classes);
         let reasoner = Reasoner::new(&dataset).expect("reverse-map the terminology");
         let signature = reasoner.signature().len();
@@ -146,7 +149,7 @@ fn bench_classify(c: &mut Bench) {
             BenchmarkId::from_parameter(signature),
             &reasoner,
             |bencher, reasoner| {
-                bencher.iter(|| reasoner.classify().expect("consistent"));
+                bencher.iter(|| black_box(reasoner.classify().expect("consistent")));
             },
         );
     }

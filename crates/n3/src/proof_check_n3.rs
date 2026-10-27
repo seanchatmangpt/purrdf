@@ -14,7 +14,9 @@ use crate::ast::{Term, Triple};
 use crate::error::{EyeronError, Result};
 use crate::reasoner::Bindings;
 
-use crate::proof_check::{check, Checked, Document as ProofDocument, Kind, Report, Resolution, StepCheck};
+use crate::proof_check::{
+    Checked, Document as ProofDocument, Kind, Report, Resolution, StepCheck, check,
+};
 
 const PE: &str = "https://eyereasoner.github.io/pe#";
 const MAX_PROOF_MATCHES: usize = 200_000;
@@ -52,7 +54,9 @@ const LOG_CONJUNCTION: &str = "http://www.w3.org/2000/10/swap/log#conjunction";
 /// can still contradict (C6). `None` for any other built-in, or a quoted
 /// scope, which makes the test a function of its arguments (C5).
 fn current_graph_test(triple: &Triple) -> Option<&'static str> {
-    let Term::Iri(name) = &triple.p else { return None };
+    let Term::Iri(name) = &triple.p else {
+        return None;
+    };
     // Anything but a quoted graph — a variable, a blank, a scope level such
     // as `1` — names the current graph.
     let open = |scope: &Term| !matches!(scope, Term::Formula(_));
@@ -60,7 +64,11 @@ fn current_graph_test(triple: &Triple) -> Option<&'static str> {
         LOG_INCLUDES if open(&triple.s) => Some("current graph"),
         // An unbound subject is bound to a stand-in graph once the current
         // graph has been tested, so the stand-in marks that test.
-        LOG_NOT_INCLUDES if open(&triple.s) || crate::reasoner::is_not_includes_witness(&triple.s) => Some("absent"),
+        LOG_NOT_INCLUDES
+            if open(&triple.s) || crate::reasoner::is_not_includes_witness(&triple.s) =>
+        {
+            Some("absent")
+        }
         LOG_COLLECT_ALL_IN | LOG_FOR_ALL_IN if open(&triple.o) => Some("collected"),
         _ => None,
     }
@@ -69,10 +77,16 @@ fn current_graph_test(triple: &Triple) -> Option<&'static str> {
 /// Negative tests, collections, and universal tests execute clauses, so an
 /// external read nested there remains an obligation.
 fn reads_outside_proof(triple: &Triple) -> bool {
-    let Term::Iri(name) = &triple.p else { return false };
-    if IMPURE_BUILTINS.contains(&name.as_str()) { return true; }
+    let Term::Iri(name) = &triple.p else {
+        return false;
+    };
+    if IMPURE_BUILTINS.contains(&name.as_str()) {
+        return true;
+    }
     if name.as_str() == LOG_NOT_INCLUDES {
-        if let Term::Formula(graph) = &triple.o { return graph.iter().any(reads_outside_proof); }
+        if let Term::Formula(graph) = &triple.o {
+            return graph.iter().any(reads_outside_proof);
+        }
     }
     if matches!(name.as_str(), LOG_COLLECT_ALL_IN | LOG_FOR_ALL_IN) {
         if let Term::List(parts) = &triple.s {
@@ -118,6 +132,7 @@ struct Step {
     uses: Vec<Triple>,
 }
 
+/// A proof document read from N3 text, as the checker's [`Document`] view.
 pub struct N3Proof {
     rules: Vec<crate::ast::Rule>,
     given: BTreeSet<Triple>,
@@ -148,6 +163,20 @@ pub struct N3Proof {
     general_steps: Vec<usize>,
 }
 
+// DIVERGENCE from bcinr: manual `Debug` because [`crate::ast::Term`] does not
+// yet implement `Debug`; the summary prints the counts a debugger needs
+// without dragging the whole term table into `Debug`.
+impl std::fmt::Debug for N3Proof {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("N3Proof")
+            .field("rules", &self.rules.len())
+            .field("given", &self.given.len())
+            .field("steps", &self.steps.len())
+            .field("claims", &self.claims.len())
+            .finish_non_exhaustive()
+    }
+}
+
 /// A firing is identified by its rule and complete recorded assignment,
 /// including existential patterns in its premises.
 type Firing = (String, Vec<(crate::ast::Name, Term)>);
@@ -175,34 +204,66 @@ struct WitnessUndo {
 
 impl WitnessRegistry {
     fn undo(&mut self, undo: WitnessUndo) {
-        for name in undo.introduced { self.introduced.remove(&name); }
-        for owner in undo.assigned { self.assigned.remove(&owner); }
+        for name in undo.introduced {
+            self.introduced.remove(&name);
+        }
+        for owner in undo.assigned {
+            self.assigned.remove(&owner);
+        }
     }
 
-    fn register(&mut self, application: &Application, source_blanks: &BTreeSet<crate::ast::Name>) -> std::result::Result<WitnessUndo, String> {
+    fn register(
+        &mut self,
+        application: &Application,
+        source_blanks: &BTreeSet<crate::ast::Name>,
+    ) -> std::result::Result<WitnessUndo, String> {
         let mut undo = WitnessUndo::default();
         let result = (|| {
             for (label, value) in &application.witnesses {
-                if application.firing.1.iter().any(|(_, value)| has_free_universal(value)) {
-                    return Err(format!("introduces existential _:{} with an unbound universal assignment; a dependent witness needs concrete values", label));
+                if application
+                    .firing
+                    .1
+                    .iter()
+                    .any(|(_, value)| has_free_universal(value))
+                {
+                    return Err(format!(
+                        "introduces existential _:{} with an unbound universal assignment; a dependent witness needs concrete values",
+                        label
+                    ));
                 }
                 let Term::Blank(witness) = value else {
-                    return Err(format!("instantiates existential _:{} with {}, which is not a fresh blank node",
-                        label, crate::printing::term_to_n3_object(value, &BTreeMap::new())));
+                    return Err(format!(
+                        "instantiates existential _:{} with {}, which is not a fresh blank node",
+                        label,
+                        crate::printing::term_to_n3_object(value, &BTreeMap::new())
+                    ));
                 };
                 if source_blanks.contains(witness) || application.occupied.contains(witness) {
-                    return Err(format!("instantiates existential _:{} with _:{}, which is not fresh", label, witness));
+                    return Err(format!(
+                        "instantiates existential _:{} with _:{}, which is not fresh",
+                        label, witness
+                    ));
                 }
                 let owner = (application.firing.clone(), label.clone());
                 if let Some(other) = self.introduced.get(witness) {
                     if *other != owner {
-                        let detail = if other.0 != application.firing { "another firing already introduced" } else { "another existential already uses" };
-                        return Err(format!("instantiates existential _:{} with _:{}, which {}", label, witness, detail));
+                        let detail = if other.0 != application.firing {
+                            "another firing already introduced"
+                        } else {
+                            "another existential already uses"
+                        };
+                        return Err(format!(
+                            "instantiates existential _:{} with _:{}, which {}",
+                            label, witness, detail
+                        ));
                     }
                 }
                 if let Some(other) = self.assigned.get(&owner) {
                     if other != witness {
-                        return Err(format!("instantiates existential _:{} with a different witness (_:{} instead of _:{}) in the same firing", label, witness, other));
+                        return Err(format!(
+                            "instantiates existential _:{} with a different witness (_:{} instead of _:{}) in the same firing",
+                            label, witness, other
+                        ));
                     }
                 }
                 if !self.introduced.contains_key(witness) {
@@ -218,7 +279,10 @@ impl WitnessRegistry {
         })();
         match result {
             Ok(()) => Ok(undo),
-            Err(detail) => { self.undo(undo); Err(detail) }
+            Err(detail) => {
+                self.undo(undo);
+                Err(detail)
+            }
         }
     }
 }
@@ -238,29 +302,61 @@ pub fn check_proof_document(source: &crate::ast::Document, proof: &str) -> Resul
 }
 
 impl N3Proof {
+    /// Read `proof` (N3 text) against the already-parsed source `document`.
     pub fn read_document(document: &crate::ast::Document, proof: &str) -> Result<Self> {
         // `reason` numbers the rules it was given, having dropped the query
         // rules; a checker must number them the same way (§5.1).
-        let rules: Vec<crate::ast::Rule> = document.rules.iter().filter(|rule| !rule.is_query).cloned().collect();
+        let rules: Vec<crate::ast::Rule> = document
+            .rules
+            .iter()
+            .filter(|rule| !rule.is_query)
+            .cloned()
+            .collect();
         // N3 treats a rule as data, so a rule written in the document is
         // itself a statement the document gives. That includes the query
         // rules left out of the numbering above, as `log:query` statements.
         // A step recording a query answer carries its rule as an
         // implication instead, which is kept apart in `query_rules`.
         let mut given: BTreeSet<Triple> = document.facts.iter().cloned().collect();
-        let rule_statements: Vec<Triple> = document.rules.iter().map(written_rule_statement).collect();
+        let rule_statements: Vec<Triple> =
+            document.rules.iter().map(written_rule_statement).collect();
         given.extend(rule_statements.iter().cloned());
-        let query_rules: Vec<Triple> = document.rules.iter().filter(|rule| rule.is_query).map(crate::proof_writer::rule_statement).collect();
+        let query_rules: Vec<Triple> = document
+            .rules
+            .iter()
+            .filter(|rule| rule.is_query)
+            .map(crate::proof_writer::rule_statement)
+            .collect();
         let mut source_blanks = document.existentials.clone();
         source_blanks.extend(triple_blank_labels(&document.facts));
         for rule in &document.rules {
-            for free in rule.premise.free_variables().into_iter().chain(rule.conclusion.free_variables()) {
+            for free in rule
+                .premise
+                .free_variables()
+                .into_iter()
+                .chain(rule.conclusion.free_variables())
+            {
                 blank_labels(&free, &mut source_blanks);
             }
         }
-        let query_patterns = document.rules.iter().filter(|rule| rule.is_query).flat_map(|rule| rule.conclusion.triples.clone()).collect();
-        let fuses = document.rules.iter().filter(|rule| rule.is_fuse).map(|rule| rule.premise.clone()).collect();
-        let general: Vec<Triple> = document.facts.iter().filter(|fact| !fact.is_ground()).cloned().collect();
+        let query_patterns = document
+            .rules
+            .iter()
+            .filter(|rule| rule.is_query)
+            .flat_map(|rule| rule.conclusion.triples.clone())
+            .collect();
+        let fuses = document
+            .rules
+            .iter()
+            .filter(|rule| rule.is_fuse)
+            .map(|rule| rule.premise.clone())
+            .collect();
+        let general: Vec<Triple> = document
+            .facts
+            .iter()
+            .filter(|fact| !fact.is_ground())
+            .cloned()
+            .collect();
 
         let parsed = crate::parser::parse_n3(proof, None)?;
         // A step is a formula subject carrying the `pe:` vocabulary; what
@@ -278,10 +374,29 @@ impl N3Proof {
         for (position, step) in steps.iter().enumerate() {
             index.entry(step.conclusion.clone()).or_insert(position);
         }
-        let general_steps = (0..steps.len()).filter(|&position| !steps[position].conclusion.is_ground()).collect();
+        let general_steps = (0..steps.len())
+            .filter(|&position| !steps[position].conclusion.is_ground())
+            .collect();
         Ok(Self {
-            rules, given, rule_statements, general, query_rules, queries: document.rules.iter().filter(|rule| rule.is_query).cloned().collect(), query_patterns, source_blanks,
-            facts: document.facts.clone(), fuses, steps, claims, index, general_steps,
+            rules,
+            given,
+            rule_statements,
+            general,
+            query_rules,
+            queries: document
+                .rules
+                .iter()
+                .filter(|rule| rule.is_query)
+                .cloned()
+                .collect(),
+            query_patterns,
+            source_blanks,
+            facts: document.facts.clone(),
+            fuses,
+            steps,
+            claims,
+            index,
+            general_steps,
         })
     }
 
@@ -294,14 +409,21 @@ impl N3Proof {
         // Closed graph terms keep their identity under consistent local
         // quantifier renaming, including between separately printed steps.
         if statement.is_ground() {
-            if let Some(position) = self.steps.iter().position(|step| ground_statements_equal(&step.conclusion, statement)) {
+            if let Some(position) = self
+                .steps
+                .iter()
+                .position(|step| ground_statements_equal(&step.conclusion, statement))
+            {
                 return Resolution::Step(position);
             }
         }
         // An instance of a step that concludes a general statement is that
         // step's, so the step is what it depends on (C2, C7).
-        if let Some(&position) = self.general_steps.iter()
-            .find(|&&position| match_assertion(&self.steps[position].conclusion, statement)) {
+        if let Some(&position) = self
+            .general_steps
+            .iter()
+            .find(|&&position| match_assertion(&self.steps[position].conclusion, statement))
+        {
             return Resolution::Step(position);
         }
         if self.given.contains(statement) || self.gives_rule(statement) {
@@ -316,13 +438,25 @@ impl N3Proof {
     /// same rule under consistent renaming, so this matches instead of
     /// comparing.
     fn resolve_rule(&self, statement: &Triple) -> Resolution {
-        if self.given.iter().any(|candidate| matches_rule(candidate, statement)) {
+        if self
+            .given
+            .iter()
+            .any(|candidate| matches_rule(candidate, statement))
+        {
             return Resolution::Given;
         }
-        if let Some(index) = self.steps.iter().position(|step| matches_rule(&step.conclusion, statement)) {
+        if let Some(index) = self
+            .steps
+            .iter()
+            .position(|step| matches_rule(&step.conclusion, statement))
+        {
             return Resolution::Step(index);
         }
-        if self.query_rules.iter().any(|candidate| matches_rule(candidate, statement)) {
+        if self
+            .query_rules
+            .iter()
+            .any(|candidate| matches_rule(candidate, statement))
+        {
             return Resolution::Given;
         }
         Resolution::Unresolved(format!("carried rule {}", describe(statement)))
@@ -331,21 +465,37 @@ impl N3Proof {
     /// Does this step answer a query, carrying a query rule and no rule
     /// that may feed further inference?
     fn answers_query(&self, step: &Step) -> bool {
-        let Some((_, _, statement)) = &step.carried else { return false };
-        self.query_rules.iter().any(|candidate| matches_rule(candidate, statement))
-            && !self.given.iter().chain(self.steps.iter().map(|step| &step.conclusion)).any(|candidate| matches_rule(candidate, statement))
+        let Some((_, _, statement)) = &step.carried else {
+            return false;
+        };
+        self.query_rules
+            .iter()
+            .any(|candidate| matches_rule(candidate, statement))
+            && !self
+                .given
+                .iter()
+                .chain(self.steps.iter().map(|step| &step.conclusion))
+                .any(|candidate| matches_rule(candidate, statement))
     }
 
     fn query_application(&self, step: &Step) -> bool {
-        step.carried.as_ref().is_some_and(|(_, _, statement)|
-            self.query_rules.iter().any(|candidate| matches_rule(candidate, statement)))
+        step.carried.as_ref().is_some_and(|(_, _, statement)| {
+            self.query_rules
+                .iter()
+                .any(|candidate| matches_rule(candidate, statement))
+        })
     }
 
     fn resolve_premise(&self, statement: &Triple, user: usize) -> Resolution {
         match self.resolve(statement) {
-            Resolution::Step(target) if target == user || self.answers_query(&self.steps[target]) => {
-                if self.given.contains(statement) || self.gives_rule(statement) { Resolution::Given }
-                else { Resolution::Step(target) }
+            Resolution::Step(target)
+                if target == user || self.answers_query(&self.steps[target]) =>
+            {
+                if self.given.contains(statement) || self.gives_rule(statement) {
+                    Resolution::Given
+                } else {
+                    Resolution::Step(target)
+                }
             }
             resolution => resolution,
         }
@@ -355,18 +505,25 @@ impl N3Proof {
     /// step. Check one complete selection using assertions already proved;
     /// never run rules or invent an unrecorded trust obligation.
     fn query_selection(&self, claim: &Triple) -> std::result::Result<Vec<Resolution>, String> {
-        if matches!(self.resolve(claim), Resolution::Step(target) if self.query_application(&self.steps[target])) {
+        if matches!(self.resolve(claim), Resolution::Step(target) if self.query_application(&self.steps[target]))
+        {
             return Ok(Vec::new());
         }
         let mut remaining = MAX_PROOF_MATCHES;
         for query in &self.queries {
             // Existential output is an introduction, not selection. It
             // needs an explicit rule step so C8 can check its witnesses.
-            if !query.conclusion.existentials.is_empty() { continue; }
+            if !query.conclusion.existentials.is_empty() {
+                continue;
+            }
             for head in &query.conclusion {
                 let mut bindings = Bindings::new();
-                if !match_triple(head, claim, &mut bindings) { continue; }
-                if let Some(dependencies) = self.match_conditions(&query.premise, bindings, &mut remaining)? {
+                if !match_triple(head, claim, &mut bindings) {
+                    continue;
+                }
+                if let Some(dependencies) =
+                    self.match_conditions(&query.premise, bindings, &mut remaining)?
+                {
                     return Ok(dependencies);
                 }
             }
@@ -376,19 +533,41 @@ impl N3Proof {
 
     /// Join recorded assertions and replay pure built-ins, without deriving
     /// new facts or assuming missing current-graph/external observations.
-    fn match_conditions(&self, premises: &[Triple], bindings: Bindings, remaining: &mut usize) -> std::result::Result<Option<Vec<Resolution>>, String> {
+    fn match_conditions(
+        &self,
+        premises: &[Triple],
+        bindings: Bindings,
+        remaining: &mut usize,
+    ) -> std::result::Result<Option<Vec<Resolution>>, String> {
         let mut supports = None;
         let mut pending = vec![(0usize, bindings, Vec::new())];
         while let Some((position, bindings, dependencies)) = pending.pop() {
-            if position == premises.len() { return Ok(Some(dependencies)); }
+            if position == premises.len() {
+                return Ok(Some(dependencies));
+            }
             let premise = &premises[position];
-            let mapping = bindings.iter().map(|(name, value)| (Term::var(name.clone()), value.clone())).collect();
-            let instance = Triple::new(replace_terms(&premise.s, &mapping), replace_terms(&premise.p, &mapping), replace_terms(&premise.o, &mapping));
+            let mapping = bindings
+                .iter()
+                .map(|(name, value)| (Term::var(name.clone()), value.clone()))
+                .collect();
+            let instance = Triple::new(
+                replace_terms(&premise.s, &mapping),
+                replace_terms(&premise.p, &mapping),
+                replace_terms(&premise.o, &mapping),
+            );
             if instance.is_ground() {
                 let resolved = match self.resolve(&instance) {
-                    Resolution::Step(target) if !self.answers_query(&self.steps[target]) => Some(Resolution::Step(target)),
-                    _ if self.given.contains(&instance) || (self.gives_rule(&instance)
-                        && self.source_instance(&instance).is_none_or(|application| application.witnesses.is_empty())) => Some(Resolution::Given),
+                    Resolution::Step(target) if !self.answers_query(&self.steps[target]) => {
+                        Some(Resolution::Step(target))
+                    }
+                    _ if self.given.contains(&instance)
+                        || (self.gives_rule(&instance)
+                            && self
+                                .source_instance(&instance)
+                                .is_none_or(|application| application.witnesses.is_empty())) =>
+                    {
+                        Some(Resolution::Given)
+                    }
                     _ => None,
                 };
                 if let Some(resolved) = resolved {
@@ -400,23 +579,52 @@ impl N3Proof {
             }
             if !reads_outside_proof(&instance) && current_graph_test(&instance).is_none() {
                 for solution in crate::reasoner::Evidence::new(Vec::new()).evaluate(&instance) {
-                    if *remaining == 0 { return Err("evidence matching exceeded its match budget".into()); }
+                    if *remaining == 0 {
+                        return Err("evidence matching exceeded its match budget".into());
+                    }
                     *remaining -= 1;
                     let mut trial = bindings.clone();
                     trial.extend(solution);
-                    let mapping = trial.iter().map(|(name, value)| (Term::var(name.clone()), value.clone())).collect();
-                    let conclusion = Triple::new(replace_terms(&premise.s, &mapping), replace_terms(&premise.p, &mapping), replace_terms(&premise.o, &mapping));
-                    let probe = Step { builtin: Some(conclusion.p.clone()), conclusion, kind: Kind::Builtin, rule: None, carried: None, bindings: Vec::new(), uses: Vec::new() };
+                    let mapping = trial
+                        .iter()
+                        .map(|(name, value)| (Term::var(name.clone()), value.clone()))
+                        .collect();
+                    let conclusion = Triple::new(
+                        replace_terms(&premise.s, &mapping),
+                        replace_terms(&premise.p, &mapping),
+                        replace_terms(&premise.o, &mapping),
+                    );
+                    let probe = Step {
+                        builtin: Some(conclusion.p.clone()),
+                        conclusion,
+                        kind: Kind::Builtin,
+                        rule: None,
+                        carried: None,
+                        bindings: Vec::new(),
+                        uses: Vec::new(),
+                    };
                     if matches!(self.check_builtin(&probe), Ok(Checked::Verified)) {
                         pending.push((position + 1, trial, dependencies.clone()));
                     }
                 }
             }
-            let supports = supports.get_or_insert_with(|| self.given.iter().map(|triple| (triple, None))
-                .chain(self.steps.iter().enumerate().filter(|(_, step)| !self.answers_query(step))
-                    .map(|(index, step)| (&step.conclusion, Some(index)))).collect::<Vec<_>>());
+            let supports = supports.get_or_insert_with(|| {
+                self.given
+                    .iter()
+                    .map(|triple| (triple, None))
+                    .chain(
+                        self.steps
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, step)| !self.answers_query(step))
+                            .map(|(index, step)| (&step.conclusion, Some(index))),
+                    )
+                    .collect::<Vec<_>>()
+            });
             for (support, target) in supports.iter() {
-                if *remaining == 0 { return Err("evidence matching exceeded its match budget".into()); }
+                if *remaining == 0 {
+                    return Err("evidence matching exceeded its match budget".into());
+                }
                 *remaining -= 1;
                 let mut trial = bindings.clone();
                 if match_triple(premise, support, &mut trial) {
@@ -433,31 +641,73 @@ impl N3Proof {
         let (premise, conclusion, names) = match &step.carried {
             Some((premise, conclusion, _)) => (premise, conclusion, None),
             None => {
-                let Some(rule) = step.rule.and_then(|number| self.rules.get(number.wrapping_sub(1))) else { return Ok(Bindings::new()); };
-                (&rule.premise, &rule.conclusion, Some(&rule.proof_var_source_names))
+                let Some(rule) = step
+                    .rule
+                    .and_then(|number| self.rules.get(number.wrapping_sub(1)))
+                else {
+                    return Ok(Bindings::new());
+                };
+                (
+                    &rule.premise,
+                    &rule.conclusion,
+                    Some(&rule.proof_var_source_names),
+                )
             }
         };
-        let variables: BTreeSet<_> = premise.free_variables().into_iter().chain(conclusion.free_variables())
-            .filter_map(|term| if let Term::Var(name) = term { Some(name) } else { None }).collect();
+        let variables: BTreeSet<_> = premise
+            .free_variables()
+            .into_iter()
+            .chain(conclusion.free_variables())
+            .filter_map(|term| {
+                if let Term::Var(name) = term {
+                    Some(name)
+                } else {
+                    None
+                }
+            })
+            .collect();
         let mut bindings = Bindings::new();
         for (name, value) in &step.bindings {
-            let mapped = names.and_then(|names| names.iter().find(|(_, source)| *source == name)).map(|(internal, _)| internal.as_str());
-            let internal = if let Some(mapped) = mapped { mapped }
-                else if variables.contains(name.as_str()) { name.as_str() }
-                else {
-                    // Carried backward rules record standardized variable
-                    // names in their formula and source names in bindings.
-                    // Accept a short name only when it identifies exactly
-                    // one variable that the carried rule actually declares.
-                    let mut aliases = variables.iter().filter(|internal| internal.starts_with("__backward_")
-                        && internal.rsplit_once("__").is_some_and(|(_, suffix)| suffix == name));
-                    let alias = aliases.next().ok_or_else(|| format!("binding {} is not a variable of the cited rule", name))?;
-                    if aliases.next().is_some() { return Err(format!("binding {} names more than one variable of the carried rule", name)); }
-                    alias.as_str()
-                };
-            if !variables.contains(internal) { return Err(format!("binding {} is not a variable of the cited rule", name)); }
+            let mapped = names
+                .and_then(|names| names.iter().find(|(_, source)| *source == name))
+                .map(|(internal, _)| internal.as_str());
+            let internal = if let Some(mapped) = mapped {
+                mapped
+            } else if variables.contains(name.as_str()) {
+                name.as_str()
+            } else {
+                // Carried backward rules record standardized variable
+                // names in their formula and source names in bindings.
+                // Accept a short name only when it identifies exactly
+                // one variable that the carried rule actually declares.
+                let mut aliases = variables.iter().filter(|internal| {
+                    internal.starts_with("__backward_")
+                        && internal
+                            .rsplit_once("__")
+                            .is_some_and(|(_, suffix)| suffix == name)
+                });
+                let alias = aliases.next().ok_or_else(|| {
+                    format!("binding {} is not a variable of the cited rule", name)
+                })?;
+                if aliases.next().is_some() {
+                    return Err(format!(
+                        "binding {} names more than one variable of the carried rule",
+                        name
+                    ));
+                }
+                alias.as_str()
+            };
+            if !variables.contains(internal) {
+                return Err(format!(
+                    "binding {} is not a variable of the cited rule",
+                    name
+                ));
+            }
             if bindings.insert(internal.into(), value.clone()).is_some() {
-                return Err(format!("records more than one binding for rule variable {}", name));
+                return Err(format!(
+                    "records more than one binding for rule variable {}",
+                    name
+                ));
             }
         }
         Ok(bindings)
@@ -472,28 +722,51 @@ impl N3Proof {
                 // The carried rule has to be justified too, or a step could
                 // invent any rule it liked.
                 if matches!(self.resolve_rule(statement), Resolution::Unresolved(_)) {
-                    return Err("carries a generated rule that nothing in the proof derives".to_string());
+                    return Err(
+                        "carries a generated rule that nothing in the proof derives".to_string()
+                    );
                 }
-                (premise.clone(), conclusion.clone(), "the generated rule it carries".to_string(), describe(statement))
+                (
+                    premise.clone(),
+                    conclusion.clone(),
+                    "the generated rule it carries".to_string(),
+                    describe(statement),
+                )
             }
             None => {
                 let number = step.rule.ok_or_else(|| "cites no rule".to_string())?;
-                let rule = self.rules.get(number.wrapping_sub(1)).ok_or_else(|| format!("cites rule {}, which the source does not have", number))?;
-                (rule.premise.clone(), rule.conclusion.clone(), format!("rule {}", number), format!("rule {}", number))
+                let rule = self.rules.get(number.wrapping_sub(1)).ok_or_else(|| {
+                    format!("cites rule {}, which the source does not have", number)
+                })?;
+                (
+                    rule.premise.clone(),
+                    rule.conclusion.clone(),
+                    format!("rule {}", number),
+                    format!("rule {}", number),
+                )
             }
         };
 
         let mut bindings = self.recorded_bindings(step)?;
         // Existentials outside the rule's two sides denote existing
         // individuals. Only blanks bound by a premise or head may match.
-        for free in premise.free_variables().into_iter().chain(conclusion.free_variables()) {
+        for free in premise
+            .free_variables()
+            .into_iter()
+            .chain(conclusion.free_variables())
+        {
             if let Term::Blank(name) = &free {
                 bindings.insert(format!("_:{}", name).into(), free.clone());
             }
         }
 
         if premise.len() != step.uses.len() {
-            return Err(format!("uses {} premise(s), but {} has {}", step.uses.len(), number, premise.len()));
+            return Err(format!(
+                "uses {} premise(s), but {} has {}",
+                step.uses.len(),
+                number,
+                premise.len()
+            ));
         }
         // One environment across every premise and the conclusion, so a
         // variable the bindings did not mention is still forced to take one
@@ -501,7 +774,13 @@ impl N3Proof {
         // step may not instantiate itself to meet the rule halfway.
         for (position, (premise, used)) in premise.iter().zip(step.uses.iter()).enumerate() {
             if !match_triple(premise, used, &mut bindings) {
-                return Err(format!("premise {} is {}, but {} requires {}", position + 1, describe(used), number, describe(premise)));
+                return Err(format!(
+                    "premise {} is {}, but {} requires {}",
+                    position + 1,
+                    describe(used),
+                    number,
+                    describe(premise)
+                ));
             }
         }
         // Resolve unquoting after the premises: a partial recorded binding
@@ -510,25 +789,54 @@ impl N3Proof {
         let mut occupied = BTreeSet::new();
         if !conclusion.existentials.is_empty() {
             occupied = triple_blank_labels(&step.uses);
-            for value in bindings.values() { blank_labels(value, &mut occupied); }
+            for value in bindings.values() {
+                blank_labels(value, &mut occupied);
+            }
         }
-        let applications: Vec<_> = conclusion.iter().filter_map(|candidate| {
-            let mut trial = bindings.clone();
-            // Equal labels in the two quoted sides have separate scopes.
-            for label in &conclusion.existentials { trial.remove(format!("_:{}", label).as_str()); }
-            if !match_triple(candidate, &step.conclusion, &mut trial) { return None; }
-            let witnesses = conclusion.existentials.iter().filter_map(|label|
-                trial.get(format!("_:{}", label).as_str()).map(|value| (label.clone(), value.clone()))).collect();
-            let assignment = if conclusion.existentials.is_empty() { Vec::new() } else {
-                let mut assignment = bindings.clone();
-                assignment.extend(trial.into_iter().filter(|(name, _)|
-                    !conclusion.existentials.iter().any(|label| name.as_str() == format!("_:{}", label))));
-                assignment.into_iter().collect()
-            };
-            Some(Application { firing: (identity.clone(), assignment), witnesses, occupied: occupied.clone() })
-        }).collect();
+        let applications: Vec<_> = conclusion
+            .iter()
+            .filter_map(|candidate| {
+                let mut trial = bindings.clone();
+                // Equal labels in the two quoted sides have separate scopes.
+                for label in &conclusion.existentials {
+                    trial.remove(format!("_:{}", label).as_str());
+                }
+                if !match_triple(candidate, &step.conclusion, &mut trial) {
+                    return None;
+                }
+                let witnesses = conclusion
+                    .existentials
+                    .iter()
+                    .filter_map(|label| {
+                        trial
+                            .get(format!("_:{}", label).as_str())
+                            .map(|value| (label.clone(), value.clone()))
+                    })
+                    .collect();
+                let assignment = if conclusion.existentials.is_empty() {
+                    Vec::new()
+                } else {
+                    let mut assignment = bindings.clone();
+                    assignment.extend(trial.into_iter().filter(|(name, _)| {
+                        !conclusion
+                            .existentials
+                            .iter()
+                            .any(|label| name.as_str() == format!("_:{}", label))
+                    }));
+                    assignment.into_iter().collect()
+                };
+                Some(Application {
+                    firing: (identity.clone(), assignment),
+                    witnesses,
+                    occupied: occupied.clone(),
+                })
+            })
+            .collect();
         if applications.is_empty() {
-            return Err(format!("does not follow from {}: it concludes none of what this step claims", number));
+            return Err(format!(
+                "does not follow from {}: it concludes none of what this step claims",
+                number
+            ));
         }
         Ok(applications)
     }
@@ -536,12 +844,25 @@ impl N3Proof {
     fn source_instance(&self, statement: &Triple) -> Option<Application> {
         self.general.iter().find_map(|candidate| {
             let mut bindings = Bindings::new();
-            if !match_triple(candidate, statement, &mut bindings) { return None; }
-            let (existentials, assignment): (Vec<_>, Vec<_>) = bindings.into_iter().partition(|(name, _)| name.starts_with("_:"));
-            let witnesses = existentials.into_iter().map(|(name, value)| (name[2..].into(), value)).collect();
+            if !match_triple(candidate, statement, &mut bindings) {
+                return None;
+            }
+            let (existentials, assignment): (Vec<_>, Vec<_>) = bindings
+                .into_iter()
+                .partition(|(name, _)| name.starts_with("_:"));
+            let witnesses = existentials
+                .into_iter()
+                .map(|(name, value)| (name[2..].into(), value))
+                .collect();
             let mut occupied = BTreeSet::new();
-            for (_, value) in &assignment { blank_labels(value, &mut occupied); }
-            Some(Application { firing: ("source assertions".into(), assignment), witnesses, occupied })
+            for (_, value) in &assignment {
+                blank_labels(value, &mut occupied);
+            }
+            Some(Application {
+                firing: ("source assertions".into(), assignment),
+                witnesses,
+                occupied,
+            })
         })
     }
 
@@ -552,7 +873,10 @@ impl N3Proof {
             .iter()
             .any(|candidate| candidate.p == statement.p && match_assertion(candidate, statement))
             || self.source_instance(statement).is_some()
-            || self.given.iter().any(|candidate| ground_statements_equal(candidate, statement))
+            || self
+                .given
+                .iter()
+                .any(|candidate| ground_statements_equal(candidate, statement))
     }
 
     fn check_fact(&self, step: &Step) -> Verdict {
@@ -572,15 +896,20 @@ impl N3Proof {
             return Err("names no built-in".to_string());
         };
         if step.builtin.as_ref() != Some(&step.conclusion.p) {
-            return Err(format!("names built-in {}, but the conclusion has predicate {}", name,
-                crate::printing::term_to_n3_predicate(&step.conclusion.p, &BTreeMap::new())));
+            return Err(format!(
+                "names built-in {}, but the conclusion has predicate {}",
+                name,
+                crate::printing::term_to_n3_predicate(&step.conclusion.p, &BTreeMap::new())
+            ));
         }
         // Re-evaluation fills in whatever is left open, which would turn a
         // computed value into a universal claim. A collection's template
         // and condition are meant to be open; only its result is a value.
         let triple = &step.conclusion;
         let current = current_graph_test(triple);
-        if matches!(name.as_str(), LOG_INCLUDES | LOG_NOT_INCLUDES) && !matches!(triple.o, Term::Formula(_)) {
+        if matches!(name.as_str(), LOG_INCLUDES | LOG_NOT_INCLUDES)
+            && !matches!(triple.o, Term::Formula(_))
+        {
             return Err(format!("{} requires a quoted graph as its object", name));
         }
         let values: Vec<&Term> = match (&triple.s, name.as_str()) {
@@ -588,11 +917,24 @@ impl N3Proof {
                 if !matches!(parts[1], Term::Formula(_)) || list_items(&parts[2]).is_none() {
                     return Err("log:collectAllIn requires a template, a condition graph, and a result list".into());
                 }
-                if current.is_some() { vec![&parts[2]] } else { vec![&parts[2], &triple.o] }
+                if current.is_some() {
+                    vec![&parts[2]]
+                } else {
+                    vec![&parts[2], &triple.o]
+                }
             }
-            (_, LOG_COLLECT_ALL_IN) => return Err("log:collectAllIn requires a three-item list".into()),
-            (Term::List(parts), LOG_FOR_ALL_IN) if parts.len() == 2 && parts.iter().all(|part| matches!(part, Term::Formula(_))) => {
-                if current.is_some() { vec![] } else { vec![&triple.o] }
+            (_, LOG_COLLECT_ALL_IN) => {
+                return Err("log:collectAllIn requires a three-item list".into());
+            }
+            (Term::List(parts), LOG_FOR_ALL_IN)
+                if parts.len() == 2
+                    && parts.iter().all(|part| matches!(part, Term::Formula(_))) =>
+            {
+                if current.is_some() {
+                    vec![]
+                } else {
+                    vec![&triple.o]
+                }
             }
             (_, LOG_FOR_ALL_IN) => return Err("log:forAllIn requires two quoted graphs".into()),
             (_, LOG_INCLUDES | LOG_NOT_INCLUDES) if current.is_some() => vec![&triple.o],
@@ -603,21 +945,41 @@ impl N3Proof {
                     return Err(format!("leaves a variable of {} unbound", name));
                 }
                 let shaped = match name.as_str() {
-                    "http://www.w3.org/2000/10/swap/time#localTime" => matches!(triple.o, Term::Literal(_))
-                        && crate::reasoner::verify_builtin_triple(triple),
-                    "http://www.w3.org/2000/10/swap/log#content" => matches!(triple.s, Term::Iri(_)) && plain_string(&triple.o).is_some(),
-                    "http://www.w3.org/2000/10/swap/log#semantics" => matches!((&triple.s, &triple.o), (Term::Iri(_), Term::Formula(_))),
-                    "http://www.w3.org/2000/10/swap/log#semanticsOrError" => matches!(triple.s, Term::Iri(_))
-                        && (matches!(triple.o, Term::Formula(_)) || plain_string(&triple.o).is_some()),
-                    "http://www.w3.org/2000/10/swap/log#conclusion" => matches!((&triple.s, &triple.o), (Term::Formula(_), Term::Formula(_))),
-                    "http://www.w3.org/2000/10/swap/list#map" => match (&triple.s, list_items(&triple.o)) {
-                        (Term::List(parts), Some(_)) => matches!(parts.as_slice(), [input, Term::Iri(_)]
-                            if list_items(input).is_some_and(|items| items.iter().all(Term::is_ground))),
-                        _ => false,
-                    },
+                    "http://www.w3.org/2000/10/swap/time#localTime" => {
+                        matches!(triple.o, Term::Literal(_))
+                            && crate::reasoner::verify_builtin_triple(triple)
+                    }
+                    "http://www.w3.org/2000/10/swap/log#content" => {
+                        matches!(triple.s, Term::Iri(_)) && plain_string(&triple.o).is_some()
+                    }
+                    "http://www.w3.org/2000/10/swap/log#semantics" => {
+                        matches!((&triple.s, &triple.o), (Term::Iri(_), Term::Formula(_)))
+                    }
+                    "http://www.w3.org/2000/10/swap/log#semanticsOrError" => {
+                        matches!(triple.s, Term::Iri(_))
+                            && (matches!(triple.o, Term::Formula(_))
+                                || plain_string(&triple.o).is_some())
+                    }
+                    "http://www.w3.org/2000/10/swap/log#conclusion" => {
+                        matches!((&triple.s, &triple.o), (Term::Formula(_), Term::Formula(_)))
+                    }
+                    "http://www.w3.org/2000/10/swap/list#map" => {
+                        match (&triple.s, list_items(&triple.o)) {
+                            (Term::List(parts), Some(_)) => {
+                                matches!(parts.as_slice(), [input, Term::Iri(_)]
+                            if list_items(input).is_some_and(|items| items.iter().all(Term::is_ground)))
+                            }
+                            _ => false,
+                        }
+                    }
                     _ => false,
                 };
-                if !shaped { return Err(format!("records incompatible argument types or values for {}", name)); }
+                if !shaped {
+                    return Err(format!(
+                        "records incompatible argument types or values for {}",
+                        name
+                    ));
+                }
                 return Ok(Checked::Trusted("impure built-in"));
             }
             _ => vec![&triple.s, &triple.o],
@@ -625,12 +987,17 @@ impl N3Proof {
         if values.iter().any(|value| has_open_variable(value)) {
             return Err(format!("leaves a variable of {} unbound", name));
         }
-        if reads_outside_proof(triple) { return Ok(Checked::Trusted("impure built-in")); }
+        if reads_outside_proof(triple) {
+            return Ok(Checked::Trusted("impure built-in"));
+        }
         if let Some(kind) = current {
             return Ok(Checked::Trusted(kind));
         }
-        if !matches!(name.as_str(), LOG_INCLUDES | LOG_NOT_INCLUDES | LOG_COLLECT_ALL_IN | LOG_FOR_ALL_IN | LOG_CONJUNCTION)
-            && values.iter().any(|value| has_free_universal(value)) {
+        if !matches!(
+            name.as_str(),
+            LOG_INCLUDES | LOG_NOT_INCLUDES | LOG_COLLECT_ALL_IN | LOG_FOR_ALL_IN | LOG_CONJUNCTION
+        ) && values.iter().any(|value| has_free_universal(value))
+        {
             return Err(format!("leaves a quoted variable of {} unbound", name));
         }
         // Quoted arguments may contain symbolic statements, but replay may
@@ -638,13 +1005,23 @@ impl N3Proof {
         // universals. Templates and conditions above are intentional
         // patterns; value arguments must retain their recorded meaning.
         let mut variables = BTreeSet::new();
-        for value in values { free_universals(value, &mut variables); }
+        for value in values {
+            free_universals(value, &mut variables);
+        }
         let matches = crate::reasoner::Evidence::new(Vec::new()).evaluate(triple);
-        if matches.iter().any(|bindings| variables.iter().all(|name|
-            bindings.get(name).is_none_or(|value| *value == Term::var(name.clone())))) {
+        if matches.iter().any(|bindings| {
+            variables.iter().all(|name| {
+                bindings
+                    .get(name)
+                    .is_none_or(|value| *value == Term::var(name.clone()))
+            })
+        }) {
             Ok(Checked::Verified)
         } else if !matches.is_empty() {
-            Err(format!("leaves a quoted variable of {} unbound; re-evaluation would assign it a value", name))
+            Err(format!(
+                "leaves a quoted variable of {} unbound; re-evaluation would assign it a value",
+                name
+            ))
         } else {
             Err(format!("re-evaluating {} did not hold", name))
         }
@@ -661,12 +1038,20 @@ fn matches_rule(candidate: &Triple, statement: &Triple) -> bool {
     // their subject and object reversed. Quantified assertions are
     // registered as empty-premise backward rules for goal search.
     let reversed = match &candidate.p {
-        Term::Iri(iri) if iri.as_str() == crate::ast::LOG_IMPLIES => Some(crate::ast::LOG_IMPLIED_BY),
-        Term::Iri(iri) if iri.as_str() == crate::ast::LOG_IMPLIED_BY => Some(crate::ast::LOG_IMPLIES),
+        Term::Iri(iri) if iri.as_str() == crate::ast::LOG_IMPLIES => {
+            Some(crate::ast::LOG_IMPLIED_BY)
+        }
+        Term::Iri(iri) if iri.as_str() == crate::ast::LOG_IMPLIED_BY => {
+            Some(crate::ast::LOG_IMPLIES)
+        }
         _ => None,
     };
     if let Some(predicate) = reversed {
-        let equivalent = Triple::new(candidate.o.clone(), Term::iri(predicate), candidate.s.clone());
+        let equivalent = Triple::new(
+            candidate.o.clone(),
+            Term::iri(predicate),
+            candidate.s.clone(),
+        );
         if equivalent.p == statement.p && match_assertion(&equivalent, statement) {
             return true;
         }
@@ -687,7 +1072,9 @@ fn match_assertion(pattern: &Triple, target: &Triple) -> bool {
 /// Preserve query predicates and false conclusions when lifting rule claims.
 fn written_rule_statement(rule: &crate::ast::Rule) -> Triple {
     let mut statement = crate::proof_writer::rule_statement(rule);
-    if rule.is_query { statement.p = Term::iri(crate::ast::LOG_QUERY); }
+    if rule.is_query {
+        statement.p = Term::iri(crate::ast::LOG_QUERY);
+    }
     if rule.is_fuse {
         statement.o = Term::Literal(crate::ast::Literal {
             value: "false".into(),
@@ -700,7 +1087,8 @@ fn written_rule_statement(rule: &crate::ast::Rule) -> Triple {
 
 /// Ground statements compare their closed graph terms modulo local renaming.
 fn ground_statements_equal(left: &Triple, right: &Triple) -> bool {
-    left.is_ground() && right.is_ground()
+    left.is_ground()
+        && right.is_ground()
         && crate::reasoner::terms_equal_semantic(&left.s, &right.s)
         && crate::reasoner::terms_equal_semantic(&left.p, &right.p)
         && crate::reasoner::terms_equal_semantic(&left.o, &right.o)
@@ -727,19 +1115,27 @@ pub(crate) fn match_term(pattern: &Term, target: &Term, bindings: &mut Bindings)
     }
     match (pattern, target) {
         (Term::List(left), Term::List(right)) => {
-            left.len() == right.len() && left.iter().zip(right.iter()).all(|(l, r)| match_term(l, r, bindings))
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right.iter())
+                    .all(|(l, r)| match_term(l, r, bindings))
         }
         (Term::Formula(left), Term::Formula(right)) => {
             // Free existential placeholders belong to the enclosing rule;
             // let them bind just as blank patterns in ordinary triples do.
             // Locally quantified blanks remain rigid alpha variables.
-            let mapping = left.free_variables().into_iter().filter_map(|term| {
-                if let Term::Blank(name) = &term {
-                    Some((term.clone(), Term::var(format!("_:{}", name))))
-                } else {
-                    None
-                }
-            }).collect();
+            let mapping = left
+                .free_variables()
+                .into_iter()
+                .filter_map(|term| {
+                    if let Term::Blank(name) = &term {
+                        Some((term.clone(), Term::var(format!("_:{}", name))))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
             let left = left.substitute(&mapping);
             // A recorded use substitutes the rule's free variables. Its
             // blank values are identities from the recorded environment,
@@ -747,22 +1143,35 @@ pub(crate) fn match_term(pattern: &Term, target: &Term, bindings: &mut Bindings)
             let mut captured = BTreeSet::new();
             for free in left.free_variables() {
                 if let Term::Var(n) = free {
-                    if let Some(value) = bindings.get(&n) { blank_labels(value, &mut captured); }
+                    if let Some(value) = bindings.get(&n) {
+                        blank_labels(value, &mut captured);
+                    }
                 }
             }
             fn recorded_term(term: &Term, captured: &BTreeSet<crate::ast::Name>) -> Term {
                 match term {
-                    Term::Formula(g) => Term::Formula(recorded_graph(g,captured)),
-                    Term::List(items) => Term::List(items.iter().map(|t|recorded_term(t,captured)).collect()),
+                    Term::Formula(g) => Term::Formula(recorded_graph(g, captured)),
+                    Term::List(items) => {
+                        Term::List(items.iter().map(|t| recorded_term(t, captured)).collect())
+                    }
                     _ => term.clone(),
                 }
             }
-            fn recorded_graph(graph: &crate::ast::Graph, captured: &BTreeSet<crate::ast::Name>) -> crate::ast::Graph {
-                let mut out=graph.map_triples(|t|Triple::new(recorded_term(&t.s,captured),recorded_term(&t.p,captured),recorded_term(&t.o,captured)));
-                out.existentials.retain(|n|!captured.contains(n));
+            fn recorded_graph(
+                graph: &crate::ast::Graph,
+                captured: &BTreeSet<crate::ast::Name>,
+            ) -> crate::ast::Graph {
+                let mut out = graph.map_triples(|t| {
+                    Triple::new(
+                        recorded_term(&t.s, captured),
+                        recorded_term(&t.p, captured),
+                        recorded_term(&t.o, captured),
+                    )
+                });
+                out.existentials.retain(|n| !captured.contains(n));
                 out
             }
-            let recorded = recorded_graph(right,&captured);
+            let recorded = recorded_graph(right, &captured);
             // Matching is one-way: the recorded side's free variables are
             // rigid, or a proof could carry `{ ?a ?b ?c } => { ?d ?e ?f }`
             // as an instance of any rule. Freeze them as fresh IRIs absent
@@ -775,25 +1184,49 @@ pub(crate) fn match_term(pattern: &Term, target: &Term, bindings: &mut Bindings)
             // IRI that a forged proof could write itself.
             while contains_iri_prefix(&Term::Formula(left.clone()), &prefix)
                 || contains_iri_prefix(&Term::Formula(recorded.clone()), &prefix)
-                || bindings.values().any(|value| contains_iri_prefix(value, &prefix)) {
+                || bindings
+                    .values()
+                    .any(|value| contains_iri_prefix(value, &prefix))
+            {
                 prefix = format!("{}{}:", initial, suffix);
                 suffix += 1;
             }
-            let frozen: BTreeMap<Term, Term> = recorded.free_variables().into_iter()
+            let frozen: BTreeMap<Term, Term> = recorded
+                .free_variables()
+                .into_iter()
                 .filter_map(|term| match &term {
-                    Term::Var(name) => Some((term.clone(), Term::iri(format!("{}{}", prefix, name)))),
+                    Term::Var(name) => {
+                        Some((term.clone(), Term::iri(format!("{}{}", prefix, name))))
+                    }
                     _ => None,
                 })
                 .collect();
             if frozen.is_empty() {
-                return crate::reasoner::unify_term(&Term::Formula(left), &Term::Formula(recorded), bindings);
+                return crate::reasoner::unify_term(
+                    &Term::Formula(left),
+                    &Term::Formula(recorded),
+                    bindings,
+                );
             }
-            let thawed: BTreeMap<Term, Term> = frozen.iter().map(|(var, iri)| (iri.clone(), var.clone())).collect();
-            let mut trial: Bindings = bindings.iter().map(|(name, value)| (name.clone(), replace_terms(value, &frozen))).collect();
-            if !crate::reasoner::unify_term(&Term::Formula(left), &Term::Formula(recorded.substitute(&frozen)), &mut trial) {
+            let thawed: BTreeMap<Term, Term> = frozen
+                .iter()
+                .map(|(var, iri)| (iri.clone(), var.clone()))
+                .collect();
+            let mut trial: Bindings = bindings
+                .iter()
+                .map(|(name, value)| (name.clone(), replace_terms(value, &frozen)))
+                .collect();
+            if !crate::reasoner::unify_term(
+                &Term::Formula(left),
+                &Term::Formula(recorded.substitute(&frozen)),
+                &mut trial,
+            ) {
                 return false;
             }
-            *bindings = trial.into_iter().map(|(name, value)| (name, replace_terms(&value, &thawed))).collect();
+            *bindings = trial
+                .into_iter()
+                .map(|(name, value)| (name, replace_terms(&value, &thawed)))
+                .collect();
             true
         }
         _ => pattern == target,
@@ -804,8 +1237,11 @@ fn contains_iri_prefix(term: &Term, prefix: &str) -> bool {
     match term {
         Term::Iri(iri) => iri.starts_with(prefix),
         Term::List(items) => items.iter().any(|item| contains_iri_prefix(item, prefix)),
-        Term::Formula(graph) => graph.iter().any(|triple|
-            [&triple.s, &triple.p, &triple.o].into_iter().any(|term| contains_iri_prefix(term, prefix))),
+        Term::Formula(graph) => graph.iter().any(|triple| {
+            [&triple.s, &triple.p, &triple.o]
+                .into_iter()
+                .any(|term| contains_iri_prefix(term, prefix))
+        }),
         _ => false,
     }
 }
@@ -815,7 +1251,12 @@ fn replace_terms(term: &Term, mapping: &BTreeMap<Term, Term>) -> Term {
         return value.clone();
     }
     match term {
-        Term::List(items) => Term::List(items.iter().map(|item| replace_terms(item, mapping)).collect()),
+        Term::List(items) => Term::List(
+            items
+                .iter()
+                .map(|item| replace_terms(item, mapping))
+                .collect(),
+        ),
         Term::Formula(graph) => Term::Formula(graph.substitute(mapping)),
         _ => term.clone(),
     }
@@ -843,18 +1284,31 @@ fn has_free_universal(term: &Term) -> bool {
     match term {
         Term::Var(_) => true,
         Term::List(items) => items.iter().any(has_free_universal),
-        Term::Formula(graph) => graph.free_variables().iter().any(|term| matches!(term, Term::Var(_))),
+        Term::Formula(graph) => graph
+            .free_variables()
+            .iter()
+            .any(|term| matches!(term, Term::Var(_))),
         _ => false,
     }
 }
 
 fn free_universals(term: &Term, out: &mut BTreeSet<crate::ast::Name>) {
     match term {
-        Term::Var(name) => { out.insert(name.clone()); }
-        Term::List(items) => for item in items { free_universals(item, out); },
-        Term::Formula(graph) => for free in graph.free_variables() {
-            if let Term::Var(name) = free { out.insert(name); }
-        },
+        Term::Var(name) => {
+            out.insert(name.clone());
+        }
+        Term::List(items) => {
+            for item in items {
+                free_universals(item, out);
+            }
+        }
+        Term::Formula(graph) => {
+            for free in graph.free_variables() {
+                if let Term::Var(name) = free {
+                    out.insert(name);
+                }
+            }
+        }
         _ => {}
     }
 }
@@ -862,9 +1316,19 @@ fn free_universals(term: &Term, out: &mut BTreeSet<crate::ast::Name>) {
 /// Blank labels a term mentions, including those free in its graph terms.
 fn blank_labels(term: &Term, out: &mut BTreeSet<crate::ast::Name>) {
     match term {
-        Term::Blank(name) => { out.insert(name.clone()); }
-        Term::List(items) => for item in items { blank_labels(item, out); },
-        Term::Formula(graph) => for free in graph.free_variables() { blank_labels(&free, out); },
+        Term::Blank(name) => {
+            out.insert(name.clone());
+        }
+        Term::List(items) => {
+            for item in items {
+                blank_labels(item, out);
+            }
+        }
+        Term::Formula(graph) => {
+            for free in graph.free_variables() {
+                blank_labels(&free, out);
+            }
+        }
         _ => {}
     }
 }
@@ -880,7 +1344,9 @@ fn triple_blank_labels(triples: &[Triple]) -> BTreeSet<crate::ast::Name> {
 }
 
 pub(crate) fn match_triple(pattern: &Triple, target: &Triple, bindings: &mut Bindings) -> bool {
-    match_term(&pattern.s, &target.s, bindings) && match_term(&pattern.p, &target.p, bindings) && match_term(&pattern.o, &target.o, bindings)
+    match_term(&pattern.s, &target.s, bindings)
+        && match_term(&pattern.p, &target.p, bindings)
+        && match_term(&pattern.o, &target.o, bindings)
 }
 
 /// The triples a rule concludes when its conclusion is not written out but
@@ -903,7 +1369,9 @@ fn unquoted_conclusion(conclusion: &[Triple], bindings: &Bindings) -> Option<cra
 }
 
 fn describe(triple: &Triple) -> String {
-    crate::printing::triples_to_n3(&BTreeMap::new(), std::slice::from_ref(triple)).trim().to_string()
+    crate::printing::triples_to_n3(&BTreeMap::new(), std::slice::from_ref(triple))
+        .trim()
+        .to_string()
 }
 
 /// Lift a proof document's triples into steps, grouping by the
@@ -919,32 +1387,58 @@ fn read_steps(body: &[Triple]) -> Result<Vec<Step>> {
     let mut order = Vec::new();
     let mut grouped: BTreeMap<&Term, Vec<&Triple>> = BTreeMap::new();
     for triple in body {
-        if !is_proof_vocabulary(&triple.p) { continue; }
-        let Term::Iri(predicate) = &triple.p else { unreachable!() };
+        if !is_proof_vocabulary(&triple.p) {
+            continue;
+        }
+        let Term::Iri(predicate) = &triple.p else {
+            unreachable!()
+        };
         match &predicate[PE.len()..] {
             "var" | "value" => {
                 if !matches!(triple.s, Term::Blank(_) | Term::Iri(_)) {
-                    return Err(metadata_error(&triple.s, "a binding must be identified by a blank node or IRI"));
+                    return Err(metadata_error(
+                        &triple.s,
+                        "a binding must be identified by a blank node or IRI",
+                    ));
                 }
                 let binding = bindings.entry(&triple.s).or_default();
                 if triple.p == pe("var") {
-                    let name = plain_string(&triple.o).filter(|name| !name.is_empty())
-                        .ok_or_else(|| metadata_error(&triple.s, "pe:var requires a nonempty string"))?;
+                    let name = plain_string(&triple.o)
+                        .filter(|name| !name.is_empty())
+                        .ok_or_else(|| {
+                            metadata_error(&triple.s, "pe:var requires a nonempty string")
+                        })?;
                     if binding.name.replace(name).is_some() {
-                        return Err(metadata_error(&triple.s, "a binding must have exactly one pe:var"));
+                        return Err(metadata_error(
+                            &triple.s,
+                            "a binding must have exactly one pe:var",
+                        ));
                     }
                 } else if binding.value.replace(&triple.o).is_some() {
-                    return Err(metadata_error(&triple.s, "a binding must have exactly one pe:value"));
+                    return Err(metadata_error(
+                        &triple.s,
+                        "a binding must have exactly one pe:value",
+                    ));
                 }
             }
             "rule" | "fact" | "builtin" | "unproven" | "uses" | "binding" => {
                 if formula_triple(&triple.s).is_none() {
-                    return Err(metadata_error(&triple.s, "a step subject must be a graph containing exactly one triple"));
+                    return Err(metadata_error(
+                        &triple.s,
+                        "a step subject must be a graph containing exactly one triple",
+                    ));
                 }
-                if !grouped.contains_key(&triple.s) { order.push(&triple.s); }
+                if !grouped.contains_key(&triple.s) {
+                    order.push(&triple.s);
+                }
                 grouped.entry(&triple.s).or_default().push(triple);
             }
-            _ => return Err(metadata_error(&triple.s, &format!("unknown proof predicate {}", predicate))),
+            _ => {
+                return Err(metadata_error(
+                    &triple.s,
+                    &format!("unknown proof predicate {}", predicate),
+                ));
+            }
         }
     }
 
@@ -952,13 +1446,20 @@ fn read_steps(body: &[Triple]) -> Result<Vec<Step>> {
     for subject in order {
         let conclusion = formula_triple(subject).expect("validated step subject");
         let mut step = Step {
-            conclusion: conclusion.clone(), kind: Kind::Unproven, rule: None,
-            carried: None, builtin: None, bindings: Vec::new(), uses: Vec::new(),
+            conclusion: conclusion.clone(),
+            kind: Kind::Unproven,
+            rule: None,
+            carried: None,
+            builtin: None,
+            bindings: Vec::new(),
+            uses: Vec::new(),
         };
         let mut justifications = 0;
         let mut names = BTreeSet::new();
         for triple in &grouped[subject] {
-            let Term::Iri(predicate) = &triple.p else { unreachable!() };
+            let Term::Iri(predicate) = &triple.p else {
+                unreachable!()
+            };
             let kind = &predicate[PE.len()..];
             if matches!(kind, "rule" | "fact" | "builtin" | "unproven") {
                 justifications += 1;
@@ -969,41 +1470,64 @@ fn read_steps(body: &[Triple]) -> Result<Vec<Step>> {
                     step.rule = literal_number(&triple.o);
                     step.carried = carried_rule(&triple.o);
                     if step.rule.is_none() && step.carried.is_none() {
-                        return Err(metadata_error(subject, "pe:rule requires a positive integer or a graph containing one implication"));
+                        return Err(metadata_error(
+                            subject,
+                            "pe:rule requires a positive integer or a graph containing one implication",
+                        ));
                     }
                 }
                 "fact" => {
                     step.kind = Kind::Fact;
                     if plain_string(&triple.o).is_none() {
-                        return Err(metadata_error(subject, "pe:fact requires a string source label"));
+                        return Err(metadata_error(
+                            subject,
+                            "pe:fact requires a string source label",
+                        ));
                     }
                 }
                 "builtin" => {
                     step.kind = Kind::Builtin;
                     if !matches!(triple.o, Term::Iri(_)) {
-                        return Err(metadata_error(subject, "pe:builtin requires a predicate IRI"));
+                        return Err(metadata_error(
+                            subject,
+                            "pe:builtin requires a predicate IRI",
+                        ));
                     }
                     step.builtin = Some(triple.o.clone());
                 }
                 "unproven" => {
                     step.kind = Kind::Unproven;
                     if plain_string(&triple.o).is_none() {
-                        return Err(metadata_error(subject, "pe:unproven requires a string reason"));
+                        return Err(metadata_error(
+                            subject,
+                            "pe:unproven requires a string reason",
+                        ));
                     }
                 }
                 "uses" => {
-                    let used = formula_triple(&triple.o).ok_or_else(||
-                        metadata_error(subject, "pe:uses must wrap exactly one premise triple"))?;
+                    let used = formula_triple(&triple.o).ok_or_else(|| {
+                        metadata_error(subject, "pe:uses must wrap exactly one premise triple")
+                    })?;
                     step.uses.push(used.clone());
                 }
                 "binding" => {
-                    let binding = bindings.get_mut(&triple.o).ok_or_else(||
-                        metadata_error(subject, "pe:binding must refer to a node with pe:var and pe:value"))?;
+                    let binding = bindings.get_mut(&triple.o).ok_or_else(|| {
+                        metadata_error(
+                            subject,
+                            "pe:binding must refer to a node with pe:var and pe:value",
+                        )
+                    })?;
                     let (Some(name), Some(value)) = (binding.name, binding.value) else {
-                        return Err(metadata_error(subject, "each binding requires exactly one pe:var and one pe:value"));
+                        return Err(metadata_error(
+                            subject,
+                            "each binding requires exactly one pe:var and one pe:value",
+                        ));
                     };
                     if !names.insert(name) {
-                        return Err(metadata_error(subject, &format!("duplicate binding for variable {}", name)));
+                        return Err(metadata_error(
+                            subject,
+                            &format!("duplicate binding for variable {}", name),
+                        ));
                     }
                     binding.used = true;
                     step.bindings.push((name.to_string(), value.clone()));
@@ -1012,30 +1536,49 @@ fn read_steps(body: &[Triple]) -> Result<Vec<Step>> {
             }
         }
         if justifications != 1 {
-            return Err(metadata_error(subject, "a step must have exactly one justification (pe:rule, pe:fact, pe:builtin, or pe:unproven)"));
+            return Err(metadata_error(
+                subject,
+                "a step must have exactly one justification (pe:rule, pe:fact, pe:builtin, or pe:unproven)",
+            ));
         }
         if step.kind != Kind::Rule && !step.bindings.is_empty() {
-            return Err(metadata_error(subject, "pe:binding is only valid on a rule step"));
+            return Err(metadata_error(
+                subject,
+                "pe:binding is only valid on a rule step",
+            ));
         }
         steps.push(step);
     }
     for (node, binding) in bindings {
         if !binding.used {
-            return Err(metadata_error(node, "binding metadata is not referenced by any step"));
+            return Err(metadata_error(
+                node,
+                "binding metadata is not referenced by any step",
+            ));
         }
     }
     Ok(steps)
 }
 
 fn metadata_error(subject: &Term, detail: &str) -> EyeronError {
-    EyeronError::new(format!("invalid proof metadata for {}: {}",
-        crate::printing::term_to_n3_object(subject, &BTreeMap::new()), detail))
+    EyeronError::new(format!(
+        "invalid proof metadata for {}: {}",
+        crate::printing::term_to_n3_object(subject, &BTreeMap::new()),
+        detail
+    ))
 }
 
 fn plain_string(term: &Term) -> Option<&str> {
     match term {
-        Term::Literal(literal) if literal.language.is_none()
-            && literal.datatype.as_deref().is_none_or(|dt| dt == "http://www.w3.org/2001/XMLSchema#string") => Some(&literal.value),
+        Term::Literal(literal)
+            if literal.language.is_none()
+                && literal
+                    .datatype
+                    .as_deref()
+                    .is_none_or(|dt| dt == "http://www.w3.org/2001/XMLSchema#string") =>
+        {
+            Some(&literal.value)
+        }
         _ => None,
     }
 }
@@ -1050,18 +1593,29 @@ fn carried_rule(term: &Term) -> Option<(crate::ast::Graph, crate::ast::Graph, Tr
     let forward = statement.p == Term::Iri(crate::ast::LOG_IMPLIES.to_string().into());
     let backward = statement.p == Term::Iri(crate::ast::LOG_IMPLIED_BY.to_string().into());
     match (&statement.s, &statement.o) {
-        (Term::Formula(left), Term::Formula(right)) if forward => Some((left.clone(), right.clone(), statement.clone())),
-        (Term::Formula(left), Term::Formula(right)) if backward => Some((right.clone(), left.clone(), statement.clone())),
+        (Term::Formula(left), Term::Formula(right)) if forward => {
+            Some((left.clone(), right.clone(), statement.clone()))
+        }
+        (Term::Formula(left), Term::Formula(right)) if backward => {
+            Some((right.clone(), left.clone(), statement.clone()))
+        }
         _ => None,
     }
 }
 
 fn literal_number(term: &Term) -> Option<usize> {
     match term {
-        Term::Literal(literal) if literal.language.is_none()
-            && literal.datatype.as_deref() == Some("http://www.w3.org/2001/XMLSchema#integer") => {
-            literal.value.parse::<usize>().ok().filter(|number| *number > 0)
-        },
+        Term::Literal(literal)
+            if literal.language.is_none()
+                && literal.datatype.as_deref()
+                    == Some("http://www.w3.org/2001/XMLSchema#integer") =>
+        {
+            literal
+                .value
+                .parse::<usize>()
+                .ok()
+                .filter(|number| *number > 0)
+        }
         _ => None,
     }
 }
@@ -1081,7 +1635,11 @@ impl ProofDocument for N3Proof {
 
     fn dependencies(&self, index: usize) -> Vec<Resolution> {
         let step = &self.steps[index];
-        let mut dependencies: Vec<_> = step.uses.iter().map(|used| self.resolve_premise(used, index)).collect();
+        let mut dependencies: Vec<_> = step
+            .uses
+            .iter()
+            .map(|used| self.resolve_premise(used, index))
+            .collect();
         if let Some((_, _, statement)) = &step.carried {
             dependencies.push(self.resolve_rule(statement));
         }
@@ -1097,37 +1655,70 @@ impl ProofDocument for N3Proof {
     }
 
     fn claim_dependencies(&self, index: usize) -> Vec<Resolution> {
-        if self.query_rules.is_empty() { return Vec::new(); }
-        self.query_selection(&self.claims[index]).unwrap_or_default()
+        if self.query_rules.is_empty() {
+            return Vec::new();
+        }
+        self.query_selection(&self.claims[index])
+            .unwrap_or_default()
     }
 
     fn check_step(&self, index: usize) -> StepCheck {
         let step = &self.steps[index];
         if step.kind == Kind::Rule {
-            if let Err(detail) = self.recorded_bindings(step) { return under("C3", Err(detail)); }
+            if let Err(detail) = self.recorded_bindings(step) {
+                return under("C3", Err(detail));
+            }
         }
         match step.kind {
-            Kind::Rule if step.rule.is_none() && step.carried.is_none() => under("C3", Err("cites no rule".to_string())),
-            Kind::Rule => under("C1", self.rule_applications(step).map(|_| Checked::Verified)),
+            Kind::Rule if step.rule.is_none() && step.carried.is_none() => {
+                under("C3", Err("cites no rule".to_string()))
+            }
+            Kind::Rule => under(
+                "C1",
+                self.rule_applications(step).map(|_| Checked::Verified),
+            ),
             Kind::Fact if !step.uses.is_empty() => under("C3", self.check_fact(step)),
             Kind::Fact => under("C1", self.check_fact(step)),
-            Kind::Builtin if step.builtin.as_ref() != Some(&step.conclusion.p) => under("C3", self.check_builtin(step)),
-            Kind::Builtin if !step.uses.is_empty() => under("C3", Err("a built-in step must not have premises".into())),
+            Kind::Builtin if step.builtin.as_ref() != Some(&step.conclusion.p) => {
+                under("C3", self.check_builtin(step))
+            }
+            Kind::Builtin if !step.uses.is_empty() => {
+                under("C3", Err("a built-in step must not have premises".into()))
+            }
             Kind::Builtin => under("C5", self.check_builtin(step)),
-            Kind::Unproven => under("C3", Err("is recorded as unproven: the engine could not justify it".to_string())),
+            Kind::Unproven => under(
+                "C3",
+                Err("is recorded as unproven: the engine could not justify it".to_string()),
+            ),
             Kind::Absent | Kind::Collected => under("C3", Ok(Checked::Trusted(step.kind.label()))),
         }
     }
 
     fn boundary(&self) -> (usize, Vec<(String, String)>) {
-        let tests: Vec<&Step> = self.steps.iter()
-            .filter(|step| step.kind == Kind::Builtin && current_graph_test(&step.conclusion).is_some() && !reads_outside_proof(&step.conclusion))
+        let tests: Vec<&Step> = self
+            .steps
+            .iter()
+            .filter(|step| {
+                step.kind == Kind::Builtin
+                    && current_graph_test(&step.conclusion).is_some()
+                    && !reads_outside_proof(&step.conclusion)
+            })
             .collect();
         if tests.is_empty() && self.fuses.is_empty() {
             return (0, Vec::new());
         }
         let evidence = crate::reasoner::Evidence::new(
-            self.facts.iter().cloned().chain(self.steps.iter().filter(|step| !self.answers_query(step)).map(|step| step.conclusion.clone())).collect());
+            self.facts
+                .iter()
+                .cloned()
+                .chain(
+                    self.steps
+                        .iter()
+                        .filter(|step| !self.answers_query(step))
+                        .map(|step| step.conclusion.clone()),
+                )
+                .collect(),
+        );
         let mut contradictions = Vec::new();
         for step in &tests {
             if let Some(detail) = contradiction(&evidence, &step.conclusion) {
@@ -1137,16 +1728,27 @@ impl ProofDocument for N3Proof {
         // A fuse forbids its premise outright, so evidence satisfying one
         // records a situation the source rules out.
         for fuse in &self.fuses {
-            let statement = Triple::new(Term::Formula(fuse.clone()), Term::iri(crate::ast::LOG_IMPLIES), Term::Literal(crate::ast::Literal {
-                value: "false".into(),
-                datatype: Some("http://www.w3.org/2001/XMLSchema#boolean".into()),
-                language: None,
-            }));
+            let statement = Triple::new(
+                Term::Formula(fuse.clone()),
+                Term::iri(crate::ast::LOG_IMPLIES),
+                Term::Literal(crate::ast::Literal {
+                    value: "false".into(),
+                    datatype: Some("http://www.w3.org/2001/XMLSchema#boolean".into()),
+                    language: None,
+                }),
+            );
             let mut remaining = MAX_PROOF_MATCHES;
             match self.match_conditions(fuse, Bindings::new(), &mut remaining) {
-                Ok(Some(_)) => contradictions.push((describe(&statement), "the proof's own evidence satisfies the premise of this inference fuse".to_string())),
+                Ok(Some(_)) => contradictions.push((
+                    describe(&statement),
+                    "the proof's own evidence satisfies the premise of this inference fuse"
+                        .to_string(),
+                )),
                 Ok(None) => {}
-                Err(detail) => contradictions.push((describe(&statement), format!("could not finish checking this inference fuse: {}", detail))),
+                Err(detail) => contradictions.push((
+                    describe(&statement),
+                    format!("could not finish checking this inference fuse: {}", detail),
+                )),
             }
         }
         (tests.len() + self.fuses.len(), contradictions)
@@ -1159,7 +1761,11 @@ impl ProofDocument for N3Proof {
             return Ok(());
         }
         let claim = &self.claims[index];
-        if self.query_patterns.iter().any(|pattern| match_triple(pattern, claim, &mut Bindings::new())) {
+        if self
+            .query_patterns
+            .iter()
+            .any(|pattern| match_triple(pattern, claim, &mut Bindings::new()))
+        {
             Ok(())
         } else {
             Err("answers none of the source's log:query rules".to_string())
@@ -1172,37 +1778,59 @@ impl ProofDocument for N3Proof {
             if step.kind == Kind::Rule {
                 let conclusion = match &step.carried {
                     Some((_, conclusion, _)) => Some(conclusion),
-                    None => step.rule.and_then(|number| self.rules.get(number.wrapping_sub(1))).map(|rule| &rule.conclusion),
+                    None => step
+                        .rule
+                        .and_then(|number| self.rules.get(number.wrapping_sub(1)))
+                        .map(|rule| &rule.conclusion),
                 };
                 // Ordinary ground rules have no witnesses to register.
-                if conclusion.is_some_and(|graph| !graph.existentials.is_empty()
-                    || graph.iter().any(|triple| triple.p == Term::iri(crate::ast::EYERON_UNQUOTE))) {
+                if conclusion.is_some_and(|graph| {
+                    !graph.existentials.is_empty()
+                        || graph
+                            .iter()
+                            .any(|triple| triple.p == Term::iri(crate::ast::EYERON_UNQUOTE))
+                }) {
                     if let Ok(alternatives) = self.rule_applications(step) {
                         applications.push((&step.conclusion, alternatives));
                     }
                 }
             }
-            if step.kind == Kind::Fact && (!self.given.contains(&step.conclusion) || !step.conclusion.is_ground()) {
+            if step.kind == Kind::Fact
+                && (!self.given.contains(&step.conclusion) || !step.conclusion.is_ground())
+            {
                 if let Some(application) = self.source_instance(&step.conclusion) {
                     applications.push((&step.conclusion, vec![application]));
                 }
             }
             for used in &step.uses {
                 if matches!(self.resolve(used), Resolution::Given) && !self.given.contains(used) {
-                    if let Some(application) = self.source_instance(used) { applications.push((used, vec![application])); }
+                    if let Some(application) = self.source_instance(used) {
+                        applications.push((used, vec![application]));
+                    }
                 }
             }
         }
         for claim in &self.claims {
             if matches!(self.resolve(claim), Resolution::Given) && !self.given.contains(claim) {
-                if let Some(application) = self.source_instance(claim) { applications.push((claim, vec![application])); }
+                if let Some(application) = self.source_instance(claim) {
+                    applications.push((claim, vec![application]));
+                }
             }
         }
         // An indistinguishable head triple can match several existential
         // labels. Choose their identities consistently across the whole
         // proof, rather than committing to the first matching head.
         applications.sort_by_key(|(_, alternatives)| alternatives.len());
-        let examined = applications.iter().map(|(_, alternatives)| alternatives.iter().map(|application| application.witnesses.len()).max().unwrap_or(0)).sum();
+        let examined = applications
+            .iter()
+            .map(|(_, alternatives)| {
+                alternatives
+                    .iter()
+                    .map(|application| application.witnesses.len())
+                    .max()
+                    .unwrap_or(0)
+            })
+            .sum();
         let mut registry = WitnessRegistry::default();
         let mut choices = vec![0usize; applications.len()];
         let mut undos = Vec::new();
@@ -1213,27 +1841,42 @@ impl ProofDocument for N3Proof {
             let (statement, alternatives) = &applications[cursor];
             if choices[cursor] == alternatives.len() {
                 choices[cursor] = 0;
-                if cursor == 0 { return (examined, failure.into_iter().collect()); }
+                if cursor == 0 {
+                    return (examined, failure.into_iter().collect());
+                }
                 cursor -= 1;
                 registry.undo(undos.pop().expect("one undo per chosen application"));
                 continue;
             }
             if remaining == 0 {
-                return (examined, vec![(describe(statement), "existential witness verification exceeded its match budget".into())]);
+                return (
+                    examined,
+                    vec![(
+                        describe(statement),
+                        "existential witness verification exceeded its match budget".into(),
+                    )],
+                );
             }
             remaining -= 1;
             let application = &alternatives[choices[cursor]];
             choices[cursor] += 1;
             match registry.register(application, &self.source_blanks) {
-                Ok(undo) => { undos.push(undo); cursor += 1; }
-                Err(detail) => { failure = Some((describe(statement), detail)); }
+                Ok(undo) => {
+                    undos.push(undo);
+                    cursor += 1;
+                }
+                Err(detail) => {
+                    failure = Some((describe(statement), detail));
+                }
             }
         }
         (examined, Vec::new())
     }
 
     fn query_isolation(&self) -> (usize, Vec<(String, String)>) {
-        if self.query_rules.is_empty() { return (0, Vec::new()); }
+        if self.query_rules.is_empty() {
+            return (0, Vec::new());
+        }
         let mut failures = Vec::new();
         let mut examined = self.claims.len();
         for (index, step) in self.steps.iter().enumerate() {
@@ -1260,39 +1903,73 @@ impl ProofDocument for N3Proof {
 /// does not contradict may still have been wrong; one it does contradict
 /// cannot have held.
 fn contradiction(evidence: &crate::reasoner::Evidence, test: &Triple) -> Option<String> {
-    let Term::Iri(name) = &test.p else { return None };
+    let Term::Iri(name) = &test.p else {
+        return None;
+    };
     let scope = Term::blank("current_graph");
     match name.as_str() {
         LOG_NOT_INCLUDES => {
             let retest = Triple::new(scope, test.p.clone(), test.o.clone());
-            evidence.evaluate(&retest).is_empty()
-                .then(|| "assumes the current graph lacks this, but the proof's own evidence includes it".to_string())
+            evidence.evaluate(&retest).is_empty().then(|| {
+                "assumes the current graph lacks this, but the proof's own evidence includes it"
+                    .to_string()
+            })
         }
         LOG_INCLUDES => None,
         LOG_COLLECT_ALL_IN => {
-            let Term::List(parts) = &test.s else { return None };
-            let [template, condition, collected] = parts.as_slice() else { return None };
+            let Term::List(parts) = &test.s else {
+                return None;
+            };
+            let [template, condition, collected] = parts.as_slice() else {
+                return None;
+            };
             let collected = list_items(collected)?;
             let result = Term::var("__collected");
-            let retest = Triple::new(Term::List(vec![template.clone(), condition.clone(), result]), test.p.clone(), scope);
-            let visible = evidence.evaluate(&retest).into_iter()
+            let retest = Triple::new(
+                Term::List(vec![template.clone(), condition.clone(), result]),
+                test.p.clone(),
+                scope,
+            );
+            let visible = evidence
+                .evaluate(&retest)
+                .into_iter()
                 .find_map(|bindings| bindings.get("__collected").cloned())?;
-            let Term::List(visible) = visible else { return None };
+            let Term::List(visible) = visible else {
+                return None;
+            };
             let missing = visible.iter().find(|item| !collected.contains(item))?;
-            Some(format!("omits {}, which the proof's own evidence supplies",
-                crate::printing::term_to_n3_object(missing, &BTreeMap::new())))
+            Some(format!(
+                "omits {}, which the proof's own evidence supplies",
+                crate::printing::term_to_n3_object(missing, &BTreeMap::new())
+            ))
         }
         LOG_FOR_ALL_IN => {
-            let Term::List(parts) = &test.s else { return None };
-            let [Term::Formula(condition), Term::Formula(conclusion)] = parts.as_slice() else { return None };
+            let Term::List(parts) = &test.s else {
+                return None;
+            };
+            let [Term::Formula(condition), Term::Formula(conclusion)] = parts.as_slice() else {
+                return None;
+            };
             // Only a conclusion made of built-ins can be refuted: an
             // ordinary triple the proof does not record may still hold.
-            evidence.solutions(condition).into_iter().find_map(|bindings| {
-                let mapping: BTreeMap<Term, Term> = bindings.iter().map(|(name, value)| (Term::Var(name.clone()), value.clone())).collect();
-                let instance = conclusion.substitute(&mapping);
-                (crate::reasoner::Evidence::is_decidable(&instance) && evidence.solutions(&instance).is_empty())
-                    .then(|| format!("has a counterexample in the proof's own evidence: {}", describe(&instance.triples[0])))
-            })
+            evidence
+                .solutions(condition)
+                .into_iter()
+                .find_map(|bindings| {
+                    let mapping: BTreeMap<Term, Term> = bindings
+                        .iter()
+                        .map(|(name, value)| (Term::Var(name.clone()), value.clone()))
+                        .collect();
+                    let instance = conclusion.substitute(&mapping);
+                    (crate::reasoner::Evidence::is_decidable(&instance)
+                        && evidence.solutions(&instance).is_empty())
+                    .then(|| {
+                        format!(
+                            "has a counterexample in the proof's own evidence: {}",
+                            describe(&instance.triples[0])
+                        )
+                    })
+                })
         }
         _ => None,
     }
@@ -1306,7 +1983,13 @@ mod tests {
 
     fn proof_of(source: &str) -> String {
         let document = crate::parser::parse_n3_with_source(source, None, Some("test.n3")).unwrap();
-        let result = crate::reasoner::reason(&document, &crate::reasoner::ReasonerOptions { proof: true, ..Default::default() });
+        let result = crate::reasoner::reason(
+            &document,
+            &crate::reasoner::ReasonerOptions {
+                proof: true,
+                ..Default::default()
+            },
+        );
         crate::proof_writer::proof_to_n3(&document.prefixes, &result)
     }
 

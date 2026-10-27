@@ -402,6 +402,10 @@ stream states over a 1 MiB message with `blake3` 1.8.5. Twelve samples alternate
 execution order. The [raw samples and per-algorithm distributions](https://github.com/Blackcat-Informatics/purrdf/blob/main/docs/benchmarks/hash-comparison-2026-09-28/README.md)
 include baseline and native builds and their source/compiler receipts.
 
+> Measured on an AMD Ryzen AI Max+ 395, 2026-09-28; table-key rows are retracted as
+> invalid acceptance evidence — see
+> `docs/benchmarks/hash-optimization-2026-09-28/`. Numbers retained for provenance.
+
 | Update size | Removed crate median | PurRDF stream median |
 |---|---:|---:|
 | 8 bytes | 1,793.4 µs | 517.0 µs |

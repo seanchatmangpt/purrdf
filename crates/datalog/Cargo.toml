@@ -17,9 +17,6 @@ categories = ["algorithms", "data-structures"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 crate-type = ["rlib"]
 path = "src/lib.rs"
@@ -82,3 +79,6 @@ harness = false
 [[test]]
 name = "maintained_scale"
 harness = false
+
+[lints]
+workspace = true

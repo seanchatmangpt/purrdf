@@ -650,8 +650,17 @@ fn bench_reader_union(c: &mut Bench) {
 fn bench_reader_decryption(c: &mut Bench) {
     use purrdf_gts::cose::{decrypt0, encrypt0};
 
-    let mut key = [0; 32];
-    getrandom::fill(&mut key).expect("benchmark encryption randomness");
+    // Deterministic key: benches never draw OS entropy. Seeded from the
+    // ledger-home LCG (`purrdf_hash::mix::lcg64_next`, MMIX increment).
+    let mut key = [0u8; 32];
+    let mut lcg_state = 0x9E37_79B9_7F4A_7C15_u64;
+    for word in key.chunks_exact_mut(8) {
+        let w = purrdf_hash::mix::lcg64_next(
+            &mut lcg_state,
+            purrdf_hash::mix::LCG64_MMIX_INCREMENT,
+        );
+        word.copy_from_slice(&w.to_le_bytes());
+    }
     let resolve = |kid: &str| (kid == "reader-benchmark").then_some(key);
     let mut group = c.benchmark_group("gts_reader_decryption");
     group.sample_size(10);

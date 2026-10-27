@@ -17,9 +17,6 @@ categories = ["parser-implementations", "data-structures"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 # rlib-only, and a foundation: its runtime dependencies are the zero-dependency
 # root `purrdf-hash` and the lexical layer `purrdf-lex` directly above it. It must
@@ -73,3 +70,10 @@ harness = false
 [[bench]]
 name = "exact"
 harness = false
+
+[[bench]]
+name = "numerical"
+harness = false
+
+[lints]
+workspace = true

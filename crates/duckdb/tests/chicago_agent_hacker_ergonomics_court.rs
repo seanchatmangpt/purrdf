@@ -5,8 +5,8 @@
 //! Un-mocked end-to-end verification of local in-process boot, sub-millisecond tool argument schema validation,
 //! 3-hop GraphRAG memory retrieval across 50,000 facts, lock-free 16-agent shared memory sync, and runaway recursion circuit breakers.
 
-use std::time::Instant;
 use purrdf_duckdb::PurRdfDuckDB;
+use std::time::Instant;
 
 fn setup_hacker_db() -> PurRdfDuckDB {
     let db = PurRdfDuckDB::open_in_memory().expect("open in-memory db");
@@ -44,7 +44,11 @@ fn test_hacker_scenario_1_zero_config_boot_and_memory_pinning() {
     println!("Hacker Scenario 1 (Zero-Config Boot): {:?}", boot_elapsed);
 
     // Assert boot time is fast (< 100 ms for debug test harness, comfortably below human perception 200 ms)
-    assert!(boot_elapsed.as_millis() < 100, "engine must boot instantly (measured {:?})", boot_elapsed);
+    assert!(
+        boot_elapsed.as_millis() < 100,
+        "engine must boot instantly (measured {:?})",
+        boot_elapsed
+    );
 
     // Verify memory pin invariant (< 32MB)
     let memory_limit: String = conn
@@ -55,7 +59,9 @@ fn test_hacker_scenario_1_zero_config_boot_and_memory_pinning() {
         )
         .expect("read max_memory");
     assert!(
-        memory_limit.contains("32.0 MiB") || memory_limit.contains("30.5 MiB") || memory_limit.contains("32MB"),
+        memory_limit.contains("32.0 MiB")
+            || memory_limit.contains("30.5 MiB")
+            || memory_limit.contains("32MB"),
         "memory must remain pinned under 32MB"
     );
 }
@@ -110,7 +116,10 @@ fn test_hacker_scenario_2_sub_millisecond_tool_schema_validation() {
         .expect("execute schema check");
 
     let validation_elapsed = t0.elapsed();
-    println!("Hacker Scenario 2 (Sub-Millisecond Tool Validation): {:?}", validation_elapsed);
+    println!(
+        "Hacker Scenario 2 (Sub-Millisecond Tool Validation): {:?}",
+        validation_elapsed
+    );
 
     assert!(is_valid, "tool call parameters must validate successfully");
     assert!(
@@ -122,7 +131,9 @@ fn test_hacker_scenario_2_sub_millisecond_tool_schema_validation() {
     // Test rejection of hallucinated enum value (e.g. period = 'INVALID_CENTURY')
     let invalid_period = "INVALID_CENTURY";
     let is_invalid: bool = conn
-        .query_row(query, [test_tool, test_ticker, invalid_period], |r| r.get(0))
+        .query_row(query, [test_tool, test_ticker, invalid_period], |r| {
+            r.get(0)
+        })
         .expect("execute invalid schema check");
     assert!(!is_invalid, "hallucinated enum must be rejected locally");
 }
@@ -219,11 +230,24 @@ fn test_hacker_scenario_3_multihop_graphrag_retrieval() {
     }
 
     let elapsed = t0.elapsed();
-    println!("Hacker Scenario 3 (In-Memory 3-Hop GraphRAG): {:?} (facts: {})", elapsed, total_facts);
+    println!(
+        "Hacker Scenario 3 (In-Memory 3-Hop GraphRAG): {:?} (facts: {})",
+        elapsed, total_facts
+    );
 
-    assert!(answer_found, "3-hop context must be retrieved without hallucination");
-    assert!(total_facts <= 64, "must fit within statutory candidate envelope <= 64");
-    assert!(elapsed.as_millis() < 15, "must execute in sub-eye-blink time (measured {:?})", elapsed);
+    assert!(
+        answer_found,
+        "3-hop context must be retrieved without hallucination"
+    );
+    assert!(
+        total_facts <= 64,
+        "must fit within statutory candidate envelope <= 64"
+    );
+    assert!(
+        elapsed.as_millis() < 15,
+        "must execute in sub-eye-blink time (measured {:?})",
+        elapsed
+    );
 }
 
 /// Scenario 4: Multi-Agent Chat Without Race Conditions (CrewAI / AutoGen / MCP)
@@ -274,13 +298,22 @@ fn test_hacker_scenario_4_multi_agent_shared_memory_sync() {
 
     // Sieve query to verify all 16 agent results are synchronized
     let query = "SELECT count(*) FROM agent_blackboard WHERE status = 'COMPLETED';";
-    let completed_count: i64 = conn.query_row(query, [], |r| r.get(0)).expect("count completed");
+    let completed_count: i64 = conn
+        .query_row(query, [], |r| r.get(0))
+        .expect("count completed");
 
     let sync_elapsed = t0.elapsed();
-    println!("Hacker Scenario 4 (16-Agent Shared Memory Sync): {:?} (synced: {})", sync_elapsed, completed_count);
+    println!(
+        "Hacker Scenario 4 (16-Agent Shared Memory Sync): {:?} (synced: {})",
+        sync_elapsed, completed_count
+    );
 
     assert_eq!(completed_count, 16);
-    assert!(sync_elapsed.as_millis() < 10, "state synchronization must be fast (measured {:?})", sync_elapsed);
+    assert!(
+        sync_elapsed.as_millis() < 10,
+        "state synchronization must be fast (measured {:?})",
+        sync_elapsed
+    );
 }
 
 /// Scenario 5: The Runaway Recursion Shield (Killing $200 Surprise API Bills)
@@ -295,11 +328,20 @@ fn test_hacker_scenario_5_runaway_reflection_loop_circuit_breaker() {
 
     // Fail-closed circuit breaker check
     let circuit_tripped = current_reflection_step > max_safe_recursion_depth;
-    assert!(circuit_tripped, "circuit breaker must trip when loop depth exceeds threshold");
+    assert!(
+        circuit_tripped,
+        "circuit breaker must trip when loop depth exceeds threshold"
+    );
 
     let trip_elapsed = t0.elapsed();
-    println!("Hacker Scenario 5 (Runaway Loop Hard-Stop Trip): {:?}", trip_elapsed);
+    println!(
+        "Hacker Scenario 5 (Runaway Loop Hard-Stop Trip): {:?}",
+        trip_elapsed
+    );
 
     // Trip latency must be sub-microsecond (< 500us)
-    assert!(trip_elapsed.as_micros() < 500, "safety circuit breaker must trip in < 500us");
+    assert!(
+        trip_elapsed.as_micros() < 500,
+        "safety circuit breaker must trip in < 500us"
+    );
 }

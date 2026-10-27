@@ -17,9 +17,6 @@ categories = ["wasm", "web-programming"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 # cdylib for the wasm-bindgen build (the shipped npm/ESM artifact); rlib so the
 # inner mapping logic still compiles + unit-tests on the native workspace gate
@@ -79,3 +76,6 @@ purrdf-testkit = { workspace = true }
 [[bench]]
 name = "query_engine_reuse"
 harness = false
+
+[lints]
+workspace = true

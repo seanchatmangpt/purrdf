@@ -6,6 +6,6 @@
 pub mod eval;
 
 pub use eval::{
-    DEFAULT_ROW_ENVELOPE, EvaluatorError, ExecutionResult, PurRdfDuckDB, RdfTriple,
-    ROW_ENVELOPE_LIMIT,
+    DEFAULT_ROW_ENVELOPE, EvaluatorError, ExecutionResult, PurRdfDuckDB, ROW_ENVELOPE_LIMIT,
+    RdfTriple,
 };

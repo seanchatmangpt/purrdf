@@ -17,9 +17,6 @@ categories = ["parser-implementations", "encoding", "data-structures"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 # rlib-only PyO3-free kernel. Python bindings live under
 # `bindings/python`; this crate is the ring-fenced core that MUST NOT pull
@@ -242,6 +239,16 @@ name = "pack_restore_alloc"
 harness = false
 
 [[bench]]
+# Kernel-level harness (A4 audit): ns/op rows for the four
+# `primitives.rs` register kernels over seeded LCG fixtures, plus GB/s
+# rows for the CSV field scanner's live dispatch vs the portable SWAR
+# kernel over a 1 MiB seeded haystack (full scan, no early exit).
+# Report-only -- no timing/speedup assertions. `make bench` lane only --
+# excluded from `make check`.
+name = "primitives_table"
+harness = false
+
+[[bench]]
 name = "shared_views"
 harness = false
 
@@ -296,3 +303,6 @@ harness = false
 [[test]]
 name = "triple_carrier"
 harness = false
+
+[lints]
+workspace = true

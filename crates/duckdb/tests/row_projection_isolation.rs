@@ -73,7 +73,11 @@ fn test_sieve_circuit_breaker_trips_past_envelope() {
         .expect_err("envelope must trip at row 65");
 
     match err {
-        EvaluatorError::RowEnvelopeExceeded { limit, observed, max } => {
+        EvaluatorError::RowEnvelopeExceeded {
+            limit,
+            observed,
+            max,
+        } => {
             assert_eq!(limit, "duckdb_result_rows");
             assert_eq!(observed, 65);
             assert_eq!(max, 64);

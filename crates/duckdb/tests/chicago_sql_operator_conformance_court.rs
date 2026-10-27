@@ -12,8 +12,8 @@ use purrdf_arrow::ArrowEgressHeader;
 use purrdf_columnar::{Compression, project};
 use purrdf_duckdb::PurRdfDuckDB;
 use purrdf_sql::{
-    JoinClause, JoinType, Operator, OrderTerm, SelectItem, SelectStatement,
-    SetOpKind, SetOperationStatement, SqlExpr, SqlLiteral, TableRef, compile_turtle,
+    JoinClause, JoinType, Operator, OrderTerm, SelectItem, SelectStatement, SetOpKind,
+    SetOperationStatement, SqlExpr, SqlLiteral, TableRef, compile_turtle,
 };
 use purrdf_testkit::temp_dir;
 
@@ -80,7 +80,11 @@ fn test_section_1_statement_level_reshaping_and_set_ops() {
 
     let pivot_compiled = compile_turtle(pivot_ttl).expect("compile pivot turtle");
     assert!(pivot_compiled.sql.contains("PIVOT trade_feed"));
-    assert!(pivot_compiled.sql.contains("ON market IN ('US', 'EU') USING sum(amount)"));
+    assert!(
+        pivot_compiled
+            .sql
+            .contains("ON market IN ('US', 'EU') USING sum(amount)")
+    );
 
     let pivot_res = db
         .eval_ast_query(
@@ -114,7 +118,11 @@ fn test_section_1_statement_level_reshaping_and_set_ops() {
 
     let unpivot_compiled = compile_turtle(unpivot_ttl).expect("compile unpivot turtle");
     assert!(unpivot_compiled.sql.contains("UNPIVOT wide_metrics"));
-    assert!(unpivot_compiled.sql.contains("ON base_val, adj_val INTO NAME metric_name VALUE metric_value"));
+    assert!(
+        unpivot_compiled
+            .sql
+            .contains("ON base_val, adj_val INTO NAME metric_name VALUE metric_value")
+    );
 
     let unpivot_res = db
         .eval_ast_query(
@@ -191,10 +199,17 @@ fn test_section_1_statement_level_reshaping_and_set_ops() {
         by_name: false,
         right: right_select.clone(),
     };
-    let compiled_union_all = union_all.compile_set_operation().expect("compile union all");
+    let compiled_union_all = union_all
+        .compile_set_operation()
+        .expect("compile union all");
     assert!(compiled_union_all.sql.contains("UNION ALL"));
     let res = db
-        .eval_ast_query("http://ex.org/Q", &compiled_union_all, "http://ex.org/r", "http://ex.org/c")
+        .eval_ast_query(
+            "http://ex.org/Q",
+            &compiled_union_all,
+            "http://ex.org/r",
+            "http://ex.org/c",
+        )
         .expect("eval union all");
     assert!(res.rows_emitted > 0);
 
@@ -206,10 +221,17 @@ fn test_section_1_statement_level_reshaping_and_set_ops() {
         by_name: false,
         right: right_select.clone(),
     };
-    let compiled_union = union_distinct.compile_set_operation().expect("compile union");
+    let compiled_union = union_distinct
+        .compile_set_operation()
+        .expect("compile union");
     assert!(compiled_union.sql.contains(") UNION ("));
     let res = db
-        .eval_ast_query("http://ex.org/Q", &compiled_union, "http://ex.org/r", "http://ex.org/c")
+        .eval_ast_query(
+            "http://ex.org/Q",
+            &compiled_union,
+            "http://ex.org/r",
+            "http://ex.org/c",
+        )
         .expect("eval union");
     assert!(res.rows_emitted > 0);
 
@@ -221,7 +243,9 @@ fn test_section_1_statement_level_reshaping_and_set_ops() {
         by_name: true,
         right: right_select.clone(),
     };
-    let compiled_by_name = union_by_name.compile_set_operation().expect("compile union by name");
+    let compiled_by_name = union_by_name
+        .compile_set_operation()
+        .expect("compile union by name");
     assert!(compiled_by_name.sql.contains("UNION ALL BY NAME"));
 
     // INTERSECT
@@ -232,10 +256,17 @@ fn test_section_1_statement_level_reshaping_and_set_ops() {
         by_name: false,
         right: right_select.clone(),
     };
-    let compiled_intersect = intersect.compile_set_operation().expect("compile intersect");
+    let compiled_intersect = intersect
+        .compile_set_operation()
+        .expect("compile intersect");
     assert!(compiled_intersect.sql.contains("INTERSECT"));
     let res = db
-        .eval_ast_query("http://ex.org/Q", &compiled_intersect, "http://ex.org/r", "http://ex.org/c")
+        .eval_ast_query(
+            "http://ex.org/Q",
+            &compiled_intersect,
+            "http://ex.org/r",
+            "http://ex.org/c",
+        )
         .expect("eval intersect");
     assert!(res.rows_emitted <= 2);
 
@@ -327,7 +358,12 @@ fn test_section_2_specialized_relational_joins() {
     let compiled_asof = asof_select.compile().expect("serialize asof join");
     assert!(compiled_asof.sql.contains("ASOF JOIN tick_rates r ON"));
     let res = db
-        .eval_ast_query("http://ex.org/Q", &compiled_asof, "http://ex.org/r", "http://ex.org/c")
+        .eval_ast_query(
+            "http://ex.org/Q",
+            &compiled_asof,
+            "http://ex.org/r",
+            "http://ex.org/c",
+        )
         .expect("eval asof join");
     assert_eq!(res.rows_emitted, 2);
 
@@ -379,7 +415,12 @@ fn test_section_2_specialized_relational_joins() {
     let compiled_pos = pos_select.compile().expect("serialize positional join");
     assert!(compiled_pos.sql.contains("POSITIONAL JOIN pos_b"));
     let res = db
-        .eval_ast_query("http://ex.org/Q", &compiled_pos, "http://ex.org/r", "http://ex.org/c")
+        .eval_ast_query(
+            "http://ex.org/Q",
+            &compiled_pos,
+            "http://ex.org/r",
+            "http://ex.org/c",
+        )
         .expect("eval positional join");
     assert_eq!(res.rows_emitted, 2);
 }
@@ -438,11 +479,17 @@ fn test_section_3_dynamic_projection_and_filtering() {
         offset: None,
     };
 
-    let compiled = qualify_select.compile().expect("serialize qualify statement");
+    let compiled = qualify_select
+        .compile()
+        .expect("serialize qualify statement");
     assert!(compiled.sql.contains("COLUMNS('^val_.*')"));
     assert!(compiled.sql.contains("QUALIFY"));
     assert!(compiled.sql.contains("ROW_NUMBER()"));
-    assert!(compiled.sql.contains("OVER (PARTITION BY market ORDER BY amount DESC)"));
+    assert!(
+        compiled
+            .sql
+            .contains("OVER (PARTITION BY market ORDER BY amount DESC)")
+    );
 
     // 2. Star Modifier: EXCLUDE and REPLACE
     let star_select = SelectStatement {
@@ -477,9 +524,18 @@ fn test_section_3_dynamic_projection_and_filtering() {
     };
 
     let compiled_star = star_select.compile().expect("serialize star modifiers");
-    assert!(compiled_star.sql.contains("* EXCLUDE (g) REPLACE ((s * $1) AS s)"));
+    assert!(
+        compiled_star
+            .sql
+            .contains("* EXCLUDE (g) REPLACE ((s * $1) AS s)")
+    );
     let res = db
-        .eval_ast_query("http://ex.org/Q", &compiled_star, "http://ex.org/r", "http://ex.org/c")
+        .eval_ast_query(
+            "http://ex.org/Q",
+            &compiled_star,
+            "http://ex.org/r",
+            "http://ex.org/c",
+        )
         .expect("eval star modifiers");
     assert!(res.rows_emitted > 0);
 }
@@ -500,19 +556,28 @@ fn test_section_4_in_expression_operators() {
             // Integer divide: s // 2
             SelectItem::Expr(SqlExpr::Binary {
                 op: Operator::IntDivide,
-                left: Box::new(SqlExpr::ColumnRef { column: "s".into(), table_alias: None }),
+                left: Box::new(SqlExpr::ColumnRef {
+                    column: "s".into(),
+                    table_alias: None,
+                }),
                 right: Box::new(SqlExpr::Literal(SqlLiteral::Integer(2))),
             }),
             // Bitwise and: s & 1
             SelectItem::Expr(SqlExpr::Binary {
                 op: Operator::BitwiseAnd,
-                left: Box::new(SqlExpr::ColumnRef { column: "s".into(), table_alias: None }),
+                left: Box::new(SqlExpr::ColumnRef {
+                    column: "s".into(),
+                    table_alias: None,
+                }),
                 right: Box::new(SqlExpr::Literal(SqlLiteral::Integer(1))),
             }),
             // Distinct from: s IS DISTINCT FROM 0
             SelectItem::Expr(SqlExpr::Binary {
                 op: Operator::DistinctFrom,
-                left: Box::new(SqlExpr::ColumnRef { column: "s".into(), table_alias: None }),
+                left: Box::new(SqlExpr::ColumnRef {
+                    column: "s".into(),
+                    table_alias: None,
+                }),
                 right: Box::new(SqlExpr::Literal(SqlLiteral::Integer(0))),
             }),
             // Regex match
@@ -551,7 +616,12 @@ fn test_section_4_in_expression_operators() {
     assert!(compiled.sql.contains("~*"));
 
     let res = db
-        .eval_ast_query("http://ex.org/Q", &compiled, "http://ex.org/r", "http://ex.org/c")
+        .eval_ast_query(
+            "http://ex.org/Q",
+            &compiled,
+            "http://ex.org/r",
+            "http://ex.org/c",
+        )
         .expect("eval operators");
     assert!(res.rows_emitted > 0);
 }
@@ -569,9 +639,18 @@ fn test_section_5_candidate_envelope_and_arrow_ipc_egress() {
             alias: None,
         },
         select_list: vec![
-            SelectItem::Expr(SqlExpr::ColumnRef { column: "s".into(), table_alias: None }),
-            SelectItem::Expr(SqlExpr::ColumnRef { column: "p".into(), table_alias: None }),
-            SelectItem::Expr(SqlExpr::ColumnRef { column: "o".into(), table_alias: None }),
+            SelectItem::Expr(SqlExpr::ColumnRef {
+                column: "s".into(),
+                table_alias: None,
+            }),
+            SelectItem::Expr(SqlExpr::ColumnRef {
+                column: "p".into(),
+                table_alias: None,
+            }),
+            SelectItem::Expr(SqlExpr::ColumnRef {
+                column: "o".into(),
+                table_alias: None,
+            }),
         ],
         joins: vec![],
         where_clause: None,
@@ -585,7 +664,13 @@ fn test_section_5_candidate_envelope_and_arrow_ipc_egress() {
 
     let compiled = query_select.compile().expect("serialize bounded query");
     let res = db
-        .eval_ast_query_bounded("http://ex.org/Q", &compiled, "http://ex.org/r", "http://ex.org/c", 64)
+        .eval_ast_query_bounded(
+            "http://ex.org/Q",
+            &compiled,
+            "http://ex.org/r",
+            "http://ex.org/c",
+            64,
+        )
         .expect("execute within envelope");
 
     assert!(res.rows_emitted <= 38);
@@ -626,7 +711,8 @@ fn test_section_5_candidate_envelope_and_arrow_ipc_egress() {
     assert_eq!(core::mem::align_of::<ArrowEgressHeader>(), 64);
 
     // Verify round-trip parsing
-    let parsed_header = ArrowEgressHeader::from_bytes(&header_bytes).expect("parse header wire bytes");
+    let parsed_header =
+        ArrowEgressHeader::from_bytes(&header_bytes).expect("parse header wire bytes");
     assert_eq!(parsed_header, header);
     assert_eq!(parsed_header.columnar_digest, columnar_digest);
 }

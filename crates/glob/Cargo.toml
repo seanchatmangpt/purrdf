@@ -12,9 +12,6 @@ homepage.workspace = true
 license.workspace = true
 documentation = "https://docs.rs/purrdf-glob"
 
-[lints]
-workspace = true
-
 [dependencies]
 purrdf-core.workspace = true
 purrdf-hash.workspace = true
@@ -28,3 +25,11 @@ purrdf-testkit.workspace = true
 [[test]]
 name = "matching"
 harness = false
+
+# glob bench lanes: report-only, make bench lane only (wave v26.10.26).
+[[bench]]
+name = "execute"
+harness = false
+
+[lints]
+workspace = true

@@ -17,9 +17,6 @@ categories = ["parser-implementations", "data-structures"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 # rlib-only, wasm-clean leaf: the SPARQL front-end of the native query stack. It
 # builds on the foundation leaves `purrdf-lex`, `purrdf-iri` and
@@ -103,3 +100,6 @@ harness = false
 # check`.
 name = "parse"
 harness = false
+
+[lints]
+workspace = true

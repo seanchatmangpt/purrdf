@@ -17,9 +17,6 @@ categories = ["parser-implementations", "encoding", "data-structures"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 crate-type = ["rlib"]
 path = "src/lib.rs"
@@ -27,6 +24,7 @@ path = "src/lib.rs"
 [dependencies]
 purrdf-columnar = { workspace = true }
 purrdf-arrow = { workspace = true }
+purrdf-branchless = { workspace = true }
 purrdf-sql = { workspace = true }
 purrdf-duckdb = { workspace = true }
 purrdf-rdf = { workspace = true }
@@ -106,6 +104,15 @@ purrdf-core = { workspace = true }
 # workspace's bench harness, `purrdf_testkit::bench`. Path-only and unpublished,
 # so it is stripped from the packaged manifest.
 purrdf-testkit = { workspace = true }
+# The allocation probe (`benches/pipeline_alloc.rs`): the workspace's shared
+# counting allocator and its whole-process window, for the parse/query/serialize
+# peak-bytes + RSS rows. Path-only and unpublished, so it is stripped from the
+# packaged manifest.
+purrdf-alloc-probe = { workspace = true }
+# The one-home seeded generator (`purrdf_hash::mix::lcg64_next`) behind the
+# benches' shared fixture module (`benches/support/fixture.rs`). Path-only and
+# unpublished, so it is stripped from the packaged manifest.
+purrdf-hash = { workspace = true }
 
 # The fused read taken on demand against the same read materialised, over real
 # text and HNSW producers rather than the mock ones `purrdf-retrieval`'s own
@@ -120,3 +127,24 @@ harness = false
 [[bench]]
 name = "multimodal_on_demand_read"
 harness = false
+
+# The end-to-end document pipeline — parse N-Triples text into the store, one
+# SPARQL SELECT, serialize the results — priced as one iteration (MB/s of input
+# document, the buyer-facing number) plus per-stage rows (parse MB/s, query
+# ops/s, serialize MB/s) over a seeded ~1 MB fixture. Report-only, on the same
+# `purrdf_testkit::bench` harness.
+[[bench]]
+name = "pipeline_e2e"
+harness = false
+
+# Peak-allocation evidence for the same stages, in a separate process so the
+# tracking allocator's atomics do not contaminate the timed bench (mirrors
+# `pack_input_alloc`): one whole-process window + RSS reading per parse/query/
+# serialize stage and for the whole pipeline, over the same `support/fixture.rs`
+# document. Report-only.
+[[bench]]
+name = "pipeline_alloc"
+harness = false
+
+[lints]
+workspace = true

@@ -8,22 +8,28 @@
 //! re-performs the ones the document recorded — which is what keeps a
 //! checker small enough to be worth trusting (specification §2).
 
-
 use std::collections::BTreeMap;
 
 /// The one reason a step carries. `Kind` is what the generic checker needs;
 /// the locator (which rule, which document) stays with the reader.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Kind {
+    /// The step applies a written rule.
     Rule,
+    /// The step asserts a premise the source gives outright.
     Fact,
+    /// The step re-decides a built-in predicate.
     Builtin,
+    /// The step's justification itself is missing.
     Absent,
+    /// The step collects a previously derived statement.
     Collected,
+    /// The step is recorded as unproven.
     Unproven,
 }
 
 impl Kind {
+    /// The lower-case label the report uses for this kind.
     pub fn label(self) -> &'static str {
         match self {
             Kind::Rule => "rule",
@@ -50,11 +56,14 @@ pub const CONDITIONS: [(&str, &str); 9] = [
 ];
 
 fn condition_index(condition: &str) -> usize {
-    CONDITIONS.iter().position(|(id, _)| *id == condition).expect("a known condition")
+    CONDITIONS
+        .iter()
+        .position(|(id, _)| *id == condition)
+        .expect("a known condition")
 }
 
 /// Where a premise or carried-rule dependency resolves (§4 C4).
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Resolution {
     /// To the conclusion of this step, of which it is an instance.
     Step(usize),
@@ -65,6 +74,7 @@ pub enum Resolution {
 }
 
 /// What checking one step established.
+#[derive(Debug)]
 pub enum Checked {
     /// The recorded inference was re-performed and matched (§5).
     Verified,
@@ -73,32 +83,45 @@ pub enum Checked {
     Trusted(&'static str),
 }
 
+/// A step recorded as trusted rather than re-performed (§6).
 #[derive(Debug, Clone)]
 pub struct Obligation {
+    /// The obligation's class, e.g. which trusted builtin family.
     pub kind: &'static str,
+    /// The step conclusion the obligation covers.
     pub conclusion: String,
 }
 
+/// One failed validity condition, with the step or claim it concerns.
 #[derive(Debug, Clone)]
 pub struct Failure {
     /// The validity condition that failed: `"C1"`..`"C9"`.
     pub condition: &'static str,
+    /// The step or claim conclusion the failure concerns.
     pub conclusion: String,
+    /// What about the conclusion failed the condition.
     pub detail: String,
 }
 
+/// The full outcome of checking one proof document.
 #[derive(Debug, Clone, Default)]
 pub struct Report {
+    /// Number of steps examined.
     pub steps: usize,
+    /// Steps whose recorded inference was re-performed and matched (§5).
     pub verified: usize,
+    /// Steps recorded as obligations rather than re-established (§6).
     pub obligations: Vec<Obligation>,
+    /// Each validity-condition failure.
     pub failures: Vec<Failure>,
+    /// Step counts by [`Kind::label`].
     pub counts: BTreeMap<&'static str, usize>,
     /// How many items each condition examined, in `CONDITIONS` order.
     pub checked: [usize; CONDITIONS.len()],
 }
 
 impl Report {
+    /// True when no validity condition failed.
     pub fn valid(&self) -> bool {
         self.failures.is_empty()
     }
@@ -110,19 +133,32 @@ impl Report {
             .iter()
             .enumerate()
             .map(|(position, (id, name))| {
-                let failed = self.failures.iter().filter(|failure| failure.condition == *id).count();
+                let failed = self
+                    .failures
+                    .iter()
+                    .filter(|failure| failure.condition == *id)
+                    .count();
                 (*id, *name, self.checked[position], failed)
             })
             .collect()
     }
 
     fn fail(&mut self, condition: &'static str, conclusion: String, detail: String) {
-        self.failures.push(Failure { condition, conclusion, detail });
+        self.failures.push(Failure {
+            condition,
+            conclusion,
+            detail,
+        });
     }
 
     /// The verdict line the specification's §9 requires.
     pub fn verdict(&self) -> String {
-        let steps = format!("{} steps, {} verified, {} trusted", self.steps, self.verified, self.obligations.len());
+        let steps = format!(
+            "{} steps, {} verified, {} trusted",
+            self.steps,
+            self.verified,
+            self.obligations.len()
+        );
         if !self.valid() {
             return format!("invalid: {} failure(s); {}", self.failures.len(), steps);
         }
@@ -143,8 +179,10 @@ impl Report {
 /// condition each finding belongs to, cycles, relevance, and the
 /// bookkeeping — is here and shared.
 pub trait Document {
+    /// How many proof steps the document records.
     fn step_count(&self) -> usize;
 
+    /// Step `index`'s kind of justification.
     fn kind(&self, index: usize) -> Kind;
 
     /// Step `index`'s conclusion, for reporting.
@@ -179,7 +217,7 @@ pub trait Document {
     }
 
     /// (C7) Whether claim `index` answers what the source asked for.
-    fn claim_relevance(&self, _index: usize) -> std::result::Result<(), String> {
+    fn claim_relevance(&self, _index: usize) -> Result<(), String> {
         Ok(())
     }
 
@@ -198,18 +236,27 @@ pub trait Document {
 
 /// What checking one step's justification found, and under which
 /// condition.
+#[derive(Debug)]
 pub struct StepCheck {
+    /// The validity condition the justification was checked under.
     pub condition: &'static str,
-    pub outcome: std::result::Result<Checked, String>,
+    /// What the check established, or why it failed.
+    pub outcome: Result<Checked, String>,
 }
 
 /// Check `document` against the source program it was read with, applying
 /// the conditions of specification §4.
 pub fn check(document: &dyn Document) -> Report {
-    let mut report = Report { steps: document.step_count(), ..Report::default() };
+    let mut report = Report {
+        steps: document.step_count(),
+        ..Report::default()
+    };
 
     for index in 0..document.step_count() {
-        *report.counts.entry(document.kind(index).label()).or_insert(0) += 1;
+        *report
+            .counts
+            .entry(document.kind(index).label())
+            .or_insert(0) += 1;
     }
 
     // (C4) every premise and carried rule resolves; collect the step-to-step
@@ -244,7 +291,10 @@ pub fn check(document: &dyn Document) -> Report {
         }
         match outcome {
             Ok(Checked::Verified) => report.verified += 1,
-            Ok(Checked::Trusted(kind)) => report.obligations.push(Obligation { kind, conclusion: document.describe(index) }),
+            Ok(Checked::Trusted(kind)) => report.obligations.push(Obligation {
+                kind,
+                conclusion: document.describe(index),
+            }),
             Err(detail) => report.fail(condition, document.describe(index), detail),
         }
     }
@@ -261,8 +311,11 @@ pub fn check(document: &dyn Document) -> Report {
         match document.claim_resolution(index) {
             Resolution::Step(target) => roots.push(target),
             Resolution::Given => {}
-            Resolution::Unresolved(_) => report.fail("C4", claim.clone(),
-                "claimed, but no step concludes it and the source does not give it".to_string()),
+            Resolution::Unresolved(_) => report.fail(
+                "C4",
+                claim.clone(),
+                "claimed, but no step concludes it and the source does not give it".to_string(),
+            ),
         }
         for dependency in document.claim_dependencies(index) {
             report.checked[condition_index("C4")] += 1;
@@ -296,18 +349,27 @@ pub fn check(document: &dyn Document) -> Report {
     }
     for (index, serving) in serves.iter().enumerate() {
         if !serving {
-            report.fail("C7", document.describe(index), "serves no claim: no claim depends on it".to_string());
+            report.fail(
+                "C7",
+                document.describe(index),
+                "serves no claim: no claim depends on it".to_string(),
+            );
         }
     }
 
-    for (condition, (examined, failures)) in [("C8", document.witnesses()), ("C9", document.query_isolation())] {
+    for (condition, (examined, failures)) in [
+        ("C8", document.witnesses()),
+        ("C9", document.query_isolation()),
+    ] {
         report.checked[condition_index(condition)] = examined;
         for (conclusion, detail) in failures {
             report.fail(condition, conclusion, detail);
         }
     }
 
-    report.failures.sort_by_key(|failure| condition_index(failure.condition));
+    report
+        .failures
+        .sort_by_key(|failure| condition_index(failure.condition));
     report
 }
 
@@ -343,7 +405,11 @@ fn check_well_founded(document: &dyn Document, edges: &[Vec<usize>], report: &mu
             match marks[next] {
                 Some(Mark::Done) => {}
                 Some(Mark::Open) => {
-                    report.fail("C2", document.describe(next), "is used, directly or indirectly, by its own derivation".to_string());
+                    report.fail(
+                        "C2",
+                        document.describe(next),
+                        "is used, directly or indirectly, by its own derivation".to_string(),
+                    );
                     marks[next] = Some(Mark::Done);
                 }
                 None => {

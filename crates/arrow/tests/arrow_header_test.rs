@@ -3,8 +3,8 @@
 
 //! Unit tests for CanonArrow 128-byte header wire format and domain null digest.
 
-use std::mem::{align_of, size_of};
 use purrdf_arrow::{ArrowEgressHeader, ArrowEgressHeaderError, canon_arrow_empty_v1};
+use std::mem::{align_of, size_of};
 
 #[test]
 fn header_size_is_128() {
@@ -56,12 +56,18 @@ fn header_refuses_invalid_inputs() {
 
     // Bad magic
     bytes[0] = b'Z';
-    assert_eq!(ArrowEgressHeader::from_bytes(&bytes), Err(ArrowEgressHeaderError::BadMagic));
+    assert_eq!(
+        ArrowEgressHeader::from_bytes(&bytes),
+        Err(ArrowEgressHeaderError::BadMagic)
+    );
 
     // Non-zero reserved
     let mut bytes2 = header.to_bytes();
     bytes2[120] = 1;
-    assert_eq!(ArrowEgressHeader::from_bytes(&bytes2), Err(ArrowEgressHeaderError::ReservedNotZero));
+    assert_eq!(
+        ArrowEgressHeader::from_bytes(&bytes2),
+        Err(ArrowEgressHeaderError::ReservedNotZero)
+    );
 }
 
 #[test]

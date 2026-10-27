@@ -14,7 +14,9 @@ use std::sync::OnceLock;
 pub fn solve_sudoku_string(puzzle: &str) -> Result<String, String> {
     let text = puzzle.trim();
     if text.chars().count() != 81 || !text.chars().all(|c| c == '.' || c.is_ascii_digit()) {
-        return Err("sudoku expects an 81-character puzzle string containing digits or dots".to_string());
+        return Err(
+            "sudoku expects an 81-character puzzle string containing digits or dots".to_string(),
+        );
     }
     let mut cells = [0u8; 81];
     for (i, ch) in text.chars().enumerate() {
@@ -109,7 +111,8 @@ mod tests {
 
     #[test]
     fn solves_ai_escargot() {
-        let puzzle = "100007090030020008009600500005300900010080002600004000300000010040000007007000300";
+        let puzzle =
+            "100007090030020008009600500005300900010080002600004000300000010040000007007000300";
         let solved = solve_sudoku_string(puzzle).unwrap();
         assert_eq!(solved.len(), 81);
         assert!(solved.chars().all(|c| c.is_ascii_digit() && c != '0'));

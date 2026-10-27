@@ -17,9 +17,6 @@ categories = ["database-implementations", "data-structures"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 # rlib-only, wasm-clean: the SPARQL evaluation runtime of the native query stack.
 # It consumes the wasm-clean `purrdf-sparql-algebra` front-end,
@@ -353,3 +350,6 @@ harness = false
 # The same guarded production calls in separate whole-process allocation windows.
 name = "governor_allocations"
 harness = false
+
+[lints]
+workspace = true

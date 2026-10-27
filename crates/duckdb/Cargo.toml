@@ -13,9 +13,6 @@ rust-version.workspace = true
 keywords = ["duckdb", "relational", "parquet", "rdf", "views"]
 categories = ["database-implementations"]
 
-[lints]
-workspace = true
-
 [lib]
 crate-type = ["rlib"]
 path = "src/lib.rs"
@@ -35,3 +32,10 @@ purrdf-testkit = { workspace = true }
 [[bench]]
 name = "sieve_bench"
 harness = false
+
+[[bench]]
+name = "sql_rdf_e2e"
+harness = false
+
+[lints]
+workspace = true

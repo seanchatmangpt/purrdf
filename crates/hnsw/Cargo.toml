@@ -37,9 +37,6 @@ purrdf-alloc-probe = { workspace = true }
 # packaged manifest; wasm32-clean, so it needs no target gate.
 purrdf-testkit = { workspace = true }
 
-[lints]
-workspace = true
-
 [[test]]
 name = "structured_errors"
 harness = false
@@ -74,3 +71,6 @@ harness = false
 # exact oracle and printed side by side, never divided into each other.
 name = "recall"
 harness = false
+
+[lints]
+workspace = true

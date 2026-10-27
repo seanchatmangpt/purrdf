@@ -1489,10 +1489,6 @@ mod tests {
     }
     use purrdf_core::TermId;
 
-    fn var(name: &str) -> Variable {
-        Variable::new(name)
-    }
-
     fn term(i: u32) -> Option<SolutionTerm> {
         Some(SolutionTerm::Existing(
             TermId::from_index(i).expect("stored term index is representable"),
@@ -1898,6 +1894,10 @@ mod opt45_tests {
         keys.iter().position(|candidate| candidate == var)
     }
 
+    fn var(name: &str) -> Variable {
+        Variable::new(name)
+    }
+
     #[test]
     fn lane_pack_kernel_matches_scalar_first_hit() {
         // Duplicate lanes: lowest index wins; padding zero lanes must never
@@ -1962,7 +1962,7 @@ mod opt45_tests {
         // hash is NOT a collision-capable function is a loud panic, not a
         // silent skip.
         const BUDGET: u64 = 1 << 22;
-        let mut seen: hashbrown::HashMap<u64, Variable> = hashbrown::HashMap::new();
+        let mut seen: purrdf_core::FastMap<u64, Variable> = purrdf_core::FastMap::default();
         let (twin_a, twin_b) = {
             let mut pair = None;
             for i in 0..BUDGET {

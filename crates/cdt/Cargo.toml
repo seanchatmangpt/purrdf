@@ -17,9 +17,6 @@ categories = ["parser-implementations", "data-structures"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 # rlib-only CLOSED LEAF: `purrdf-iri` and `purrdf-xsd` are the ONLY permitted
 # runtime dependencies. There is no dependency on `purrdf-core` in either
@@ -52,3 +49,13 @@ purrdf-testkit = { workspace = true }
 
 # Real allocator evidence for original native storage admission.
 purrdf-alloc-probe = { workspace = true }
+
+# The scan (`parse_list`/`parse_map`, GB/s) and the canonical lexical mapping
+# (`canonical_lexical`, ns/op) over seeded composite corpora. Report-only —
+# `make bench` lane only.
+[[bench]]
+name = "parse_render"
+harness = false
+
+[lints]
+workspace = true

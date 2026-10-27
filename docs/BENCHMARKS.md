@@ -5,6 +5,63 @@ SPDX-License-Identifier: CC-BY-4.0
 
 # Benchmarks
 
+> **MEASUREMENT-STATUS BANNER (refreshed 2026-10-27).** The 2026-07-14…07-20
+> snapshots below predate current `main`. A local refresh wave is in progress
+> (`/tmp/bench-logs/`, register + per-crate logs); status per producing crate:
+>
+> **SAFE-TO-CITE** — fresh receipt exists (register rc=0 + log with measured
+> numbers, at the paths given):
+>
+> - `purrdf` facade — rc=0, 44 benchmarks measured, 0 failed
+>   (`/tmp/bench-logs/purrdf.phase2.log`).
+> - `purrdf-rdf` (projections/native_codecs tables) — rc=0, 6 bench binaries
+>   measured, 0 failed (`/tmp/bench-logs/purrdf-rdf.phase2.log`).
+> - `purrdf-iri` — register rc=0, 2 measured, 0 failed
+>   (`/tmp/bench-logs/purrdf-iri.log`).
+> - `purrdf-shapes` — register rc=0, 36 measured (2+2+2+30), 0 failed
+>   (`/tmp/bench-logs/purrdf-shapes.log`).
+> - `purrdf-sparql-algebra` — register rc=0, 140 measured (72+31+30+3+2+2),
+>   0 failed (`/tmp/bench-logs/purrdf-sparql-algebra.log`).
+> - `purrdf-sparql-results` — register rc=0, 14 measured, 0 failed
+>   (`/tmp/bench-logs/purrdf-sparql-results.log`).
+> - `purrdf-columnar` — register rc=0, 234s, 12 measured, 0 failed
+>   (`/tmp/bench-logs/purrdf-columnar.phase2.log`).
+> - `purrdf-lex` — register rc=0, 243s, 22 measured, 0 failed
+>   (`/tmp/bench-logs/purrdf-lex.phase2.log`).
+> - `purrdf-cdt` — register rc=0, 131s, 12 measured, 0 failed
+>   (`/tmp/bench-logs/purrdf-cdt.phase2.log`).
+>
+> **RED-FIXED-AWAITING-RERUN** — terminal rc=101 receipts; fixes applied on
+> disk; reruns queued (phase-4, `/tmp/run_benches_phase4.py`). No rerun has
+> happened yet — do not cite numbers for these:
+>
+> - `purrdf-arrow` — rc=101 (`/tmp/bench-logs/purrdf-arrow.phase2.log`).
+> - `purrdf-duckdb` — rc=101 (`/tmp/bench-logs/purrdf-duckdb.phase2.log`).
+> - `purrdf-sparql-eval` — rc=101 across phase-1/2/3
+>   (`/tmp/bench-logs/purrdf-sparql-eval.phase3.log` et al.).
+> - `purrdf-branchless` — rc=101 (`/tmp/bench-logs/purrdf-branchless.phase2.log`).
+> - `purrdf-n3` — rc=101 (`/tmp/bench-logs/purrdf-n3.phase2.log`).
+>
+> **IN-FLIGHT-GREEN-SO-FAR**:
+>
+> - `purrdf-geo-kernel` — phase-3 in flight; 46/0 footers so far. Do not cite
+>   until terminal.
+>
+> **UNVERIFIED-in-flight** — live runner, do not cite: `purrdf-hnsw`,
+> `purrdf-retrieval`, `purrdf-text`, `purrdf-toml` (register rc=0 391s logged,
+> run treated as in-flight pending footer confirmation).
+>
+> **RED-QUEUED** — no receipt, not yet queued: every crate not yet run this
+> wave (rdf-core PURREMB and pack_index_compare tables, xsd exact-tower
+> instruction table, entail, datalog, gts, shex, rdf-wasm, the Python
+> compat-harness table). Do not cite those numbers; `make bench` also still
+> runs 33 crates by explicit `-p`
+> list; 8 `harness = false` bench targets in 4 crates (cli 2, duckdb 2, the
+> `purrdf` facade 2, retrieval 2) are not in it.
+>
+> The scale-corpus density tables are deterministic byte counts of the profile,
+> not timed claims, and stand as written.
+
 PurRDF's performance is **measured, never asserted** (AGENTS.md §4). Nothing in
 this document is a test gate, and no number here is a guarantee: benchmarks are
 report-only, timing-sensitive, and vary by host, CPU, allocator, and build
@@ -48,11 +105,12 @@ other compares two different questions.
 The Rust benches are the source of truth for engine-level layout and algorithm
 choices — the shipped design is whichever the bench numbers pick, not
 whichever sounds fast (see README, "Fast by measurement, not by assertion").
-They live under `crates/*/benches/`. The workspace registers 111 `[[bench]]`
-targets in total; this section and the inventory table below document 35 of
-them — the ones with a story worth telling about a hot path or a design
-trade-off. The rest run under `make bench` like any other target and are
-simply not narrated here:
+They live under `crates/*/benches/`. The workspace registers 130 `[[bench]]`
+targets in total (recount: `scripts/bounded bash -c "grep -c '^\[\[bench\]\]'
+crates/*/Cargo.toml | awk -F: '{s+=$NF} END{print s}'"` = 130); this
+section and the inventory table below document 35 of them — the ones with
+a story worth telling about a hot path or a design trade-off. The rest run
+under `make bench` like any other target and are simply not narrated here:
 
 - `crates/rdf-core/benches/ir_layout.rs` — AoS vs. SoA vs. predicate-adjacency
   IR layouts (allocation counts, high-water mark, end-to-end latency).
@@ -73,8 +131,10 @@ simply not narrated here:
 - `crates/rdf-core/benches/csv.rs` — `purrdf_core::csv` read and write
   throughput over 1 MiB SSSOM-shaped TSV and CSVW-shaped CSV inputs, through
   the streaming reader, the CSVW table algorithm and the writer.
-- `crates/rdf/benches/native_codecs.rs` — text/XML/JSON-LD codec throughput,
-  including separate context compilation and expanded/caller/derived paths.
+- `crates/rdf/benches/native_codecs.rs` — N-Quads and JSON-LD codec throughput
+  (2k/50k rows, streamed and span-tracked parse), Turtle/TriG/RDF-XML/HexTuples
+  serialize egress, Turtle collections parse, and JSON-LD context compilation
+  with expanded/caller/derived paths.
 - `crates/rdf/benches/projections.rs` — RDF-to-LPG mapping, selective versus
   explicit-all scope, materialized-package versus direct-sink output for all
   four LPG carriers, carrier readers, exact CSVW write/read, OBO Graphs, SKOS,
@@ -382,11 +442,12 @@ and allocation observations do not establish latency.
 
 ### Native benchmark inventory
 
-This table documents 35 of the 111 `[[bench]]` targets registered across the
-workspace's `Cargo.toml` files — the subset narrated in the prose list above,
-in the same order. It is not a claim of completeness: `cargo bench -p <crate>
---bench <name>` reaches every registered target whether or not it has a row
-here.
+This table documents 35 of the 130 `[[bench]]` targets registered across the
+workspace's `Cargo.toml` files (recount: `scripts/bounded grep -c '^\[\[bench\]\]'
+crates/*/Cargo.toml | awk -F: '{s+=$NF} END{print s}'` = 130) — the subset
+narrated in the prose list above, in the same order. It is not a claim of
+completeness: `cargo bench -p <crate> --bench <name>` reaches every registered
+target whether or not it has a row here.
 
 | Bench | What it measures |
 | --- | --- |
@@ -398,7 +459,7 @@ here.
 | `crates/rdf-core/benches/purremb.rs` | Full validation and resident reopen over a 16,384 x 384 binary32 Matryoshka matrix; target/row/prefix access, exact and coarse-prefix/full-prefix top-10 retrieval, canonical streaming output, a 4,096 x 128 binary64 matrix, and a one-million-chunk hierarchy. |
 | `crates/rdf-core/benches/purremb_alloc.rs` | Allocation calls, requested bytes, retained-byte deltas, and live-byte high-water deltas for PURREMB fixture construction, verification, and streaming. |
 | `crates/rdf-core/benches/csv.rs` | `purrdf_core::csv` throughput over 1 MiB inputs: an SSSOM-shaped TSV body read and written under `Dialect::SSSOM_TSV`, and a CSVW-shaped CSV table (quoted cells with commas, doubled quotes and line breaks) read by `Reader` and by `read_table`, and written. |
-| `crates/rdf/benches/native_codecs.rs` | Throughput of the native Turtle, TriG, N-Triples, N-Quads, RDF/XML, and JSON-LD serializers/parsers; JSON-LD context compilation and expanded/caller/derived modes are reported separately. |
+| `crates/rdf/benches/native_codecs.rs` | N-Quads and JSON-LD parse/serialize throughput (2k/50k rows, streamed and span-tracked parse; escape-heavy and streamed serialize), Turtle/TriG/RDF-XML/HexTuples serialize egress, Turtle collections parse, and JSON-LD context compilation with expanded/caller/derived modes reported separately. |
 | `crates/rdf/benches/projections.rs` | Graph, tabular, dataset-description, and research-object mapping/carrier throughput plus LPG scope and materialized-package/direct-sink allocation comparisons over deterministic fixtures. |
 | `crates/sparql-algebra/benches/tokenize.rs` | Lexer throughput on long IRI bodies, escaped string literals, and comment tails. |
 | `crates/shex/benches/pattern_validate.rs` | Shared-valid, shared-invalid and distinct-pattern validation under compatibility and both dated native XPath laws, with cold calls and reused validators under current finite limits. |
@@ -496,8 +557,9 @@ This `--quick` snapshot was measured on 2026-07-17 with rustc 1.96.1, Linux
 7.1.3, and an AMD Ryzen AI MAX+ 395 (16 cores / 32 threads). The host reports
 768 KiB L1d, 512 KiB L1i, 16 MiB L2, and 64 MiB L3 in aggregate. The 27.3 MB
 binary32 artifact fits within aggregate L3 while the 217.6 MB chunk catalog does
-not; both were resident in process memory. Values are Criterion point estimates
-from one report-only run and are rounded. Sub-nanosecond target-by-row timing is
+not; both were resident in process memory. Values are `purrdf_testkit::bench`
+median point estimates (median, MAD, seeded 95% bootstrap interval) from one
+report-only run and are rounded. Sub-nanosecond target-by-row timing is
 an optimized tight-loop observation, not an end-to-end request latency.
 
 | Operation | Fixture | Time | Throughput where meaningful |
@@ -736,9 +798,9 @@ cargo bench -p purrdf-rdf --bench projections --locked -- --quick
 ```
 
 The following `--quick` snapshot was measured on 2026-07-16 with rustc 1.96.1,
-Linux 7.1.3, and an AMD Ryzen AI MAX+ 395. Values are Criterion point estimates
-from one report-only run and are rounded; they are observations, not gates or
-performance promises.
+Linux 7.1.3, and an AMD Ryzen AI MAX+ 395. Values are `purrdf_testkit::bench`
+median point estimates from one report-only run and are rounded; they are
+observations, not gates or performance promises.
 
 | Operation | Input/output elements | Time | Throughput |
 | --- | ---: | ---: | ---: |
@@ -807,7 +869,8 @@ source quads, while VoID's input limit additionally charges named-graph and RDF
 | VoID generation | 14,336 | 197.34 µs | 50.674 Kquad/s | 3,213 | 394,387 |
 
 The attached RO-Crate slice was measured separately on 2026-07-19 with rustc
-1.97.1, Linux 7.1.4, the same processor, and 10 Criterion samples. The fixture
+1.97.1, Linux 7.1.4, the same processor, and 10 `--quick` samples of the same
+`purrdf_testkit::bench` harness. The fixture
 is the 29-quad research object plus one three-byte payload:
 
 | Operation | Time | Throughput | Allocation calls | Requested bytes |
@@ -916,7 +979,8 @@ This `--quick` snapshot was taken on 2026-07-14 with `rustc 1.96.1`, Linux
 7.1.3, and an AMD Ryzen AI MAX+ 395 (16 cores / 32 threads). The query fixture is
 262,144 triples. “Production” is the real `PackView` FoQ path; the isolated
 columns remove dictionary/view overhead and are the direct index comparison.
-Values are Criterion point estimates rounded to three significant figures.
+Values are `purrdf_testkit::bench` median point estimates rounded to three
+significant figures.
 
 | operation | production FoQ | isolated FoQ | isolated wavelet | wavelet / FoQ |
 | --- | ---: | ---: | ---: | ---: |
@@ -941,7 +1005,9 @@ purrdf/rdflib ratio. It is deliberately kept out of `make pytest` because it is
 slow and timing-sensitive, but it is run in the separate, report-only
 `benchmarks` workflow (`.github/workflows/benchmarks.yaml`). That workflow
 produces `bench_compat.json` and uploads it alongside the bench-harness estimates.
-It uses `continue-on-error: true`, so it never fails anything.
+It carries no `continue-on-error` anywhere — a red bench step fails the run
+rather than being rendered green — and it takes `workflow_dispatch` (with an
+optional `base_ref` input) so it can be run on demand against any branch.
 
 It runs on a **weekly schedule plus `workflow_dispatch`**, not on every push. A
 ~2 h report-only job on the per-push path burned a runner per commit for a
@@ -1017,6 +1083,8 @@ guarantee** — your numbers will differ. Reproduce with `make bench-python`.
 | 100,000 | triples_scan | 358.6 | 77.6 | 4.62 |
 
 Reading this honestly, on this host and this run:
+
+> STATUS: UNVERIFIED — no bench receipt; see docs/design/bench-coverage-report.md
 
 - **Bulk N-Triples/Turtle parsing** scales better in the shim — at 100k triples
   it parsed both formats roughly 2.1–2.2× faster than real `rdflib`, and it was
@@ -1675,3 +1743,105 @@ It does **not** cover: any other engine, WatDiv's `linear_incremental` and
 or scales beyond the one pinned dataset. It is not a conformance check either —
 that a query returned *n* rows is a measurement, not a claim that *n* is the
 answer any other implementation would produce.
+
+## v26.10.26 wave: new benches
+
+> **Standing: CONVERGING (updated 2026-10-27 ~12:25).** Green receipts so far:
+> facade `pipeline_e2e`/`pipeline_alloc` — rc=0, 1338s, **44 measured / 0
+> failed** (`/tmp/bench-logs/purrdf.phase2.log`); `native_codecs` — rc=0,
+> 1903s, **122 measured / 0 failed** (`/tmp/bench-logs/purrdf-rdf.phase2.log`);
+> `shapes` phase-1b — 36 measured / 0 failed, `pydantic_package` binary cut
+> off mid-run (`/tmp/bench-logs/purrdf-shapes.log`). Every other row below is
+> still UNVERIFIED — its phase-2 run has not landed yet (runner alive;
+> register `/tmp/bench-logs/register.txt` is the receipt of record). Do not
+> cite a figure from an unrun row; no row here is a gate. Report-only.
+
+One line per suite: what it measures, and the sellable claim it backs.
+
+- **facade `pipeline_e2e`** (`crates/purrdf/benches/pipeline_e2e.rs`) —
+  parse, SPARQL query, and JSON serialize of one ~1 MB N-Triples document,
+  priced per stage and as one whole-pipeline iteration. Sells: the facade
+  pipeline's per-stage and end-to-end cost on real input, not assembled from
+  unrelated microbenchmarks.
+- **facade `pipeline_alloc`** (`crates/purrdf/benches/pipeline_alloc.rs`) —
+  peak allocated bytes and RSS delta for the same pipeline stages, one
+  operation per window in a separate process. Sells: the memory story
+  (allocated peak vs. RSS) the timing bench deliberately does not tell.
+- **rdf `native_codecs` GB/s rows** (`crates/rdf/benches/native_codecs.rs`) —
+  parse and serialize over N-Quads/Turtle/JSON-LD fixtures with
+  `Throughput::Bytes`, including 50k-row sequential-vs-parallel and stream
+  rows. Sells: GB/s-class codec throughput on the native formats, at scale,
+  with the parallel and streaming stories on the same fixture.
+- **duckdb `sql_rdf_e2e`** (`crates/duckdb/benches/sql_rdf_e2e.rs`) — the
+  full compile-turtle → five-table Parquet views → SQL → RDF triple
+  projection path, per-triple throughput. Sells: SQL-in-RDF end to end is
+  measured, not inferred from raw-SQL rows.
+- **duckdb `sieve_bench` narration fix** (`crates/duckdb/benches/sieve_bench.rs`) —
+  doc-level fix: the suite header now says it measures raw SQL on in-memory
+  DuckDB tables, not the SQL-in-RDF pipeline. Sells: no reader mistakes a
+  raw-SQL sieve number for the pipeline number the `sql_rdf_e2e` bench owns.
+- **arrow `ipc_egress`** (`crates/arrow/benches/ipc_egress.rs`) — encode and
+  decode of a 100,000-row canonical Arrow IPC egress frame, GB/s over frame
+  bytes. Sells: the wire-side egress cost is measured at the documented
+  100k-row scale.
+- **columnar 100k + `Throughput` fix** (`crates/columnar/benches/codec.rs`) —
+  the five-table codec write/read rows at a 100k-quad fixture (added), with
+  per-quad `Throughput` so rows read as quads/s. Sells: codec cost movement
+  with scale, on a fixture sized for memory-bounded runs.
+- **branchless `kernel_table`** (`crates/branchless/benches/kernel_table.rs`) —
+  five groups: Eytzinger vs. binary search over 64k keys, sorting networks
+  (sort8, Batcher 16) vs. `std` sort, wyhash-64, SWAR delimiter find, and
+  Morton 2D encode. Sells: the constant-time kernels are timed against their
+  branchy `std` counterparts, not asserted.
+- **n3 numeric-heavy + fixpoint** (`crates/n3/benches/reasoner.rs`) —
+  numeric-literal-heavy parse rows (GB/s over digit-run input), a
+  prose-heavy contrast row, fixpoint over closure iterations, plus proof and
+  proof-check rows. Sells: the lexer's digit-run fast path is measured end to
+  end and the fixpoint rate is in elements/s, not wall clock.
+- **lex JSON/YAML/CBOR/Unicode GB/s** (`crates/lex/benches/scan.rs`) —
+  scanner rows over JSON/YAML/CBOR fixtures and Unicode normalization runs,
+  each with `Throughput::Bytes` (GB/s), plus JSON escape and reader rows.
+  Sells: every lexical layer entry point carries a bytes-per-second number,
+  not just one format.
+- **hash fnv/splitmix/multiset/frame** (`crates/hash-conformance/benches/digests.rs`) —
+  BLAKE3 (three sizes, backends), FNV-1a-64, splitmix64, multiset hashing,
+  frame hashing, and hex encode/decode rows. Sells: the hash layer's cost per
+  kernel is on the same harness as the codecs, at 64B/1KiB/1MiB sizes.
+- **cdt `parse_render`** (`crates/cdt/benches/parse_render.rs`) — list and
+  map canonical datatype literals at 128/2k/32k entries, scan and render with
+  lexical-length throughput. Sells: structured-literal parse/render scales
+  are measured, closing a crate with zero prior rows.
+- **toml `parse`** (`crates/toml/benches/parse.rs`) — analyze, project, and
+  round-trip rows over seeded TOML documents of 64/512/4096 tables.
+  Sells: the TOML codec's analyze GB/s and round-trip cost, previously
+  unmeasured.
+- **mime `decode`** (`crates/mime/benches/decode.rs`) — analyze, base64, and
+  quoted-printable decode of 24 KiB payloads with byte throughput. Sells:
+  the MIME decode path (including the re-verify public path) is measured.
+- **glob `execute`** (`crates/glob/benches/execute.rs`) — compiled-pattern
+  matching over a seeded 1,024-subject corpus, elements/s. Sells: the match
+  cost per subject on realistic path-shaped subjects, compile excluded.
+- **datalog `facts_per_second` 1M** (`crates/datalog/benches/seminaive.rs`) —
+  `derive_1m_facts`: ~10^6-fact EDB, ~10^6 derived facts at fixpoint,
+  elements/s. Sells: the semi-naive engine's derive rate at the million-fact
+  scale the name claims, not a smaller proxy.
+- **entail 10^4 rows** (`crates/entail/benches/chase.rs`,
+  `classify.rs`, `consistency.rs`) — chase over 10,000 triples, ontology
+  classification at 10,000 classes, consistency at the widened case-split
+  ladder. Sells: the reasoner stays measured (report-only) at the scale
+  where saturation stops being interactive.
+- **rdf-core `primitives_table` + arena**
+  (`crates/rdf-core/benches/primitives_table.rs`,
+  `intern_absoluteness.rs`) — ns/op rows for the SWAR delimiter, branchless
+  quad-lane sort, and bitset intersect kernels, GB/s CSV scan rows, plus
+  intern miss/hit/mixed rows at 10k IRIs and a 100k-IRI arena row. Sells:
+  the hot kernels and the interner are priced per-op, not inferred.
+- **shapes focus_1m** (`crates/shapes/benches/validate.rs`) — the core-focus
+  validation ladder at 1,000,000 focus nodes (`CORE_FOCUS_SIZES`).
+  Sells: SHACL validation cost at the million-focus-node scale is on the
+  same report as the 512–100k rungs. (Scale row pre-dates this wave; named
+  here for suite coverage.)
+- **shex 100k** (`crates/shex/benches/pattern_validate.rs`) —
+  `scale_valid_100k` / `scale_invalid_100k` over 100,000 nodes, elements/s
+  at `sample_size(10)`. Sells: ShEx pattern validation cost at 100k nodes,
+  valid and invalid fixtures apart.

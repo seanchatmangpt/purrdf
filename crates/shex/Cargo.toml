@@ -17,9 +17,6 @@ categories = ["parser-implementations"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 # rlib-only, wasm-clean leaf: the ShEx 2.1 front-end of the shapes stack. The
 # schema layer (ShExC/ShExJ parsers, the ShExJ-aligned AST, and the spec §5.7
@@ -64,3 +61,6 @@ harness = false
 # `make bench` lane only — excluded from `make check`.
 name = "pattern_validate"
 harness = false
+
+[lints]
+workspace = true

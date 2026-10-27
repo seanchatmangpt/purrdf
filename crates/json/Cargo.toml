@@ -14,9 +14,6 @@ documentation = "https://docs.rs/purrdf-json"
 keywords = ["json", "rdf", "linked-data", "lossless", "ordered"]
 categories = ["encoding", "parser-implementations"]
 
-[lints]
-workspace = true
-
 [dependencies]
 purrdf-core.workspace = true
 # The workspace root: the profile and document identity preimages open under
@@ -60,3 +57,6 @@ harness = false
 [[bench]]
 name = "ordered_json_corpus"
 harness = false
+
+[lints]
+workspace = true

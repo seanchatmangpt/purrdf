@@ -17,9 +17,6 @@ categories = ["data-structures"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 crate-type = ["rlib"]
 path = "src/lib.rs"
@@ -75,3 +72,6 @@ harness = false
 [[test]]
 name = "structured_errors"
 harness = false
+
+[lints]
+workspace = true

@@ -17,9 +17,6 @@ categories = ["database-implementations", "data-structures"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 # rlib-only and wasm32-unknown-unknown-clean: the crate is a pure composition
 # layer over the SPARQL evaluator's property-function seam. It holds no store,
@@ -104,3 +101,6 @@ harness = false
 [[bench]]
 name = "on_demand_read"
 harness = false
+
+[lints]
+workspace = true

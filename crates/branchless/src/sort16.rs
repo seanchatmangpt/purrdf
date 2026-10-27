@@ -398,6 +398,8 @@ pub fn is_sorted_branchless_u16(a: &[u32; 16]) -> bool {
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
+
     use super::*;
     use std::collections::BTreeSet;
     use std::vec::Vec;

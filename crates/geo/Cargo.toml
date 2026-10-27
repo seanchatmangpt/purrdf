@@ -17,9 +17,6 @@ categories = ["science::geo", "parser-implementations", "data-structures"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 crate-type = ["rlib"]
 path = "src/lib.rs"
@@ -62,3 +59,6 @@ harness = false
 # into the exact geometry model. Report-only.
 name = "geojson_parse"
 harness = false
+
+[lints]
+workspace = true

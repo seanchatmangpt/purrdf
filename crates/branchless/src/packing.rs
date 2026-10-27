@@ -896,7 +896,7 @@ mod tests {
         for x in [0u32, 1, 0xFFFF_FFFF, 0xDEAD_BEEF, 0x0102_0304] {
             assert_eq!(morton_spread_2d(x), deposit_bits((x) as u64, EVEN));
             let m = morton_encode_2d(x, 0x0F0F_0F0F);
-            assert_eq!(morton_compact_2d(m), compress_bits(m, EVEN));
+            assert_eq!(u64::from(morton_compact_2d(m)), compress_bits(m, EVEN));
             assert_eq!((morton_compact_2d(m)) as u64, compress_ref(m, EVEN));
         }
     }

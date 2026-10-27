@@ -323,6 +323,19 @@ pub struct MutableDataset {
     /// each survives [`freeze`](Self::freeze) and every snapshot as a declared graph
     /// whether or not it owns a quad.
     declared_graphs: Vec<TermValue>,
+    /// OPT-50 position mirror of [`Self::declared_graphs`]: each declared graph
+    /// value mapped to its index in that `Vec`, so declaration lookups and
+    /// withdrawals hash once instead of deep-comparing `TermValue`s (heap string
+    /// compares inside) per entry. Maintained on every insert and single-index
+    /// removal; rebuilt wholesale after bulk-removal paths. Invariant: exactly the
+    /// value→index map of the `Vec` at every observable boundary.
+    declared_pos: FastMap<TermValue, usize>,
+    /// OPT-50 dense index of the frozen base's blank-term ids, built lazily on the
+    /// first [`Self::visit_blank_identities`] call (the base is fixed for this
+    /// dataset's lifetime, so the index never goes stale). Turns the blank walk
+    /// from a full term-space scan — a tag check and cache-line touch per term for
+    /// a ~100% non-blank majority — into an O(#base blanks) traversal.
+    base_blanks: std::sync::OnceLock<Vec<TermId>>,
     /// The live RDF row count — quads, reifier bindings and annotations, base and
     /// added — of every named graph a mutation has touched, base-named or
     /// delta-named. A base graph is seeded from the base on first touch
@@ -363,6 +376,8 @@ impl MutableDataset {
             added_reifiers: FastMap::default(),
             classification_created: FastSet::default(),
             declared_graphs: Vec::new(),
+            declared_pos: FastMap::default(),
+            base_blanks: std::sync::OnceLock::new(),
             graph_rows: FastMap::default(),
             withdrawn_graphs: Arc::default(),
             work: super::view_accounting::WorkCounter::default(),
@@ -417,7 +432,7 @@ impl MutableDataset {
     /// freezing, scanning rows or minting a term.
     #[must_use]
     pub fn has_named_graph(&self, graph: &TermValue) -> bool {
-        if self.declared_graphs.contains(graph)
+        if self.declared_pos.contains_key(graph)
             || self
                 .base_graph(graph)
                 .is_some_and(|id| !self.withdrawn_graphs.contains(&id))
@@ -467,10 +482,13 @@ impl MutableDataset {
             Arc::make_mut(&mut self.withdrawn_graphs).remove(&id);
             return true;
         }
-        if self.declared_graphs.contains(&graph) {
+        if self.declared_pos.contains_key(&graph) {
             return false;
         }
-        self.declared_graphs.push(graph);
+        self.declared_graphs.push(graph.clone());
+        // OPT-50: keep the position mirror exact on insert.
+        self.declared_pos
+            .insert(graph, self.declared_graphs.len() - 1);
         true
     }
 
@@ -602,9 +620,21 @@ impl MutableDataset {
         &self,
         mut visit: impl FnMut(&str, crate::BlankScope) -> ControlFlow<B>,
     ) -> ControlFlow<B> {
-        for index in 0..self.base.term_count() {
-            let id = TermId::from_index(u32::try_from(index).expect("native index fits u32"))
-                .expect("stored term index is representable");
+        // OPT-50: walk the lazily built dense blank-id index over the base instead
+        // of resolving every term in the term space. The index is built once, in
+        // ascending id order, so the visit order is exactly the full scan's.
+        let blanks = self.base_blanks.get_or_init(|| {
+            let mut blanks = Vec::new();
+            for index in 0..self.base.term_count() {
+                let id = TermId::from_index(u32::try_from(index).expect("native index fits u32"))
+                    .expect("stored term index is representable");
+                if matches!(self.base.resolve(id), TermRef::Blank { .. }) {
+                    blanks.push(id);
+                }
+            }
+            blanks
+        });
+        for &id in blanks {
             if let TermRef::Blank { label, scope } = self.base.resolve(id) {
                 visit(label, scope)?;
             }
@@ -975,13 +1005,36 @@ impl MutableDataset {
         }
     }
 
+    /// OPT-50: remove the declaration at `index`, keeping [`Self::declared_pos`]
+    /// exact by dropping the removed value's entry and decrementing every stored
+    /// position above `index`. O(#declarations) hash writes, zero `TermValue`
+    /// deep-equality calls and zero allocations beyond the map's own.
+    fn remove_declared_at(&mut self, index: usize) {
+        let value = self.declared_graphs.remove(index);
+        self.declared_pos.remove(&value);
+        for position in self.declared_pos.values_mut() {
+            if *position > index {
+                *position -= 1;
+            }
+        }
+    }
+
+    /// OPT-50: recompute the position mirror from scratch after a bulk-removal
+    /// path (`retain`/`pop` loops) that bypasses [`Self::remove_declared_at`].
+    fn rebuild_declared_pos(&mut self) {
+        self.declared_pos.clear();
+        self.declared_pos
+            .extend(self.declared_graphs.iter().cloned().zip(0..));
+        debug_assert_eq!(self.declared_pos.len(), self.declared_graphs.len());
+    }
+
     fn withdraw_emptied_declaration(&mut self, graph: MutTermId) {
         if self.declared_graphs.is_empty() {
             return;
         }
         let value = self.mut_value(graph);
-        if let Some(index) = self.declared_graphs.iter().position(|g| *g == value) {
-            self.declared_graphs.remove(index);
+        if let Some(index) = self.declared_pos.get(&value).copied() {
+            self.remove_declared_at(index);
         }
     }
 
@@ -1242,13 +1295,15 @@ impl MutableDataset {
         // A declaration made through `declare_named_graph` is withdrawn the same way:
         // a graph that still holds rows stays enumerated through them.
         if self.graph_existence == GraphExistenceMode::RememberEmpty {
-            if let Some(index) = self.declared_graphs.iter().position(|g| g == graph)
-                && !self.holds_rows(graph)
-            {
-                self.declared_graphs.remove(index);
+            // OPT-50: one hashed position probe replaces the linear deep-equality
+            // scan; the row check still gates the removal, in the same order.
+            if self.declared_pos.contains_key(graph) && !self.holds_rows(graph) {
+                let index = self.declared_pos[graph];
+                self.remove_declared_at(index);
             }
         } else {
             self.declared_graphs.retain(|g| g != graph);
+            self.rebuild_declared_pos();
         }
     }
 
@@ -1299,11 +1354,13 @@ impl MutableDataset {
                     self.declared_graphs.remove(index);
                 }
             }
+            self.rebuild_declared_pos();
         } else {
             while !self.declared_graphs.is_empty() {
                 checkpoint()?;
                 let _ = self.declared_graphs.pop();
             }
+            self.rebuild_declared_pos();
         }
         Ok(())
     }

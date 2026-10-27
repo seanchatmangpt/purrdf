@@ -2,10 +2,10 @@
 #![allow(clippy::result_large_err)]
 
 use crate::ast::{
-    AggregateFunction, CompiledQuery, Cte, FrameSpec, JoinClause, JoinType, OrderTerm, ScopePos, SqlExpr,
-    SqlLiteral, TableRef, validate_identifier, validate_qualified_identifier,
+    AggregateFunction, CompiledQuery, Cte, FrameSpec, JoinClause, JoinType, OrderTerm, ScopePos,
+    SqlExpr, SqlLiteral, TableRef, validate_identifier, validate_qualified_identifier,
 };
-use crate::error::{refusal_arm, AstError, RefusalCode};
+use crate::error::{AstError, RefusalCode, refusal_arm};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SelectStatement {
@@ -212,19 +212,13 @@ impl SelectStatement {
             }
             if join.join_type != JoinType::Positional {
                 sql.push_str(" ON ");
-                Self::serialize_expr(
-                    &join.condition,
-                    sql,
-                    params,
-                    0,
-                    ScopePos::Predicate,
-                )?;
+                Self::serialize_expr(&join.condition, sql, params, 0, ScopePos::Predicate)?;
             }
         }
 
         if let Some(where_clause) = &self.where_clause {
             sql.push_str(" WHERE ");
-             Self::serialize_expr(where_clause, sql, params, 0, ScopePos::Predicate)?;
+            Self::serialize_expr(where_clause, sql, params, 0, ScopePos::Predicate)?;
         }
 
         if !self.group_by.is_empty() {
@@ -233,18 +227,18 @@ impl SelectStatement {
                 if idx > 0 {
                     sql.push_str(", ");
                 }
-                 Self::serialize_expr(item, sql, params, 0, ScopePos::GroupBy)?;
+                Self::serialize_expr(item, sql, params, 0, ScopePos::GroupBy)?;
             }
         }
 
         if let Some(having) = &self.having {
             sql.push_str(" HAVING ");
-             Self::serialize_expr(having, sql, params, 0, ScopePos::Having)?;
+            Self::serialize_expr(having, sql, params, 0, ScopePos::Having)?;
         }
 
         if let Some(qualify) = &self.qualify {
             sql.push_str(" QUALIFY ");
-             Self::serialize_expr(qualify, sql, params, 0, ScopePos::Qualify)?;
+            Self::serialize_expr(qualify, sql, params, 0, ScopePos::Qualify)?;
         }
 
         if !self.order_by.is_empty() {
@@ -253,7 +247,7 @@ impl SelectStatement {
                 if idx > 0 {
                     sql.push_str(", ");
                 }
-                 Self::serialize_expr(&term.expr, sql, params, 0, ScopePos::OrderBy)?;
+                Self::serialize_expr(&term.expr, sql, params, 0, ScopePos::OrderBy)?;
                 if term.descending {
                     sql.push_str(" DESC");
                 }
@@ -268,7 +262,8 @@ impl SelectStatement {
                 return Err(AstError::new(
                     RefusalCode::MalformedAst,
                     refusal_arm::LIMIT_EXCEEDS_ENVELOPE,
-                ).with_num(l));
+                )
+                .with_num(l));
             }
             Some(l) => l,
             None => CANDIDATE_ENVELOPE_LIMIT,
@@ -401,7 +396,13 @@ impl SelectStatement {
                         if idx > 0 {
                             sql.push_str(", ");
                         }
-                        Self::serialize_expr(&term.expr, sql, params, depth + 1, ScopePos::OrderBy)?;
+                        Self::serialize_expr(
+                            &term.expr,
+                            sql,
+                            params,
+                            depth + 1,
+                            ScopePos::OrderBy,
+                        )?;
                         if term.descending {
                             sql.push_str(" DESC");
                         }
@@ -587,11 +588,7 @@ impl SetOperationStatement {
 
 /// Serializes a window frame spec (SQLRDF-25): `ROWS BETWEEN a AND b` in the
 /// two-bound form, `ROWS a` in the single-bound form.
-fn serialize_frame(
-    frame: &FrameSpec,
-    sql: &mut String,
-    depth: usize,
-) -> Result<(), AstError> {
+fn serialize_frame(frame: &FrameSpec, sql: &mut String, depth: usize) -> Result<(), AstError> {
     let _ = depth;
     sql.push_str(frame.unit.as_sql());
     match &frame.end {

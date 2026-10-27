@@ -32,7 +32,10 @@ target-*
 scripts/.target-hygiene-state
 scripts/.target-hygiene-drift
 .claude/hooks/bounded-guard-receipts.log
+scripts/fb-receipts.jsonl
 scripts/fb-receipts.jsonl.lock
+scripts/.bounded.swp
+*.swp
 rustc-ice-*.txt
 texput.log
 .DS_Store

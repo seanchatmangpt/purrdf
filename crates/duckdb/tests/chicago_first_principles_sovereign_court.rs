@@ -16,9 +16,7 @@ use std::time::Instant;
 use purrdf_arrow::ArrowEgressHeader;
 use purrdf_duckdb::{EvaluatorError, PurRdfDuckDB};
 use purrdf_hash::{blake3, hex};
-use purrdf_sql::{
-    refusal_arm, RefusalCode, SelectItem, SelectStatement, SqlExpr, TableRef,
-};
+use purrdf_sql::{RefusalCode, SelectItem, SelectStatement, SqlExpr, TableRef, refusal_arm};
 
 // ============================================================================
 // 1. MECHANICAL SYMPATHY: BRANCHLESS SWAR SCANNER
@@ -77,7 +75,8 @@ impl SwarScanner {
 
             // 3. Direct interning into 64-bit TermId without heap allocation
             // Hash step: SplitMix64 mixing constant + word index
-            checksum_term_id = checksum_term_id.rotate_left(5) ^ word.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(i as u64);
+            checksum_term_id = checksum_term_id.rotate_left(5)
+                ^ word.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(i as u64);
         }
 
         (zero_matches + uppercase_matches, checksum_term_id)
@@ -106,7 +105,10 @@ fn test_section_1_mechanical_sympathy_branchless_swar_and_zero_ambient() {
 
     let (matches_found, term_id) = SwarScanner::scan_and_intern_1024_bytes(&payload);
     assert!(matches_found > 0, "SWAR scanner matches detected");
-    assert_ne!(term_id, 0, "64-bit TermId interned directly without heap allocations");
+    assert_ne!(
+        term_id, 0,
+        "64-bit TermId interned directly without heap allocations"
+    );
 
     // Verify bitwise masks
     assert_eq!(SwarScanner::HIGH_BIT_MASK, 0x8080808080808080);
@@ -128,7 +130,10 @@ fn test_section_1_mechanical_sympathy_branchless_swar_and_zero_ambient() {
         .expect("query max_memory setting");
 
     assert!(
-        memory_check.contains("10.0MB") || memory_check.contains("10MB") || memory_check.contains("10485760") || memory_check.contains("9.5 MiB"),
+        memory_check.contains("10.0MB")
+            || memory_check.contains("10MB")
+            || memory_check.contains("10485760")
+            || memory_check.contains("9.5 MiB"),
         "Linear memory ceiling strictly pinned to 10MB: {memory_check}"
     );
 }
@@ -140,7 +145,9 @@ fn test_section_1_mechanical_sympathy_branchless_swar_and_zero_ambient() {
 #[test]
 fn test_section_2_relational_to_graph_collapse_single_pass_sieve() {
     let db = PurRdfDuckDB::open_in_memory().expect("open duckdb");
-    let _ = db.raw_connection().execute_batch("SET threads=1; SET preserve_insertion_order=false;");
+    let _ = db
+        .raw_connection()
+        .execute_batch("SET threads=1; SET preserve_insertion_order=false;");
 
     // Setup 10,000 unindexed transaction records and a reference FX table
     db.raw_connection()
@@ -225,10 +232,17 @@ fn test_section_2_relational_to_graph_collapse_single_pass_sieve() {
     // Exactly 16 entities emitted
     assert_eq!(res.rows_emitted, 16);
     // Each row projects entity_id, amount, fee -> 16 * 3 = 48 quads!
-    assert_eq!(res.triples.len(), 48, "Single-pass sieve must yield exactly 48 candidate quads");
+    assert_eq!(
+        res.triples.len(),
+        48,
+        "Single-pass sieve must yield exactly 48 candidate quads"
+    );
 
     // Verify sub-5ms latency invariant on local silicon
-    println!("Single-pass sieve 10,000-row collapse latency: {:?}", elapsed);
+    println!(
+        "Single-pass sieve 10,000-row collapse latency: {:?}",
+        elapsed
+    );
     assert!(
         elapsed.as_millis() < 50, // generous safety bound for CI, observed ~1-3ms locally
         "Single-pass sieve must complete within low latency ceiling, took {:?}",
@@ -266,9 +280,14 @@ fn test_section_3_deterministic_bounds_and_circuit_breaker_defense() {
         offset: None,
     };
 
-    let compile_err = adversarial_query.compile().expect_err("must refuse limit 128");
+    let compile_err = adversarial_query
+        .compile()
+        .expect_err("must refuse limit 128");
     assert_eq!(compile_err.code, RefusalCode::MalformedAst);
-    assert_eq!(compile_err.ctx.shape_id, refusal_arm::LIMIT_EXCEEDS_ENVELOPE);
+    assert_eq!(
+        compile_err.ctx.shape_id,
+        refusal_arm::LIMIT_EXCEEDS_ENVELOPE
+    );
     assert_eq!(compile_err.ctx.num, 128);
 
     // ------------------------------------------------------------------------
@@ -300,9 +319,16 @@ fn test_section_3_deterministic_bounds_and_circuit_breaker_defense() {
         .expect_err("circuit breaker must trip at row 65");
 
     match eval_err {
-        EvaluatorError::RowEnvelopeExceeded { limit, observed, max } => {
+        EvaluatorError::RowEnvelopeExceeded {
+            limit,
+            observed,
+            max,
+        } => {
             assert_eq!(limit, "duckdb_result_rows");
-            assert_eq!(observed, 65, "Circuit breaker tripped instantaneously on row 65");
+            assert_eq!(
+                observed, 65,
+                "Circuit breaker tripped instantaneously on row 65"
+            );
             assert_eq!(max, 64);
         }
         other => panic!("expected RowEnvelopeExceeded, got {other:?}"),
@@ -375,7 +401,10 @@ flowchart TD
         seal_hex
     );
 
-    println!("Attested Sovereign Derivation Receipt:\n{}", mermaid_flowchart);
+    println!(
+        "Attested Sovereign Derivation Receipt:\n{}",
+        mermaid_flowchart
+    );
     assert!(mermaid_flowchart.contains("Receipt:"));
     assert_eq!(seal_hex.len(), 64);
 }

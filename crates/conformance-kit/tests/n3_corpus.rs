@@ -66,15 +66,25 @@ fn n3_corpus_decodes_and_manifests_reach_every_case() {
         manifest::decode(reader).expect("case manifest decodes");
     }
 
-    let suite_ds = dataset(&read(&root, "n3/manifest.ttl"), "http://example.org/n3/n3/manifest.ttl");
+    let suite_ds = dataset(
+        &read(&root, "n3/manifest.ttl"),
+        "http://example.org/n3/n3/manifest.ttl",
+    );
     let suite = manifest::decode(Reader {
         dataset: &suite_ds,
         graph: GraphMatch::Any,
     })
     .expect("suite manifest decodes");
-    assert_eq!(suite.includes.len(), 9, "suite includes every case manifest");
+    assert_eq!(
+        suite.includes.len(),
+        9,
+        "suite includes every case manifest"
+    );
 
-    let root_ds = dataset(&read(&root, "manifest.ttl"), "http://example.org/n3/manifest.ttl");
+    let root_ds = dataset(
+        &read(&root, "manifest.ttl"),
+        "http://example.org/n3/manifest.ttl",
+    );
     let root_doc = manifest::decode(Reader {
         dataset: &root_ds,
         graph: GraphMatch::Any,

@@ -12,9 +12,6 @@ homepage.workspace = true
 rust-version.workspace = true
 publish = false
 
-[lints]
-workspace = true
-
 [lib]
 path = "src/lib.rs"
 # The library holds no benchmarks, and `cargo bench -p purrdf-hash-conformance
@@ -86,3 +83,6 @@ harness = false
 [[test]]
 name = "shake"
 harness = false
+
+[lints]
+workspace = true

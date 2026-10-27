@@ -73,7 +73,7 @@
 
 use std::sync::Arc;
 
-use purrdf_testkit::bench::{Bench, BenchmarkId, bench_group, bench_main};
+use purrdf_testkit::bench::{Bench, BenchmarkId, bench_group, bench_main, black_box};
 
 use purrdf_core::{BlankScope, RdfDataset, RdfDatasetBuilder, RdfLiteral, TermId};
 use purrdf_entail::reasoner::{Reasoner, Verdict};
@@ -451,7 +451,7 @@ fn bench_choices(c: &mut Bench) {
                 BenchmarkId::new(format!("abox{abox}"), format!("choices{choices}")),
                 &reasoner,
                 |bencher, reasoner| {
-                    bencher.iter(|| reasoner.consistency());
+                    bencher.iter(|| black_box(reasoner.consistency()));
                 },
             );
         }
@@ -471,7 +471,7 @@ fn bench_role_edges(c: &mut Bench) {
             BenchmarkId::from_parameter(n),
             &reasoner,
             |bencher, reasoner| {
-                bencher.iter(|| reasoner.consistency());
+                bencher.iter(|| black_box(reasoner.consistency()));
             },
         );
     }
@@ -521,7 +521,7 @@ fn bench_role_degree(c: &mut Bench) {
             BenchmarkId::new("regular", k),
             &reasoner,
             |bencher, reasoner| {
-                bencher.iter(|| reasoner.consistency());
+                bencher.iter(|| black_box(reasoner.consistency()));
             },
         );
     }
@@ -531,7 +531,7 @@ fn bench_role_degree(c: &mut Bench) {
         BenchmarkId::new("star", n - 1),
         &reasoner,
         |bencher, reasoner| {
-            bencher.iter(|| reasoner.consistency());
+            bencher.iter(|| black_box(reasoner.consistency()));
         },
     );
     group.finish();
@@ -547,7 +547,7 @@ fn bench_nominal_introduction(c: &mut Bench) {
             BenchmarkId::from_parameter(bound),
             &reasoner,
             |bencher, reasoner| {
-                bencher.iter(|| reasoner.consistency());
+                bencher.iter(|| black_box(reasoner.consistency()));
             },
         );
     }
@@ -560,10 +560,14 @@ fn bench_consistency(c: &mut Bench) {
         // The co-typed group stops at eight: its work grows about one and a half times per
         // added block, so sixteen would spend most of a sample budget deciding one case the
         // eight-block case already characterizes.
+        //
+        // The 64-block row is a scale probe, not a regression point: the split search is
+        // superlinear in the blocks, so this row shows where one consistency decision stops
+        // being interactive. Report-only.
         let sizes: &[usize] = if shape.co_typed() {
             &[1, 2, 4, 8]
         } else {
-            &[1, 4, 16]
+            &[1, 4, 16, 64]
         };
         for &blocks in sizes {
             let dataset = ontology(blocks, shape);
@@ -572,7 +576,7 @@ fn bench_consistency(c: &mut Bench) {
                 BenchmarkId::from_parameter(blocks),
                 &reasoner,
                 |bencher, reasoner| {
-                    bencher.iter(|| reasoner.consistency());
+                    bencher.iter(|| black_box(reasoner.consistency()));
                 },
             );
         }
@@ -600,9 +604,11 @@ fn bench_proof_recording(c: &mut Bench) {
             &dataset,
             |bencher, dataset| {
                 bencher.iter(|| {
-                    Reasoner::new(dataset)
-                        .expect("reverse-map the ontology")
-                        .consistency()
+                    black_box(
+                        Reasoner::new(dataset)
+                            .expect("reverse-map the ontology")
+                            .consistency(),
+                    )
                 });
             },
         );
@@ -611,9 +617,11 @@ fn bench_proof_recording(c: &mut Bench) {
             &dataset,
             |bencher, dataset| {
                 bencher.iter(|| {
-                    Reasoner::with_proofs(dataset)
-                        .expect("reverse-map the ontology")
-                        .consistency()
+                    black_box(
+                        Reasoner::with_proofs(dataset)
+                            .expect("reverse-map the ontology")
+                            .consistency(),
+                    )
                 });
             },
         );

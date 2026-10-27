@@ -146,12 +146,19 @@ impl std::fmt::Display for ArrowEgressHeaderError {
             Self::BadMagic => write!(f, "canonarrow: bad wire magic"),
             Self::BadSchemaVersion(v) => write!(f, "canonarrow: unsupported schema version {v}"),
             Self::BadFlags(fl) => write!(f, "canonarrow: undefined flag bits 0x{fl:04x}"),
-            Self::BadPayloadOffset(off) => write!(f, "canonarrow: expected payload offset 128, got {off}"),
-            Self::BadTotalLen { payload_byte_len, total_byte_len } => write!(
+            Self::BadPayloadOffset(off) => {
+                write!(f, "canonarrow: expected payload offset 128, got {off}")
+            }
+            Self::BadTotalLen {
+                payload_byte_len,
+                total_byte_len,
+            } => write!(
                 f,
                 "canonarrow: inconsistent lengths: payload={payload_byte_len}, total={total_byte_len}"
             ),
-            Self::ReservedNotZero => write!(f, "canonarrow: reserved header region not zero-filled"),
+            Self::ReservedNotZero => {
+                write!(f, "canonarrow: reserved header region not zero-filled")
+            }
         }
     }
 }

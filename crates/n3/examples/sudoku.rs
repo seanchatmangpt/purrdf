@@ -129,7 +129,8 @@ fn render_grid(text: &str) -> String {
 }
 
 fn main() {
-    let puzzle = "100007090030020008009600500005300900010080002600004000300000010040000007007000300";
+    let puzzle =
+        "100007090030020008009600500005300900010080002600004000300000010040000007007000300";
     match solve_sudoku_string(puzzle) {
         Ok(solution) if solution.len() == 81 => {
             println!("puzzle:");

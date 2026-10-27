@@ -101,6 +101,26 @@ source "$(dirname "${BASH_SOURCE[0]}")/lane-common.sh"
 
 readonly PROFILE_ID="purrdf-scale-mixed-v1"
 
+# One shard body's hang-breaker, and deliberately NOT the repository's 5s
+# bounded-build law: a shard generating SCALE_QUADS rows is a heavy lane that
+# legitimately runs for minutes (heavy CI lanes start at 10^6), so this ceiling
+# is generous by construction. It exists so a WEDGED shard — a generator stuck
+# on a full disk, a dead consumer, a vanished pipe — fails the run naming the
+# shard, instead of the bare `wait` blocking on that one pid forever while the
+# run's other shards finish and its certificates hang unaccounted. A run whose
+# shards legitimately need longer than this is re-parameterized (more shards),
+# never waited out.
+readonly SHARD_TIMEOUT_S=1800
+
+# `timeout` is GNU coreutils, and the per-shard bound below is the first use of
+# it in this lane, so its absence is a lane failure BEFORE any shard starts —
+# named and fixable, never a bare `command not found` from inside a backgrounded
+# shard after the corpus generation is already underway.
+command -v timeout >/dev/null ||
+  die "this lane bounds each shard with GNU 'timeout' (SHARD_TIMEOUT_S=${SHARD_TIMEOUT_S}s), which is not on PATH.
+  Install coreutils (macOS: brew install coreutils, then put its gnubin bin on
+  PATH) or run this lane on a host that has it. Nothing has been generated."
+
 # 1592642302 is the generator's own default seed (0x5EED_CAFE) in the decimal
 # form its CLI parses, so an unset SCALE_SEED reproduces a plain `bench-corpus`
 # run rather than silently choosing a different corpus.
@@ -456,17 +476,40 @@ whole_run_manifest() {
 # Runs every shard concurrently and waits for all of them, collecting the
 # failures instead of stopping at the first: a half-reported run hides which
 # shards were actually produced. `$1` names a function taking the shard index.
+#
+# Each shard body runs under `timeout -k 1 ${SHARD_TIMEOUT_S}` (see the note
+# above the constant): the previous bare `wait` on the pid returned only when
+# the shard finished, so one wedged generator held the whole lane forever.
+# `timeout` (not --foreground) puts the body in its own process group, so the
+# SIGKILL that follows the `-k 1` grace takes the generator's whole pipeline
+# down with it. Status 124 (SIGTERM at the limit) and 137 (the -k SIGKILL) are
+# reported as the typed shard-timeout failure naming the shard; every other
+# non-zero status keeps the generic shard-failure report.
 run_all_shards() {
   local body="$1"
+  # The bodies now run as a child `bash` under `timeout`, not as a plain
+  # subshell of this one, so everything they touch crosses a process boundary:
+  # the variables and the functions are exported here, once, for that child.
+  # The child runs WITHOUT errexit, exactly like the backgrounded subshells it
+  # replaces — the bodies' own explicit status tests (see their note below)
+  # remain the failure mechanism, and none of them relies on `errexit`.
+  export BIN SINK OUT LANE_TMP LANE_STREAM_CHUNK_BYTES SHARDS SEED QUADS IRIS PAD PREFIX
+  export -f "${body}" shard_args shard_name count_through digest_sink
   local -a pids=()
-  local index status=0
+  local index rc status=0
   for ((index = 0; index < SHARDS; index++)); do
-    "${body}" "${index}" &
+    timeout -k 1 "${SHARD_TIMEOUT_S}" bash -c '"$0" "$1"' "${body}" "${index}" &
     pids+=("$!")
   done
   local -a failed=()
   for ((index = 0; index < SHARDS; index++)); do
-    if ! wait "${pids[index]}"; then
+    rc=0
+    wait "${pids[index]}" || rc=$?
+    if ((rc == 124 || rc == 137)); then
+      echo "scale-corpus: shard ${index} of ${SHARDS} exceeded SHARD_TIMEOUT_S=${SHARD_TIMEOUT_S}s and was killed (status ${rc})" >&2
+      failed+=("${index}")
+      status=1
+    elif ((rc != 0)); then
       failed+=("${index}")
       status=1
     fi

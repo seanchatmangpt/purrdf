@@ -10,6 +10,16 @@
 //! Report-only, `cargo bench -p purrdf --bench native_codecs`. The fixture is
 //! deterministic N-Quads with default and named graph rows so both parser and
 //! serializer exercise dataset-capable paths.
+//!
+//! Every parse row reports `Throughput::Bytes` over its input document and every
+//! serialize row over its output document, so the harness prints a GB/s-class
+//! rate beside the time; the byte count is measured by one untimed serialization
+//! of the same document at group setup (the serializers are deterministic, so
+//! the measurement is the iteration's own byte count). Per-format parse rows
+//! cover every reader this crate ships: N-Triples, TriG, RDF/XML, TriX,
+//! HexTuples and YAML-LD beside the N-Quads and Turtle rows, and a
+//! numeric-heavy fixture (30% typed-literal rows over integer / decimal /
+//! double) drives the typed-literal parse and `^^`-datatype serialize paths.
 
 use purrdf_rdf::native_codecs::jsonld::{
     CompiledJsonLdContext, JsonLdSerializeOptions, derive_jsonld_context, parse_jsonld,
@@ -144,6 +154,79 @@ fn nquads_fixture_escape_heavy(rows: usize) -> String {
     out
 }
 
+/// A const-seed xorshift64 wrapper: the fixture generator's only source of
+/// variation. The mixing arithmetic is single-homed in
+/// `purrdf_testkit::rng::xorshift64_next` — this bench owns only the seed.
+/// Deterministic across runs and platforms; no `rand` crate, no clock (the
+/// fixture law: seeded generators only).
+struct XorShift64Star(u64);
+
+impl XorShift64Star {
+    /// Arbitrary fixed seed — same seed, same fixture, every run.
+    const SEED: u64 = 0x9E37_79B9_7F4A_7C15;
+
+    const fn new() -> Self {
+        Self(Self::SEED)
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        purrdf_testkit::rng::xorshift64_next(&mut self.0)
+    }
+}
+
+/// Exactly `NUMERIC_TYPING_NUM` of every `NUMERIC_TYPING_DEN` rows (3 of 10 =
+/// 30%) carry a numeric typed literal; the rest carry a plain literal.
+const NUMERIC_TYPING_NUM: usize = 3;
+const NUMERIC_TYPING_DEN: usize = 10;
+
+/// The XSD numeric datatypes the typed rows cycle through.
+const NUMERIC_DATATYPES: [&str; 3] = [
+    "http://www.w3.org/2001/XMLSchema#integer",
+    "http://www.w3.org/2001/XMLSchema#decimal",
+    "http://www.w3.org/2001/XMLSchema#double",
+];
+
+/// Numeric-heavy N-Quads fixture: 30% of rows carry a numeric typed literal
+/// object (`"…"^^<xsd:integer|decimal|double>`, valid XSD lexical forms with
+/// xorshift-varied digit counts), 70% a plain literal. Parsing drives the
+/// quoted-literal + `^^` datatype-IRI read path and the typed-literal intern;
+/// serialization drives the datatype-IRI write beside the escape scan's clean
+/// digit copy. Deterministic: the seed is const and the row pattern is `idx`.
+fn nquads_fixture_numeric_heavy(rows: usize) -> String {
+    use std::fmt::Write as _;
+    let mut rng = XorShift64Star::new();
+    let mut out = String::with_capacity(rows * 190);
+    for idx in 0..rows {
+        let typed = idx % NUMERIC_TYPING_DEN < NUMERIC_TYPING_NUM;
+        let object = if typed {
+            match idx % NUMERIC_DATATYPES.len() {
+                0 => format!("\"{}\"^^<{}>", rng.next_u64() % 1_000_000_000, NUMERIC_DATATYPES[0]),
+                1 => format!(
+                    "\"{}.{}\"^^<{}>",
+                    rng.next_u64() % 1_000_000,
+                    rng.next_u64() % 1_000_000,
+                    NUMERIC_DATATYPES[1]
+                ),
+                _ => format!(
+                    "\"{}.{}E{}\"^^<{}>",
+                    1 + (rng.next_u64() % 9),
+                    rng.next_u64() % 1_000_000,
+                    rng.next_u64() % 300,
+                    NUMERIC_DATATYPES[2]
+                ),
+            }
+        } else {
+            format!("\"reading {idx} on graph {}\"", idx % 8)
+        };
+        let _ = writeln!(
+            out,
+            "<https://example.org/s{idx}> <https://example.org/measure> {object} <https://example.org/g{}> .",
+            idx % 8
+        );
+    }
+    out
+}
+
 /// Span-tracking OFF vs ON over the SAME N-Quads fixture, REPORT-ONLY. The `off`
 /// arm is `parse_dataset_with(track_source_spans=false)`, which threads the
 /// zero-sized `NoSpans` collector — the same disabled-recording path
@@ -190,15 +273,101 @@ fn bench_parse_nquads_span_tracking(c: &mut Bench) {
     group.finish();
 }
 
+/// Parse of the numeric-heavy fixture: the typed-literal read path (`^^`
+/// datatype IRI + quoted lexical form) at 30% row density, beside the plain
+/// literals. Byte throughput over the input document.
+fn bench_parse_nquads_numeric_heavy(c: &mut Bench) {
+    let text = nquads_fixture_numeric_heavy(ROWS);
+    let mut group = c.benchmark_group("native_codecs_parse_numeric");
+    group.throughput(Throughput::Bytes(text.len() as u64));
+    group.bench_function("nquads_2k_numeric_heavy", |bencher| {
+        bencher.iter(|| {
+            let dataset = parse_dataset(black_box(text.as_bytes()), "application/n-quads", None)
+                .expect("parse");
+            black_box(dataset);
+        });
+    });
+    group.finish();
+}
+
+/// One parse of the SAME numeric-heavy dataset spelled in every format whose
+/// reader this crate ships (each row's document is produced by that format's
+/// own serializer at group setup, OUTSIDE the timed region, so the parse
+/// measures the reader over real per-format bytes — never a fixture builder).
+/// Covers the readers the docs claim but no bench exercised: RDF/XML, TriX,
+/// HexTuples and YAML-LD beside N-Triples and TriG. Report-only; the per-format
+/// determinism and round-trip contracts stay with the codec tests.
+fn bench_parse_formats(c: &mut Bench) {
+    let dataset = parse_dataset(
+        nquads_fixture_numeric_heavy(ROWS).as_bytes(),
+        "application/n-quads",
+        None,
+    )
+    .expect("numeric fixture parses");
+    let mut group = c.benchmark_group("native_codecs_parse_formats");
+    for (name, media_type, selection) in [
+        (
+            "ntriples_2k_numeric",
+            "application/n-triples",
+            SerializeGraph::DefaultGraph,
+        ),
+        ("trig_2k_numeric", "application/trig", SerializeGraph::Dataset),
+        (
+            "rdfxml_2k_numeric",
+            "application/rdf+xml",
+            SerializeGraph::DefaultGraph,
+        ),
+        ("trix_2k_numeric", "application/trix", SerializeGraph::Dataset),
+        (
+            "hextuples_2k_numeric",
+            "application/x-hextuples",
+            SerializeGraph::Dataset,
+        ),
+        (
+            "yamlld_2k_numeric",
+            "application/ld+yaml",
+            SerializeGraph::Dataset,
+        ),
+    ] {
+        let document = serialize_dataset(&dataset, media_type, selection).expect("fixture bytes");
+        group.throughput(Throughput::Bytes(document.len() as u64));
+        group.bench_function(name, |bencher| {
+            bencher.iter(|| {
+                let parsed = parse_dataset(black_box(document.as_slice()), media_type, None)
+                    .expect("parse");
+                black_box(parsed);
+            });
+        });
+    }
+    group.finish();
+}
+
 fn bench_serialize_nquads(c: &mut Bench) {
     let clean = nquads_fixture(ROWS);
     let clean_ds = parse_dataset(clean.as_bytes(), "application/n-quads", None).expect("parse");
     let dirty = nquads_fixture_escape_heavy(ROWS);
     let dirty_ds = parse_dataset(dirty.as_bytes(), "application/n-quads", None).expect("parse");
+    let numeric = nquads_fixture_numeric_heavy(ROWS);
+    let numeric_ds =
+        parse_dataset(numeric.as_bytes(), "application/n-quads", None).expect("parse");
+
+    // One untimed serialization per document measures the byte count each row's
+    // `Throughput::Bytes` reports. The serializers are deterministic, so this is
+    // the byte count of every timed iteration.
+    let clean_bytes = serialize_dataset(&clean_ds, "application/n-quads", SerializeGraph::Dataset)
+        .expect("serialize")
+        .len() as u64;
+    let dirty_bytes = serialize_dataset(&dirty_ds, "application/n-quads", SerializeGraph::Dataset)
+        .expect("serialize")
+        .len() as u64;
+    let numeric_bytes =
+        serialize_dataset(&numeric_ds, "application/n-quads", SerializeGraph::Dataset)
+            .expect("serialize")
+            .len() as u64;
 
     let mut group = c.benchmark_group("native_codecs_serialize");
-    group.throughput(Throughput::Elements(clean_ds.quad_count() as u64));
     // Clean literals: the escape scan finds no boundary, one wholesale copy per literal.
+    group.throughput(Throughput::Bytes(clean_bytes));
     group.bench_function("nquads_2k", |bencher| {
         bencher.iter(|| {
             let bytes = serialize_dataset(
@@ -212,10 +381,25 @@ fn bench_serialize_nquads(c: &mut Bench) {
     });
     // Escape-heavy literals: every literal has multiple boundary chars, exercising the
     // per-char fallback interleaved with clean-run copies.
+    group.throughput(Throughput::Bytes(dirty_bytes));
     group.bench_function("nquads_2k_escape_heavy", |bencher| {
         bencher.iter(|| {
             let bytes = serialize_dataset(
                 black_box(&dirty_ds),
+                "application/n-quads",
+                SerializeGraph::Dataset,
+            )
+            .expect("serialize");
+            black_box(bytes);
+        });
+    });
+    // Numeric-heavy literals: 30% of rows carry a typed numeric literal, so the
+    // datatype-IRI write path runs beside the escape scan's clean digit copy.
+    group.throughput(Throughput::Bytes(numeric_bytes));
+    group.bench_function("nquads_2k_numeric_heavy", |bencher| {
+        bencher.iter(|| {
+            let bytes = serialize_dataset(
+                black_box(&numeric_ds),
                 "application/n-quads",
                 SerializeGraph::Dataset,
             )
@@ -230,11 +414,14 @@ fn bench_serialize_nquads(c: &mut Bench) {
     // streamed arm's does not, and a reader comparing them is comparing the same
     // emitter against two destinations. There is deliberately no assertion — this
     // machine is not quiet enough for a wall-clock claim, and the memory claims this
-    // work rests on are made by allocator tests rather than by timings.
-    for (name, dataset) in [
-        ("nquads_2k_streamed", &clean_ds),
-        ("nquads_2k_escape_heavy_streamed", &dirty_ds),
+    // work rests on are made by allocator tests rather than by timings. The byte
+    // throughput is the document's measured size, identical to the eager row's.
+    for (name, dataset, bytes) in [
+        ("nquads_2k_streamed", &clean_ds, clean_bytes),
+        ("nquads_2k_escape_heavy_streamed", &dirty_ds, dirty_bytes),
+        ("nquads_2k_numeric_heavy_streamed", &numeric_ds, numeric_bytes),
     ] {
+        group.throughput(Throughput::Bytes(bytes));
         group.bench_function(name, |bencher| {
             bencher.iter(|| {
                 let report = serialize_dataset_to_writer_with(
@@ -264,8 +451,10 @@ fn bench_jsonld_expanded(c: &mut Bench) {
     for rows in [JSONLD_SMALL_ROWS, JSONLD_LARGE_ROWS] {
         let dataset = jsonld_fixture::build_dataset(rows);
         let json = serialize_dataset_to_jsonld(&dataset).expect("prepare expanded JSON-LD");
-        group.throughput(Throughput::Elements(
-            u64::try_from(dataset.quad_count()).expect("quad count fits in u64"),
+        // Both rows process the SAME document: the serialize row writes its bytes,
+        // the parse row reads them, so one byte count serves both rates.
+        group.throughput(Throughput::Bytes(
+            u64::try_from(json.len()).expect("document length fits in u64"),
         ));
         group.bench_with_input(
             BenchmarkId::new("serialize", rows),
@@ -302,16 +491,19 @@ fn bench_jsonld_expanded(c: &mut Bench) {
 fn bench_jsonld_configured(c: &mut Bench) {
     use std::sync::Arc;
 
+    const CONTEXT_PREFIXES: [(&str, &str); 3] = [
+        ("ex", "https://example.org/"),
+        ("p", "https://example.org/p/"),
+        ("o", "https://example.org/o/"),
+    ];
     {
         let mut compile = c.benchmark_group("jsonld_context_compile");
+        compile.throughput(Throughput::Elements(CONTEXT_PREFIXES.len() as u64));
         compile.bench_function("prefixes", |bencher| {
             bencher.iter(|| {
-                let context = CompiledJsonLdContext::from_prefixes(black_box([
-                    ("ex", "https://example.org/"),
-                    ("p", "https://example.org/p/"),
-                    ("o", "https://example.org/o/"),
-                ]))
-                .expect("compile context");
+                let context =
+                    CompiledJsonLdContext::from_prefixes(black_box(CONTEXT_PREFIXES.clone()))
+                        .expect("compile context");
                 black_box(context);
             });
         });
@@ -319,12 +511,7 @@ fn bench_jsonld_configured(c: &mut Bench) {
     }
 
     let context = Arc::new(
-        CompiledJsonLdContext::from_prefixes([
-            ("ex", "https://example.org/"),
-            ("p", "https://example.org/p/"),
-            ("o", "https://example.org/o/"),
-        ])
-        .expect("compile context"),
+        CompiledJsonLdContext::from_prefixes(CONTEXT_PREFIXES).expect("compile context"),
     );
     let caller = JsonLdSerializeOptions::compiled(context);
     let derived = JsonLdSerializeOptions::derived();
@@ -334,6 +521,11 @@ fn bench_jsonld_configured(c: &mut Bench) {
         for (mode, options) in [("caller", &caller), ("derived", &derived)] {
             let prepared = serialize_dataset_to_jsonld_with_options(&dataset, options)
                 .expect("prepare configured JSON-LD");
+            // Both rows process the SAME prepared document: one byte count for both
+            // rates, exactly as in `jsonld_expanded_baseline`.
+            group.throughput(Throughput::Bytes(
+                u64::try_from(prepared.len()).expect("document length fits in u64"),
+            ));
             group.bench_with_input(
                 BenchmarkId::new(format!("serialize_{mode}"), rows),
                 &dataset,
@@ -379,6 +571,9 @@ fn bench_jsonld_derived_many_namespaces(c: &mut Bench) {
     let dataset = jsonld_fixture::build_many_namespace_dataset(NAMESPACES, IRIS_PER_NAMESPACE);
     let mut group = c.benchmark_group("jsonld_derived_context");
     group.sample_size(10);
+    group.throughput(Throughput::Elements(
+        u64::try_from(dataset.quad_count()).expect("quad count fits in u64"),
+    ));
     group.bench_function("64_namespaces_32_iris", |bencher| {
         bencher.iter(|| {
             black_box(derive_jsonld_context(black_box(&dataset)).expect("derive bounded context"));
@@ -407,6 +602,11 @@ fn bench_jsonld_carrier_stress(c: &mut Bench) {
             jsonld_fixture::build_multivalue_dataset(4_096),
         ),
     ] {
+        // One untimed serialization measures the row's byte count.
+        let bytes = serialize_dataset_to_jsonld_with_options(&dataset, &options)
+            .expect("measure fixture bytes")
+            .len() as u64;
+        group.throughput(Throughput::Bytes(bytes));
         group.bench_with_input(name, &dataset, |bencher, dataset| {
             bencher.iter(|| {
                 black_box(
@@ -496,14 +696,16 @@ fn star_fixture(rows: usize, star: bool) -> std::sync::Arc<RdfDataset> {
     builder.freeze().expect("star serializer fixture")
 }
 
-/// Turtle / TriG / RDF-XML / HexTuples / JSON-LD egress over one ~2k-quad dataset with
-/// quoted-triple and reifier rows and datatyped literals (HexTuples has no triple-term
-/// surface, so it takes the same fixture without the star rows). Report-only.
+/// Turtle / TriG / N-Triples / RDF-XML / TriX / HexTuples / JSON-LD / YAML-LD egress
+/// over one ~2k-quad dataset with quoted-triple and reifier rows and datatyped
+/// literals (HexTuples and TriX have no triple-term surface, so they take the same
+/// fixture without the star rows). Each row's `Throughput::Bytes` is its own
+/// document's size, measured by one untimed serialization at group setup.
+/// Report-only.
 fn bench_serialize_formats(c: &mut Bench) {
     let star = star_fixture(ROWS / 4, true);
     let plain = star_fixture(ROWS / 4, false);
     let mut group = c.benchmark_group("native_codecs_serialize_formats");
-    group.throughput(Throughput::Elements(star.quad_count() as u64));
     for (name, media_type, selection, dataset) in [
         (
             "turtle_2k_star",
@@ -518,10 +720,28 @@ fn bench_serialize_formats(c: &mut Bench) {
             &star,
         ),
         (
+            "ntriples_2k_star",
+            "application/n-triples",
+            SerializeGraph::DefaultGraph,
+            &star,
+        ),
+        (
             "rdfxml_2k_star",
             "application/rdf+xml",
             SerializeGraph::DefaultGraph,
             &star,
+        ),
+        (
+            "trix_2k",
+            "application/trix",
+            SerializeGraph::Dataset,
+            &plain,
+        ),
+        (
+            "hextuples_2k",
+            "application/x-hextuples",
+            SerializeGraph::Dataset,
+            &plain,
         ),
         (
             "jsonld_2k_star",
@@ -530,12 +750,14 @@ fn bench_serialize_formats(c: &mut Bench) {
             &star,
         ),
         (
-            "hextuples_2k",
-            "application/x-hextuples",
+            "yamlld_2k_star",
+            "application/ld+yaml",
             SerializeGraph::Dataset,
-            &plain,
+            &star,
         ),
     ] {
+        let bytes = serialize_dataset(dataset, media_type, selection).expect("fixture bytes");
+        group.throughput(Throughput::Bytes(bytes.len() as u64));
         group.bench_function(name, |bencher| {
             bencher.iter(|| {
                 let bytes = serialize_dataset(black_box(dataset), media_type, selection)
@@ -615,8 +837,12 @@ fn repeated_predicates_fixture(rows: usize) -> std::sync::Arc<RdfDataset> {
 
 fn bench_serialize_turtle_repeated_predicates(c: &mut Bench) {
     let dataset = repeated_predicates_fixture(ROWS * 4);
+    // One untimed serialization measures the byte count the rate reports.
+    let bytes = serialize_dataset(&dataset, "text/turtle", SerializeGraph::DefaultGraph)
+        .expect("serialize")
+        .len() as u64;
     let mut group = c.benchmark_group("native_codecs_serialize_turtle");
-    group.throughput(Throughput::Elements(dataset.quad_count() as u64));
+    group.throughput(Throughput::Bytes(bytes));
     group.bench_function("turtle_8k_repeated_predicates", |bencher| {
         bencher.iter(|| {
             let bytes = serialize_dataset(
@@ -637,6 +863,8 @@ bench_group!(
     bench_parse_nquads_parallel_vs_sequential,
     bench_parse_nquads_streamed_vs_buffered,
     bench_parse_nquads_span_tracking,
+    bench_parse_nquads_numeric_heavy,
+    bench_parse_formats,
     bench_serialize_nquads,
     bench_serialize_formats,
     bench_parse_turtle_collections,

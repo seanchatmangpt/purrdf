@@ -3,13 +3,18 @@
 #
 # The native bench-harness + Python-compat benchmark suites, OFF the per-push path.
 #
-# These run ~90-120 minutes and are `continue-on-error` by project rule: a bench
-# never gates a merge, and PurRDF asserts no speedups (docs/BENCHMARKS.md). Run
-# per push, that bought a two-hour runner per commit for a result nothing reads —
-# and GitHub auto-cancelled a ~2 h run outright, so the data was not even
-# collected. A weekly run on an uncontended runner is strictly better DATA than a
-# per-push run competing with the gating jobs for the same machine, which is the
-# second reason this moved rather than merely being deleted.
+# These run ~90-120 minutes, off the per-push path: a bench never gates a merge
+# (nothing on a pull request triggers this workflow), and PurRDF asserts no
+# speedups (docs/BENCHMARKS.md). Run per push, that bought a two-hour runner per
+# commit for a result nothing reads — and GitHub auto-cancelled a ~2 h run
+# outright, so the data was not even collected. A weekly run on an uncontended
+# runner is strictly better DATA than a per-push run competing with the gating
+# jobs for the same machine, which is the second reason this moved rather than
+# merely being deleted.
+#
+# Fail-closed within the run: no `continue-on-error` anywhere. A red bench run
+# is data, and a red answer rendered as green answers nothing — the rule the
+# dispatch-only comparison jobs below already state.
 #
 # `workflow_dispatch` is what makes it available on demand: a change that plausibly
 # moves performance is benchmarked by running this workflow against the branch, not
@@ -38,7 +43,6 @@ jobs:
   benchmarks:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    continue-on-error: true
     # Read-only. `actions: write` was carried here from the per-push job and no step
     # uses it — checkout, the toolchain installs, the bench runs and
     # `upload-artifact` all work under `contents: read`. A scheduled workflow runs
@@ -88,17 +92,28 @@ jobs:
       # reported in a minute rather than after two hours. The driver exits
       # non-zero if any shard fails (`bench-corpus` exits 2 on a rejected
       # specification and 1 on a write failure), so a failure is a red step
-      # rather than a green one with an apology in the log — the job's
-      # `continue-on-error` keeps that from gating a merge, per project rule.
+      # rather than a green one with an apology in the log — the red gates
+      # nothing (no pull request triggers this workflow), but it is never
+      # laundered into green.
       - name: Smoke the scale-corpus lane (streamed, retains nothing)
         run: |
           set -euo pipefail
           SCALE_QUADS=1000000 SCALE_IRIS=100000 SCALE_SHARDS=4 SCALE_MODE=stream \
             bash scripts/scale-corpus.sh
 
+      # This list is the mirror of `make bench`, not its source: local runs are
+      # the number source per operator law, and this job is the optional mirror.
+      # Crate union = the Makefile's 20 + arrow + n3 + the purrdf umbrella.
       - name: Compile benchmark harnesses
         run: |
           cargo bench -p purrdf-gts --no-run --locked
+          cargo bench -p purrdf-columnar --no-run --locked
+          cargo bench -p purrdf-json --no-run --locked
+          cargo bench -p purrdf-geo-kernel --no-run --locked
+          cargo bench -p purrdf-jsonschema --no-run --locked
+          cargo bench -p purrdf-arrow --no-run --locked
+          cargo bench -p purrdf-n3 --no-run --locked
+          cargo bench -p purrdf --no-run --locked
           cargo bench -p purrdf-core --no-run --locked
           cargo bench -p purrdf-rdf --bench native_codecs --no-run --locked
           cargo bench -p purrdf-rdf --bench projections --no-run --locked
@@ -116,9 +131,17 @@ jobs:
           cargo bench -p purrdf-hash-conformance --no-run --locked
           cargo bench -p purrdf-deflate --no-run --locked
 
+      # Same union as the compile step above; the mirror-of-make-bench note lives there.
       - name: Run the native bench suites
         run: |
           cargo bench -p purrdf-gts --locked
+          cargo bench -p purrdf-columnar --locked
+          cargo bench -p purrdf-json --locked
+          cargo bench -p purrdf-geo-kernel --locked
+          cargo bench -p purrdf-jsonschema --locked
+          cargo bench -p purrdf-arrow --locked
+          cargo bench -p purrdf-n3 --locked
+          cargo bench -p purrdf --locked
           cargo bench -p purrdf-core --locked
           cargo bench -p purrdf-rdf --bench native_codecs --locked
           cargo bench -p purrdf-rdf --bench projections --locked
@@ -150,6 +173,100 @@ jobs:
           path: |
             target/purrdf-bench/
             bindings/python/bench_compat.json
+          if-no-files-found: warn
+
+      # The run's estimates records, collected under one per-run name. The store
+      # keeps one estimates.json per benchmark at
+      # <group>[/<function>[/<parameter>]]/<record>/estimates.json (a record is
+      # `new` or a baseline name); the collection preserves that relative
+      # layout, because the file names no benchmark — its path is its identity.
+      #
+      # NOT auto-committed: this workflow only collects and summarizes. The
+      # coordinator commits snapshots into docs/benchmarks/<suite>-<date>-<host>/.
+      #
+      # Fail-closed like the rest of the job: zero records fails the step, so a
+      # green run always carries data, and on a red run the step still runs to
+      # collect whatever the completed suites produced.
+      - name: Collect the estimates records
+        if: success() || failure()
+        run: |
+          set -euo pipefail
+          python3 - "$PURRDF_BENCH_HOME" "$GITHUB_WORKSPACE/bench-estimates" \
+            "$GITHUB_STEP_SUMMARY" <<'PY'
+          """Summarize and stage the run's purrdf_testkit::bench estimates records.
+
+          Stdlib only, and no second estimates parser: the summary reads the
+          members the harness's own reader enforces (schema 1 time records in
+          `ns`, schema 2 count records in a named count unit) and derives the
+          declared throughput from the median.
+          """
+          import json
+          import shutil
+          import sys
+          from pathlib import Path
+
+          store, staging, summary_path = (Path(arg) for arg in sys.argv[1:4])
+          records = sorted(store.glob("**/estimates.json"))
+          if not records:
+              sys.exit(f"no estimates.json under {store}: a bench run with no records is broken")
+
+          rows = []
+          for path in records:
+              record = json.loads(path.read_text())
+              identity = path.relative_to(store).parent.as_posix()
+              unit, median, mad = record["unit"], record["median"], record["mad"]
+              lo, hi = record["ci_low"], record["ci_high"]
+              rate = ""
+              declared = record.get("throughput")
+              if declared is not None and median > 0:
+                  per_second = declared["per_iteration"] * 1e9 / median
+                  rate = (
+                      f"{per_second / 2**30:.2f} GiB/s"
+                      if declared["kind"] == "bytes"
+                      else f"{per_second:.3g} elem/s"
+                  )
+              rows.append((identity, unit, median, mad, lo, hi, rate))
+
+          width = max(len(row[0]) for row in rows)
+          header = (
+              f"{'benchmark':<{width}}  {'unit':>18}  {'median':>12}  {'mad':>12}"
+              f"  {'95% CI':>24}  throughput"
+          )
+          print(header)
+          for identity, unit, median, mad, lo, hi, rate in rows:
+              ci = f"[{lo:.3g}, {hi:.3g}]"
+              print(
+                  f"{identity:<{width}}  {unit:>18}  {median:>12.3g}  {mad:>12.3g}"
+                  f"  {ci:>24}  {rate}"
+              )
+
+          with summary_path.open("w") as summary:
+              summary.write(f"{len(rows)} estimates records\n\n")
+              summary.write("| benchmark | unit | median | mad | 95% CI | throughput |\n")
+              summary.write("|---|---|---|---|---|---|\n")
+              for identity, unit, median, mad, lo, hi, rate in rows:
+                  summary.write(
+                      f"| {identity} | {unit} | {median:.4g} | {mad:.4g}"
+                      f" | [{lo:.4g}, {hi:.4g}] | {rate} |\n"
+                  )
+
+          # The artifact: each record copied whole, relative layout preserved.
+          if staging.exists():
+              shutil.rmtree(staging)
+          staging.mkdir(parents=True)
+          for path in records:
+              target = staging / path.relative_to(store)
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(path, target)
+          print(f"collected {len(rows)} records into {staging}")
+          PY
+
+      - name: Upload the estimates collection
+        if: success() || failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bench-estimates-${{ github.run_id }}
+          path: bench-estimates/
           if-no-files-found: warn
 
   # THE HEAD AGAINST ITS BASE, ON ONE MACHINE, IN ONE RUN. Two bench runs on two

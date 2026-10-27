@@ -17,9 +17,6 @@ categories = ["parser-implementations", "data-structures"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 # rlib-only foundation whose runtime dependencies are the lexical layer
 # `purrdf-lex` and the zero-dependency root `purrdf-hash` (layers.toml). It must stay wasm-clean. It does NOT depend on
@@ -45,3 +42,6 @@ purrdf-testkit = { workspace = true }
 [[bench]]
 name = "parse"
 harness = false
+
+[lints]
+workspace = true

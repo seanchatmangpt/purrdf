@@ -17,9 +17,6 @@ categories = ["parser-implementations", "encoding", "text-processing"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 # rlib-only, one runtime dependency: the lexical layer directly above the
 # `purrdf-hash` root in layers.toml, held to that by `make rdf-core-hygiene`.
@@ -50,3 +47,6 @@ harness = false
 [[test]]
 name = "frozen_vectors"
 harness = false
+
+[lints]
+workspace = true

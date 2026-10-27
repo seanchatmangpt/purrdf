@@ -13,16 +13,20 @@ pub fn swar_find_delimiter_u64(word: u64, delimiter: u8) -> u64 {
 }
 
 /// 2. Sorting Network 4-Lane: Sorts S, P, O, G TermIds in fixed registers.
-/// Optimal 5-comparator network lowering directly to cmov instructions.
+/// Optimal 5-comparator network; every compare-exchange is the XOR-mask
+/// conditional-selection form, guaranteed to lower to predicated `xor`/cmov
+/// (no `if`, no temporaries).
+// from bcinr crates/branchless/src/sort_small.rs:24-33 (originally
+// bcinr-logic/src/network.rs:49-54), adopted per OPT-12 item 1; u64-widened
+// from the u32 source.
 #[inline(always)]
 pub fn sort_quad_lanes_branchless(mut lanes: [u64; 4]) -> [u64; 4] {
     macro_rules! cswap {
         ($a:expr, $b:expr) => {
-            if lanes[$a] > lanes[$b] {
-                let tmp = lanes[$a];
-                lanes[$a] = lanes[$b];
-                lanes[$b] = tmp;
-            }
+            let mask = u64::from(lanes[$a] > lanes[$b]);
+            let diff = (lanes[$a] ^ lanes[$b]) & 0u64.wrapping_sub(mask);
+            lanes[$a] ^= diff;
+            lanes[$b] ^= diff;
         };
     }
     cswap!(0, 1);

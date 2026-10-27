@@ -19,6 +19,7 @@
 //! [`LANES`] bytes, and for slices shorter than one vector.
 
 use super::arch;
+use purrdf_branchless::swar;
 
 /// How many distinct bytes the vector kernels compare each chunk against.
 pub(crate) const LANES: usize = 8;
@@ -115,10 +116,12 @@ impl StopSet {
     }
 }
 
-/// The portable kernel: sixteen-byte chunks whose lanes are answered by one
-/// comparison per needle with no data-dependent branch, OR-folded as the
-/// clean-chunk test (the formulation of
-/// [`ByteClass`](crate::terminals::ByteClass), over run-time needles), and a
+/// The portable kernel: sixteen-byte chunks read as two little-endian
+/// [`u64`] words, each word answered per needle by the cascade-safe SWAR
+/// lane mask [`purrdf_branchless::swar::find_byte_mask_word`], OR-accumulated
+/// into one mask per word; a nonzero combined mask is the hit, and
+/// [`u64::trailing_zeros`] / 8 names the first hit lane (the formulation of
+/// [`ByteClass`](crate::terminals::ByteClass), over run-time needles), with a
 /// table-driven tail.
 ///
 /// This is the answer on every target without an explicit kernel, and the
@@ -134,22 +137,26 @@ pub(crate) fn find_portable(set: &StopSet, haystack: &[u8]) -> Option<usize> {
     if set.count > LANES {
         return set.find_in_tail(haystack);
     }
+    // Padding repeats the first needle, so OR-ing the full `LANES` width
+    // cannot add a member.
     let needles = set.needles();
     let (chunks, tail) = haystack.as_chunks::<CHUNK>();
     for (k, chunk) in chunks.iter().enumerate() {
-        let mut lanes = [0_u8; CHUNK];
-        for (lane, &b) in lanes.iter_mut().zip(chunk) {
-            let mut hit = false;
-            for &needle in needles {
-                hit |= b == needle;
-            }
-            *lane = u8::from(hit);
+        let (w0, w1) = (
+            u64::from_le_bytes(chunk[..8].try_into().expect("16-byte chunk")),
+            u64::from_le_bytes(chunk[8..].try_into().expect("16-byte chunk")),
+        );
+        let mut m0 = 0_u64;
+        let mut m1 = 0_u64;
+        for &needle in needles {
+            m0 |= swar::find_byte_mask_word(w0, needle);
+            m1 |= swar::find_byte_mask_word(w1, needle);
         }
-        if lanes.iter().fold(0, |any, &lane| any | lane) != 0 {
-            return lanes
-                .iter()
-                .position(|&lane| lane != 0)
-                .map(|first| k * CHUNK + first);
+        if m0 != 0 {
+            return Some(k * CHUNK + usize::from((m0.trailing_zeros() / 8) as u8));
+        }
+        if m1 != 0 {
+            return Some(k * CHUNK + 8 + usize::from((m1.trailing_zeros() / 8) as u8));
         }
     }
     set.find_in_tail(tail)
@@ -169,11 +176,101 @@ mod tests {
     use purrdf_testkit::rng::SplitMix64;
 
     use super::super::backend::Backend;
-    use super::{Kernel, LANES, StopSet};
+    use super::{Kernel, LANES, StopSet, find_portable};
 
     /// The per-byte answer every kernel must equal.
     fn reference(set: &StopSet, haystack: &[u8]) -> Option<usize> {
         haystack.iter().position(|&b| set.contains(b))
+    }
+
+    /// The pre-SWAR chunk formulation (per-byte × per-needle lane vector,
+    /// OR-fold, `.position()`), kept verbatim as the differential oracle for
+    /// the SWAR `find_portable` on the CSV-shaped corpus below.
+    fn scalar_chunk_oracle(set: &StopSet, haystack: &[u8]) -> Option<usize> {
+        if set.count == 0 {
+            return None;
+        }
+        if set.count > LANES {
+            return set.find_in_tail(haystack);
+        }
+        let needles = set.needles();
+        let (chunks, tail) = haystack.as_chunks::<16>();
+        for (k, chunk) in chunks.iter().enumerate() {
+            let mut lanes = [0_u8; 16];
+            for (lane, &b) in lanes.iter_mut().zip(chunk) {
+                let mut hit = false;
+                for &needle in needles {
+                    hit |= b == needle;
+                }
+                *lane = u8::from(hit);
+            }
+            if lanes.iter().fold(0, |any, &lane| any | lane) != 0 {
+                return lanes
+                    .iter()
+                    .position(|&lane| lane != 0)
+                    .map(|first| k * 16 + first);
+            }
+        }
+        set.find_in_tail(tail)
+            .map(|offset| chunks.len() * 16 + offset)
+    }
+
+    /// CSV-shaped records — quotes, escapes, CRLF and LF line ends, and a
+    /// delimiter planted at every 16-byte chunk boundary — with the reader's
+    /// stop sets; the SWAR portable kernel must equal both the per-byte
+    /// reference and the scalar chunk oracle byte for byte.
+    #[test]
+    fn swar_portable_matches_the_scalar_chunk_oracle_on_csv_records() {
+        let stop_sets = [StopSet::new(b",\"\r\n"), StopSet::new(b"\t\"\\\r\n")];
+        // A record whose delimiter/quote/line-end bytes land on every offset,
+        // in particular every multiple of CHUNK (chunk and word boundaries).
+        let mut record = [b'x'; 64];
+        for at in (0..64).step_by(16) {
+            record[at] = b',';
+        }
+        record[7] = b'"';
+        record[9] = b'\\';
+        record[25] = b'"';
+        record[30] = b'\r';
+        record[31] = b'\n';
+        record[41] = b'\r';
+        record[42] = b'\n';
+        let mut corpus: Vec<Vec<u8>> = vec![
+            Vec::new(),
+            b"a,b\r\n".to_vec(),
+            b"\"quoted, comma\";tail\n".to_vec(),
+            b"\"esc\"\"aped\"\r\n\"multi\r\nline\",z".to_vec(),
+            b"\r\n\r\n\n\r,,,".to_vec(),
+            b"no terminator at all, just fields".to_vec(),
+            record.to_vec(),
+        ];
+        // Every chunk-boundary-aligned start, so hits ride word edges.
+        for start in (0..=record.len()).step_by(16) {
+            corpus.push(record[start..].to_vec());
+        }
+        // Delimiter at every single offset of a 48-byte record.
+        let mut dense = [b'x'; 48];
+        for at in 0..48 {
+            dense[at] = b',';
+            corpus.push(dense.to_vec());
+            dense[at] = b'x';
+        }
+        for set in &stop_sets {
+            let expected_scalar = scalar_chunk_oracle(set, &record);
+            for haystack in &corpus {
+                assert_eq!(
+                    find_portable(set, haystack),
+                    reference(set, haystack),
+                    "per-byte reference set {set:?} haystack {haystack:?}"
+                );
+                assert_eq!(
+                    find_portable(set, haystack),
+                    scalar_chunk_oracle(set, haystack),
+                    "scalar oracle set {set:?} haystack {haystack:?}"
+                );
+            }
+            assert_eq!(find_portable(&set, &record), expected_scalar);
+        }
     }
 
     /// The live dispatch and every kernel this build and processor run, by

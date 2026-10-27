@@ -8,6 +8,4 @@
 
 pub mod header;
 
-pub use header::{
-    ArrowEgressHeader, ArrowEgressHeaderError, canon_arrow_empty_v1,
-};
+pub use header::{ArrowEgressHeader, ArrowEgressHeaderError, canon_arrow_empty_v1};

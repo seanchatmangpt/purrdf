@@ -4,11 +4,11 @@
 //! Board-Level Executive Decision Courts & Sociable Business Benchmarks.
 //! Un-mocked end-to-end performance and compliance verification across 7 Global 2000 C-Suite scenarios.
 
-use std::time::Instant;
 use purrdf_arrow::header::ArrowEgressHeader;
 use purrdf_duckdb::PurRdfDuckDB;
 use purrdf_hash::blake3;
 use purrdf_hash::hex;
+use std::time::Instant;
 
 fn setup_executive_db() -> PurRdfDuckDB {
     let db = PurRdfDuckDB::open_in_memory().expect("open in-memory db");
@@ -104,12 +104,19 @@ fn test_scenario_1_multi_agent_worker_swarms() {
     }
 
     let elapsed = t0.elapsed();
-    println!("Scenario 1 (Autonomous Agent Authorization): {:?} (authorized: {})", elapsed, authorized_count);
+    println!(
+        "Scenario 1 (Autonomous Agent Authorization): {:?} (authorized: {})",
+        elapsed, authorized_count
+    );
 
     assert!(authorized_count <= 64);
     assert!(authorized_count > 0);
     // Assert 960x speedup over cloud baseline (2400ms -> <= 10ms for headroom)
-    assert!(elapsed.as_millis() < 10, "must be fast (measured {:?})", elapsed);
+    assert!(
+        elapsed.as_millis() < 10,
+        "must be fast (measured {:?})",
+        elapsed
+    );
 }
 
 /// Scenario 2: Financial Trading & Regulatory Oversight (SEC / MiFID II Auditing)
@@ -204,11 +211,18 @@ fn test_scenario_2_financial_trading_wash_sale_oversight() {
     }
 
     let elapsed = t0.elapsed();
-    println!("Scenario 2 (MiFID II Wash-Sale Sieve): {:?} (violations: {})", elapsed, wash_count);
+    println!(
+        "Scenario 2 (MiFID II Wash-Sale Sieve): {:?} (violations: {})",
+        elapsed, wash_count
+    );
 
     assert_eq!(wash_count, 23);
     assert!(wash_count <= 64);
-    assert!(elapsed.as_millis() < 15, "must execute in sub-eye-blink time (measured {:?})", elapsed);
+    assert!(
+        elapsed.as_millis() < 15,
+        "must execute in sub-eye-blink time (measured {:?})",
+        elapsed
+    );
 }
 
 /// Scenario 3: Enterprise Knowledge Discovery (Prompt Context Preparation)
@@ -290,11 +304,18 @@ fn test_scenario_3_enterprise_knowledge_contract_discovery() {
     }
 
     let elapsed = t0.elapsed();
-    println!("Scenario 3 (Enterprise Knowledge Context Sieve): {:?} (facts: {})", elapsed, count);
+    println!(
+        "Scenario 3 (Enterprise Knowledge Context Sieve): {:?} (facts: {})",
+        elapsed, count
+    );
 
     assert_eq!(count, 4);
     assert!(count <= 64);
-    assert!(elapsed.as_millis() < 10, "must prepare RAG context in < 10ms (measured {:?})", elapsed);
+    assert!(
+        elapsed.as_millis() < 10,
+        "must prepare RAG context in < 10ms (measured {:?})",
+        elapsed
+    );
 }
 
 /// Scenario 4: Real-Time Supply Chain & Claims Bottleneck Tracking
@@ -372,11 +393,18 @@ fn test_scenario_4_supply_chain_realtime_drift_detection() {
     }
 
     let elapsed = t0.elapsed();
-    println!("Scenario 4 (Real-Time Supply Chain Sieve): {:?} (delayed: {})", elapsed, bottleneck_count);
+    println!(
+        "Scenario 4 (Real-Time Supply Chain Sieve): {:?} (delayed: {})",
+        elapsed, bottleneck_count
+    );
 
     assert_eq!(bottleneck_count, 18);
     assert!(bottleneck_count <= 64);
-    assert!(elapsed.as_millis() < 25, "must detect supply chain drift in real-time (measured {:?})", elapsed);
+    assert!(
+        elapsed.as_millis() < 25,
+        "must detect supply chain drift in real-time (measured {:?})",
+        elapsed
+    );
 }
 
 /// Scenario 5: Beneficial Ownership & Sanctions Clearance (Anti-Money Laundering)
@@ -479,11 +507,18 @@ fn test_scenario_5_beneficial_ownership_sanctions_clearance() {
     }
 
     let elapsed = t0.elapsed();
-    println!("Scenario 5 (Offshore Sanctions 7-Layer Traversal): {:?} (flagged root: {})", elapsed, sanctioned_roots);
+    println!(
+        "Scenario 5 (Offshore Sanctions 7-Layer Traversal): {:?} (flagged root: {})",
+        elapsed, sanctioned_roots
+    );
 
     assert_eq!(sanctioned_roots, 1);
     assert!(sanctioned_roots <= 64);
-    assert!(elapsed.as_millis() < 10, "must clear sanctions in < 10ms (measured {:?})", elapsed);
+    assert!(
+        elapsed.as_millis() < 10,
+        "must clear sanctions in < 10ms (measured {:?})",
+        elapsed
+    );
 }
 
 /// Scenario 6: Rogue & Malicious Attack Defense (Unauthorized Data Requests)
@@ -522,8 +557,14 @@ fn test_scenario_6_rogue_runaway_query_defense() {
     // Simulate immediate fail-closed circuit trip
     if is_rejected {
         let refusal_elapsed = t0.elapsed();
-        println!("Scenario 6 (Runaway Query Circuit Breaker Trip): {:?}", refusal_elapsed);
-        assert!(refusal_elapsed.as_micros() < 500, "circuit breaker must trip in < 500us");
+        println!(
+            "Scenario 6 (Runaway Query Circuit Breaker Trip): {:?}",
+            refusal_elapsed
+        );
+        assert!(
+            refusal_elapsed.as_micros() < 500,
+            "circuit breaker must trip in < 500us"
+        );
     } else {
         panic!("hostile query was not refused by candidate envelope");
     }
@@ -617,11 +658,19 @@ fn test_scenario_7_chicago_sec_edgar_article99_shield() {
     }
 
     let elapsed = t0.elapsed();
-    println!("Scenario 7 (SEC EDGAR Article 99 Shield): {:?} (flagged: {})", elapsed, non_compliant.len());
+    println!(
+        "Scenario 7 (SEC EDGAR Article 99 Shield): {:?} (flagged: {})",
+        elapsed,
+        non_compliant.len()
+    );
 
     assert_eq!(non_compliant.len(), 14);
     assert!(non_compliant.len() <= 64);
-    assert!(elapsed.as_millis() < 10, "must evaluate in sub-eye-blink time (measured {:?})", elapsed);
+    assert!(
+        elapsed.as_millis() < 10,
+        "must evaluate in sub-eye-blink time (measured {:?})",
+        elapsed
+    );
 
     // Form 128-byte Arrow framed egress and streaming BLAKE3 attestation
     let num_candidates = non_compliant.len();
@@ -647,6 +696,9 @@ fn test_scenario_7_chicago_sec_edgar_article99_shield() {
     let header_bytes = header.to_bytes();
     assert_eq!(header_bytes.len(), 128);
     let hex_attestation = hex::encode(&digest);
-    println!("Article 99 Shield Non-Repudiable BLAKE3 Attestation: {}", hex_attestation);
+    println!(
+        "Article 99 Shield Non-Repudiable BLAKE3 Attestation: {}",
+        hex_attestation
+    );
     assert!(!hex_attestation.is_empty());
 }

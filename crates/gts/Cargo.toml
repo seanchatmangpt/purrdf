@@ -17,9 +17,6 @@ categories = ["encoding", "database"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [dependencies]
 # The zero-dependency, wasm-clean RDF 1.2 ingestion protocol: the
 # neutral `RdfEventSink` seam the GTS event bridge (`event_stream`) folds into.
@@ -135,3 +132,6 @@ harness = false
 # The public event bridge uses the same runner on native and wasm.
 name = "event_bridge"
 harness = false
+
+[lints]
+workspace = true

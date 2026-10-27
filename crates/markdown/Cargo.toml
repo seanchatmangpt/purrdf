@@ -17,9 +17,6 @@ categories = ["text-processing", "parser-implementations"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 # rlib-only, wasm32-clean: the slicer is a pure function of bytes and a
 # profile, opens no file, and reads no clock.
@@ -51,3 +48,6 @@ harness = false
 # assertion. `make bench` lane only — excluded from `make check`.
 name = "slicer"
 harness = false
+
+[lints]
+workspace = true

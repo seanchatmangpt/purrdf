@@ -22,9 +22,6 @@ exclude = ["tests/**"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 # rlib-only: Python bindings live in `bindings/python`, so this crate stays
 # PyO3-free and wasm-clean.
@@ -214,3 +211,6 @@ harness = false
 # magnitude and no speedup.
 name = "flat_view_canon"
 harness = false
+
+[lints]
+workspace = true

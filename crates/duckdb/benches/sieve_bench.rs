@@ -4,14 +4,21 @@
 #![allow(missing_docs)]
 
 //! High-Throughput Physical Microbenchmark and Sieve Velocity Suite.
-//! Measures SWAR scanning, in-memory analytical sieving, circuit breaker trips,
-//! and 128-byte framed canonical Arrow IPC egress.
+//!
+//! This suite measures RAW SQL on plain IN-MEMORY DuckDB tables (CREATE TABLE
+//! + INSERT data). It does NOT measure the SQL-in-RDF pipeline
+//! (compile_turtle -> five-table Parquet views -> RDF triple projection); that
+//! end-to-end path is measured by `benches/sql_rdf_e2e.rs`.
+//!
+//! Rows: SWAR scanning, raw analytical SQL sieving (PIVOT/ASOF/rank collapse
+//! over in-memory tables), circuit breaker trips, and 128-byte framed
+//! canonical Arrow IPC egress.
 
-use std::hint::black_box;
 use purrdf_arrow::header::ArrowEgressHeader;
 use purrdf_duckdb::PurRdfDuckDB;
 use purrdf_hash::blake3;
 use purrdf_testkit::bench::{Bench, BenchmarkId, Throughput, bench_group, bench_main};
+use std::hint::black_box;
 
 // ============================================================================
 // 1. Branchless SWAR Scanning
@@ -57,9 +64,7 @@ fn bench_swar(c: &mut Bench) {
         let buffer = vec![b'A'; size];
         group.throughput(Throughput::Bytes(size as u64));
         group.bench_function(BenchmarkId::from_parameter(size), |bencher| {
-            bencher.iter(|| {
-                black_box(swar_scan(black_box(&buffer)))
-            });
+            bencher.iter(|| black_box(swar_scan(black_box(&buffer))));
         });
     }
 }
@@ -144,12 +149,14 @@ fn bench_analytical_sieve(c: &mut Bench) {
     group.bench_function("pivot_asof_qualify_collapse", |bencher| {
         bencher.iter(|| {
             let mut stmt = conn.prepare(query).expect("prepare");
-            let rows = stmt.query_map([], |r| {
-                let id: i64 = r.get(0)?;
-                let entity: String = r.get(1)?;
-                let spread: f64 = r.get(2)?;
-                Ok((id, entity, spread))
-            }).expect("execute");
+            let rows = stmt
+                .query_map([], |r| {
+                    let id: i64 = r.get(0)?;
+                    let entity: String = r.get(1)?;
+                    let spread: f64 = r.get(2)?;
+                    Ok((id, entity, spread))
+                })
+                .expect("execute");
             let mut count = 0;
             for r in rows {
                 let _ = black_box(r.expect("row"));
@@ -205,5 +212,10 @@ fn bench_arrow_egress(c: &mut Bench) {
     }
 }
 
-bench_group!(benches, bench_swar, bench_analytical_sieve, bench_arrow_egress);
+bench_group!(
+    benches,
+    bench_swar,
+    bench_analytical_sieve,
+    bench_arrow_egress
+);
 bench_main!(benches);

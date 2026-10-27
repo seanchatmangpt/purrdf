@@ -1842,6 +1842,7 @@ dependencies = [
 name = "purrdf"
 version = "3.0.1"
 dependencies = [
+ "purrdf-alloc-probe",
  "purrdf-arrow",
  "purrdf-branchless",
  "purrdf-columnar",
@@ -1853,6 +1854,7 @@ dependencies = [
  "purrdf-geo",
  "purrdf-glob",
  "purrdf-gts",
+ "purrdf-hash",
  "purrdf-hnsw",
  "purrdf-iri",
  "purrdf-json",
@@ -1907,6 +1909,7 @@ name = "purrdf-branchless"
 version = "3.0.1"
 dependencies = [
  "purrdf-hash",
+ "purrdf-testkit",
 ]
 
 [[package]]

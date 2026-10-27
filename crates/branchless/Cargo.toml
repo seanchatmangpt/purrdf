@@ -14,5 +14,14 @@ description = "Branchless, allocation-free integer primitives ported from Branch
 [dependencies]
 purrdf-hash.workspace = true
 
+# The branchless kernel table (`kernel_table`, ns/op + GB/s rows): report-only,
+# make bench lane only (wave v26.10.26). The crate's raison d'être, measured.
+[dev-dependencies]
+purrdf-testkit.workspace = true
+
+[[bench]]
+name = "kernel_table"
+harness = false
+
 [lints]
 workspace = true

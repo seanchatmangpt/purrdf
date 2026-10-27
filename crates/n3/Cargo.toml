@@ -17,9 +17,6 @@ categories = ["algorithms", "data-structures"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 crate-type = ["rlib"]
 path = "src/lib.rs"
@@ -54,13 +51,10 @@ num-bigint = { workspace = true }
 num-traits = { workspace = true }
 regex = { workspace = true }
 
-
-
 wasm-bindgen = { workspace = true, optional = true }
 
 [features]
 wasm = ["dep:wasm-bindgen"]
-
 
 [dev-dependencies]
 purrdf-testkit = { workspace = true }
@@ -86,3 +80,6 @@ harness = false
 # depth, premise fan-out and the term count of the goal. Report-only.
 name = "reasoner"
 harness = false
+
+[lints]
+workspace = true

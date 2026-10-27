@@ -41,6 +41,16 @@ Each result applies to its measured source, workload and host.
 Both layers are report-only: they are never part of `make check`, and no test
 gate asserts a speedup.
 
+> **Staleness pointer (2026-10-27).** This chapter predates the wave-v26.10.26
+> branchless-kernel landing: the crate now carries constant-time kernels
+> (SWAR scans, sorting networks, Eytzinger layout, bitset intersection) wired
+> into `rdf-core`, `datalog`, `sparql-eval`, `n3` and `geo-kernel`, with a
+> `primitives_table` bench target and the `purrdf_testkit::bench` harness
+> (bootstrap CIs, Tukey fences). The bench inventory above does not yet list
+> them; wave receipts: `docs/jira/v26.10.26/` (`OVERNIGHT_RECEIPT.md`,
+> `optimization/OPT-39`). No figure above is superseded — the layer table is
+> incomplete, not wrong.
+
 ## The discipline for changes
 
 Any change claiming a performance win must **extend the benches**

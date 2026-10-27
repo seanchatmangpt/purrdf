@@ -9,7 +9,7 @@ use purrdf_n3::parser::parse_n3_with_source;
 use purrdf_n3::proof_check::Report;
 use purrdf_n3::proof_check_n3::check_proof;
 use purrdf_n3::proof_writer::proof_to_n3;
-use purrdf_n3::reasoner::{reason, ReasonerOptions};
+use purrdf_n3::reasoner::{ReasonerOptions, reason};
 
 const SOURCE: &str = "@prefix : <http://example.org/> .\n\
                       @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n\
@@ -111,9 +111,21 @@ fn dedup_keeps_binder_set_distinct_steps() -> Outcome {
             Term::Blank(Name::from("q")),
         )]
     };
-    let f_a = Graph { universals: BTreeSet::new(), existentials: BTreeSet::new(), triples: same_triples() };
-    let f_b = Graph { universals: BTreeSet::new(), existentials: [Name::from("q")].into(), triples: same_triples() };
-    assert_ne!(Term::Formula(f_a.clone()), Term::Formula(f_b.clone()), "precondition: distinct terms");
+    let f_a = Graph {
+        universals: BTreeSet::new(),
+        existentials: BTreeSet::new(),
+        triples: same_triples(),
+    };
+    let f_b = Graph {
+        universals: BTreeSet::new(),
+        existentials: [Name::from("q")].into(),
+        triples: same_triples(),
+    };
+    assert_ne!(
+        Term::Formula(f_a.clone()),
+        Term::Formula(f_b.clone()),
+        "precondition: distinct terms"
+    );
     assert_eq!(
         format!("{:?}", Term::Formula(f_a.clone())),
         format!("{:?}", Term::Formula(f_b.clone())),
@@ -129,7 +141,11 @@ fn dedup_keeps_binder_set_distinct_steps() -> Outcome {
     };
     let skolem_rule = |subject: Term, conclusion: Vec<Triple>| {
         Rule::new(
-            Graph::from(vec![Triple::new(subject, Term::Iri(Name::from(SKOLEM)), Term::var("sk"))]),
+            Graph::from(vec![Triple::new(
+                subject,
+                Term::Iri(Name::from(SKOLEM)),
+                Term::var("sk"),
+            )]),
             conclusion,
             true,
         )
@@ -147,12 +163,24 @@ fn dedup_keeps_binder_set_distinct_steps() -> Outcome {
             ..ReasonerOptions::default()
         },
     );
-    assert!(result.is_complete(), "run must complete: {:?}", result.incomplete_summary());
+    assert!(
+        result.is_complete(),
+        "run must complete: {:?}",
+        result.incomplete_summary()
+    );
 
     // The reasoner itself keeps both facts: the collision is purely in the
     // writer's key.
-    let holds_count = result.closure.iter().filter(|t| t.p == Term::Iri(Name::from(HOLDS))).count();
-    assert_eq!(holds_count, 2, "the reasoner derives two distinct facts: {:?}", result.closure);
+    let holds_count = result
+        .closure
+        .iter()
+        .filter(|t| t.p == Term::Iri(Name::from(HOLDS)))
+        .count();
+    assert_eq!(
+        holds_count, 2,
+        "the reasoner derives two distinct facts: {:?}",
+        result.closure
+    );
 
     let proof = proof_to_n3(&doc.prefixes, &result);
     let rule_steps = proof.matches("pe:rule").count();
@@ -166,9 +194,18 @@ fn dedup_keeps_binder_set_distinct_steps() -> Outcome {
 fn main() {
     let cases: &[(&str, fn() -> Outcome)] = &[
         ("generated_proof_checks", generated_proof_checks),
-        ("proof_serialization_parses_back", proof_serialization_parses_back),
-        ("tampered_conclusion_is_rejected", tampered_conclusion_is_rejected),
-        ("dedup_keeps_binder_set_distinct_steps", dedup_keeps_binder_set_distinct_steps),
+        (
+            "proof_serialization_parses_back",
+            proof_serialization_parses_back,
+        ),
+        (
+            "tampered_conclusion_is_rejected",
+            tampered_conclusion_is_rejected,
+        ),
+        (
+            "dedup_keeps_binder_set_distinct_steps",
+            dedup_keeps_binder_set_distinct_steps,
+        ),
     ];
     let mut passed = 0usize;
     let mut failed = 0usize;

@@ -17,9 +17,6 @@ categories = ["encoding"]
 [package.metadata.docs.rs]
 all-features = true
 
-[lints]
-workspace = true
-
 [lib]
 # rlib-only, wasm-clean leaf: serializes the `purrdf-core` SparqlResult egress
 # model to the four W3C SPARQL Results formats + a provenance extension. It
@@ -68,3 +65,6 @@ harness = false
 # writers). Report-only; `make bench` lane only — excluded from `make check`.
 name = "graph_serialize"
 harness = false
+
+[lints]
+workspace = true

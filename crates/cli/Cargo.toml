@@ -14,9 +14,6 @@ keywords = ["rdf", "rdf-12", "sparql", "cli", "command-line"]
 categories = ["command-line-utilities"]
 publish = false
 
-[lints]
-workspace = true
-
 [[bin]]
 name = "purrdf"
 path = "src/main.rs"
@@ -133,3 +130,6 @@ test = false
 [[example]]
 name = "rules_alloc"
 test = false
+
+[lints]
+workspace = true

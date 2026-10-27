@@ -293,6 +293,12 @@ pub mod arrow {
     pub use purrdf_arrow::*;
 }
 
+/// Branchless, allocation-free integer primitives ([`purrdf_branchless`]),
+/// ported from BranchlessCInRust.
+pub mod branchless {
+    pub use purrdf_branchless::*;
+}
+
 /// Notation3 ([`purrdf_n3`]): parsing, the forward/backward reasoner, and proof
 /// writing/checking over RDF 1.2 — N3 reads the syntaxes the facade already
 /// parses (Turtle, TriG, N-Triples, N-Quads), so its surface is carried here

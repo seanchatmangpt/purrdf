@@ -5,11 +5,11 @@
 //! Un-mocked end-to-end verification of startup financial efficiency, gross margin expansion,
 //! cash runway extension, and valuation multiple expansion across 5 VC scenarios.
 
-use std::time::Instant;
 use purrdf_arrow::header::ArrowEgressHeader;
 use purrdf_duckdb::PurRdfDuckDB;
 use purrdf_hash::blake3;
 use purrdf_hash::hex;
+use std::time::Instant;
 
 fn setup_vc_db() -> PurRdfDuckDB {
     let db = PurRdfDuckDB::open_in_memory().expect("open in-memory db");
@@ -104,10 +104,17 @@ fn test_vc_scenario_1_gross_margin_expansion() {
     }
 
     let elapsed = t0.elapsed();
-    println!("VC Scenario 1 (Gross Margin Expansion): {:?} (tasks: {})", elapsed, verified_count);
+    println!(
+        "VC Scenario 1 (Gross Margin Expansion): {:?} (tasks: {})",
+        elapsed, verified_count
+    );
 
     assert_eq!(verified_count, 64);
-    assert!(elapsed.as_millis() < 25, "must execute in sub-eye-blink time (measured {:?})", elapsed);
+    assert!(
+        elapsed.as_millis() < 25,
+        "must execute in sub-eye-blink time (measured {:?})",
+        elapsed
+    );
 
     // Financial Model Verification:
     // Legacy Cloud COGS: 50,000 users * 20 queries/day * 30 days = 30M queries * $0.06 = $1,800,000 / month
@@ -202,11 +209,19 @@ fn test_vc_scenario_2_runway_extension_on_device_audit() {
     }
 
     let elapsed = t0.elapsed();
-    println!("VC Scenario 2 (Cash Runway Extension Audit): {:?} (breaches: {})", elapsed, breaches.len());
+    println!(
+        "VC Scenario 2 (Cash Runway Extension Audit): {:?} (breaches: {})",
+        elapsed,
+        breaches.len()
+    );
 
     assert!(breaches.len() <= 64);
     assert!(breaches.len() >= 14);
-    assert!(elapsed.as_millis() < 15, "must execute in sub-eye-blink time (measured {:?})", elapsed);
+    assert!(
+        elapsed.as_millis() < 15,
+        "must execute in sub-eye-blink time (measured {:?})",
+        elapsed
+    );
 
     // Runway Extension Financial Verification:
     // Cloud SaaS: $45,000/month compute tier * 14 months = $630,000 cash burn saved
@@ -291,11 +306,18 @@ fn test_vc_scenario_3_enterprise_procurement_velocity() {
     }
 
     let elapsed = t0.elapsed();
-    println!("VC Scenario 3 (Zero-Egress SOC 2 Enclave Sieve): {:?} (suppliers: {})", elapsed, count);
+    println!(
+        "VC Scenario 3 (Zero-Egress SOC 2 Enclave Sieve): {:?} (suppliers: {})",
+        elapsed, count
+    );
 
     assert_eq!(count, 4);
     assert!(count <= 64);
-    assert!(elapsed.as_millis() < 10, "must clear search in < 10ms (measured {:?})", elapsed);
+    assert!(
+        elapsed.as_millis() < 10,
+        "must clear search in < 10ms (measured {:?})",
+        elapsed
+    );
 
     // Sales Velocity Verification:
     // Sales Cycle: 9 months (270 days) dropped to 14 days (19.3x velocity increase)
@@ -317,13 +339,22 @@ fn test_vc_scenario_4_prompt_injection_financial_circuit_breaker() {
 
     // Compile-time & runtime circuit breaker verification:
     let is_tripped = requested_envelope_size > max_statutory_envelope;
-    assert!(is_tripped, "safety circuit breaker must trigger on over-limit request");
+    assert!(
+        is_tripped,
+        "safety circuit breaker must trigger on over-limit request"
+    );
 
     let trip_elapsed = t0.elapsed();
-    println!("VC Scenario 4 (Financial Circuit Breaker Kill): {:?}", trip_elapsed);
+    println!(
+        "VC Scenario 4 (Financial Circuit Breaker Kill): {:?}",
+        trip_elapsed
+    );
 
     // Trip latency must be sub-microsecond
-    assert!(trip_elapsed.as_micros() < 500, "circuit breaker must trip in < 500us");
+    assert!(
+        trip_elapsed.as_micros() < 500,
+        "circuit breaker must trip in < 500us"
+    );
 }
 
 /// Scenario 5: Achieving Real-Time Streaming AI Speed on Real Customer Records
@@ -397,11 +428,18 @@ fn test_vc_scenario_5_defensive_moat_exit_multiple_expansion() {
     }
 
     let elapsed = t0.elapsed();
-    println!("VC Scenario 5 (Peak 100k Sieve Velocity): {:?} (candidates: {})", elapsed, candidate_quads);
+    println!(
+        "VC Scenario 5 (Peak 100k Sieve Velocity): {:?} (candidates: {})",
+        elapsed, candidate_quads
+    );
 
     assert_eq!(candidate_quads, 32);
     assert!(candidate_quads <= 64);
-    assert!(elapsed.as_millis() < 35, "must execute 100k sieve in sub-50ms (measured {:?})", elapsed);
+    assert!(
+        elapsed.as_millis() < 35,
+        "must execute 100k sieve in sub-50ms (measured {:?})",
+        elapsed
+    );
 
     // Construct 128-byte framed Arrow egress and streaming BLAKE3 attestation
     let num_candidates = candidate_quads;
@@ -427,7 +465,10 @@ fn test_vc_scenario_5_defensive_moat_exit_multiple_expansion() {
     let header_bytes = header.to_bytes();
     assert_eq!(header_bytes.len(), 128);
     let hex_attestation = hex::encode(&digest);
-    println!("Deep-Tech Proprietary Platform BLAKE3 Seal: {}", hex_attestation);
+    println!(
+        "Deep-Tech Proprietary Platform BLAKE3 Seal: {}",
+        hex_attestation
+    );
     assert!(!hex_attestation.is_empty());
 
     // Valuation Multiple Expansion Verification:

@@ -12,9 +12,6 @@ homepage.workspace = true
 license.workspace = true
 documentation = "https://docs.rs/purrdf-toml"
 
-[lints]
-workspace = true
-
 [dependencies]
 purrdf-core.workspace = true
 purrdf-lex.workspace = true
@@ -29,3 +26,11 @@ purrdf-sparql-eval.workspace = true
 [[test]]
 name = "roundtrip"
 harness = false
+
+# toml bench lanes: report-only, make bench lane only (wave v26.10.26).
+[[bench]]
+name = "parse"
+harness = false
+
+[lints]
+workspace = true

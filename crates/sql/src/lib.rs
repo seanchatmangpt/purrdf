@@ -14,5 +14,5 @@ pub mod serializer;
 
 pub use ast::*;
 pub use compiler::*;
-pub use error::{refusal_arm, AstError, RefusalCode};
+pub use error::{AstError, RefusalCode, refusal_arm};
 pub use serializer::*;

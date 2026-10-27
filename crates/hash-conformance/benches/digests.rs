@@ -4,7 +4,9 @@
 //! Digest throughput at 64 B, 1 KiB and 1 MiB, per algorithm and per path the
 //! host can run; base16 at 8 B to 1 MiB per encoding path
 //! and through every public entry point (the length switch included), and the
-//! 64-digit content-address readers. Report-only; not a gate.
+//! 64-digit content-address readers; beside them, the non-digest kernels:
+//! FNV-1a 64 and the SplitMix64 streams, the reversible multiset's insert and
+//! combine, and the length framing. Report-only; not a gate.
 
 #![allow(missing_docs)] // a bench target is not public API
 
@@ -12,11 +14,15 @@ use std::hint::black_box;
 
 use purrdf_hash::Backend as _;
 use purrdf_hash::backend::{Crc32Backend, HexBackend, Sha1Backend};
+use purrdf_hash::frame::{frame_be_labelled, frame_le};
+use purrdf_hash::fnv::fnv1a64;
 use purrdf_hash::hex::{
     Lower, decode, decode_32, decode_32_canonical, decode_canonical, encode, encode_into,
     encode_to_slice, encode_upper_to_slice,
 };
 use purrdf_hash::md5::Md5;
+use purrdf_hash::mix::{splitmix64_finalize, splitmix64_next, splitmix64_step};
+use purrdf_hash::multiset::Multiset256;
 use purrdf_hash::sha3::{Sha3_224, Sha3_256, Sha3_384, Sha3_512};
 use purrdf_testkit::bench::{Bench, BenchmarkId, Throughput, bench_group, bench_main};
 use purrdf_testkit::rng::xorshift64_next;
@@ -224,5 +230,122 @@ fn blake3_backends(c: &mut Bench) {
     group.finish();
 }
 
-bench_group!(benches, digests, hex, blake3, blake3_backends);
+/// The non-digest kernels beside them: FNV-1a 64 over the digest size
+/// classes, the SplitMix64 streams per draw, the reversible multiset's member
+/// insert and combine, and the length framing. Report-only; not a gate.
+fn kernels(c: &mut Bench) {
+    // FNV-1a 64: ns/op at the small classes, GB/s at 1 MiB.
+    let mut group = c.benchmark_group("fnv1a64");
+    for (len, label) in SIZES {
+        let data = input(len);
+        group.throughput(Throughput::Bytes(len as u64));
+        group.bench_with_input(BenchmarkId::new("fold", label), &data, |b, data| {
+            b.iter(|| fnv1a64(black_box(data)));
+        });
+    }
+    group.finish();
+
+    // SplitMix64: the generator stream, the self-composed step stream and the
+    // finaliser alone, per draw. Scalar 64-bit ops: no byte rate.
+    let mut group = c.benchmark_group("splitmix64");
+    let words: Vec<u64> = {
+        let mut state = purrdf_hash::mix::GOLDEN_GAMMA;
+        (0..4096).map(|_| xorshift64_next(&mut state)).collect()
+    };
+    let mut generator = purrdf_hash::mix::GOLDEN_GAMMA;
+    group.throughput(Throughput::Elements(4096));
+    group.bench_function("next/4096", |b| {
+        b.iter(|| {
+            (0..4096).fold(0u64, |sum, _| sum ^ splitmix64_next(&mut generator))
+        });
+    });
+    group.bench_function("step/4096", |b| {
+        b.iter(|| {
+            let mut state = purrdf_hash::mix::GOLDEN_GAMMA;
+            (0..4096).fold(0u64, |sum, _| {
+                state = splitmix64_step(state);
+                sum ^ state
+            })
+        });
+    });
+    group.bench_function("finalize/4096", |b| {
+        b.iter(|| {
+            words.iter().fold(0u64, |sum, &word| {
+                sum ^ splitmix64_finalize(black_box(word))
+            })
+        });
+    });
+    group.finish();
+
+    // The reversible multiset: members in, part accumulators combined.
+    // Fixed-width modular arithmetic over 32-byte members: elements, not a
+    // byte rate.
+    const MEMBERS: usize = 1 << 15; // 32768 members: 1 MiB of 32-byte digests
+    const PARTS: usize = 256;
+    let mut group = c.benchmark_group("multiset");
+    let members: Vec<[u8; 32]> = input(MEMBERS * 32).as_chunks::<32>().0.to_vec();
+    let parts: Vec<Multiset256> = members
+        .chunks(MEMBERS / PARTS)
+        .map(|chunk| {
+            chunk.iter().fold(Multiset256::default(), |mut set, member| {
+                set.insert(*member)
+                    .expect("32768 members cannot overflow a u128 population");
+                set
+            })
+        })
+        .collect();
+    group.throughput(Throughput::Elements(members.len() as u64));
+    group.bench_function("insert/32768", |b| {
+        b.iter(|| {
+            members.iter().fold(Multiset256::default(), |mut set, member| {
+                set.insert(*member)
+                    .expect("32768 members cannot overflow a u128 population");
+                set
+            })
+        });
+    });
+    group.throughput(Throughput::Elements(PARTS as u64));
+    group.bench_function("combine/256", |b| {
+        b.iter(|| {
+            parts.iter().fold(Multiset256::default(), |mut total, part| {
+                total
+                    .combine(*part)
+                    .expect("32768 members cannot overflow a u128 population");
+                total
+            })
+        });
+    });
+    group.finish();
+
+    // Length framing: u64_le(len) || bytes and its labelled big-endian form,
+    // per size class: ns/op at the small classes, GB/s at 1 MiB.
+    let mut group = c.benchmark_group("frame");
+    const LABEL: &str = "purrdf-hash-bench/frame/v1";
+    for (len, label) in SIZES {
+        let data = input(len);
+        group.throughput(Throughput::Bytes(len as u64));
+        let mut out = Vec::with_capacity(len + 8);
+        group.bench_with_input(BenchmarkId::new("frame_le", label), &data, |b, data| {
+            b.iter(|| {
+                out.clear();
+                frame_le(&mut out, black_box(data));
+                out.len()
+            });
+        });
+        group.bench_with_input(
+            BenchmarkId::new("frame_be_labelled", label),
+            &data,
+            |b, data| {
+                b.iter(|| {
+                    out.clear();
+                    frame_be_labelled(&mut out, LABEL, black_box(data));
+                    out.len()
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
+bench_group!(benches, digests, hex, blake3, blake3_backends, kernels);
 bench_main!(benches);

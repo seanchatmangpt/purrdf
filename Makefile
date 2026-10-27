@@ -380,7 +380,10 @@ bench-prepared-reuse: bounded-preflight ## Measure cold/warm preparation and pre
 	$(BOUNDED) cargo bench --locked --profile release -p purrdf-sparql-eval --bench prepared_reuse -- $(BENCH_ARGS)
 
 bench: bounded-preflight ## Run the purrdf_testkit::bench suites (report-only; never a gate).
-	$(BOUNDED) cargo bench -p purrdf-gts -p purrdf-core -p purrdf-columnar -p purrdf-rdf -p purrdf-json -p purrdf-sparql-eval -p purrdf-geo -p purrdf-geo-kernel -p purrdf-text -p purrdf-shapes -p purrdf-wasm -p purrdf-entail -p purrdf-lex -p purrdf-iri -p purrdf-xsd -p purrdf-sparql-algebra -p purrdf-sparql-results -p purrdf-hash-conformance -p purrdf-deflate -p purrdf-jsonschema
+# 33 crates: the original 20 plus the 13 bench-bearing crates this wave pulled in
+# (purrdf-datalog seminaive fixpoint included). purrdf-duckdb stays excluded for
+# weight — no duckdb-family bench target is referenced anywhere in this target.
+	$(BOUNDED) cargo bench -p purrdf-gts -p purrdf-core -p purrdf-columnar -p purrdf-rdf -p purrdf-json -p purrdf-sparql-eval -p purrdf-geo -p purrdf-geo-kernel -p purrdf-text -p purrdf-shapes -p purrdf-wasm -p purrdf-entail -p purrdf-lex -p purrdf-iri -p purrdf-xsd -p purrdf-sparql-algebra -p purrdf-sparql-results -p purrdf-hash-conformance -p purrdf-deflate -p purrdf-jsonschema -p purrdf-arrow -p purrdf-branchless -p purrdf-cdt -p purrdf-datalog -p purrdf-ed25519 -p purrdf-glob -p purrdf-hnsw -p purrdf-markdown -p purrdf-mime -p purrdf-n3 -p purrdf-shex -p purrdf-slice -p purrdf-toml
 
 # HOW A LANE KNOB REACHES ITS SCRIPT: as environment bytes, unparsed.
 #

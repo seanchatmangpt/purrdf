@@ -4775,10 +4775,39 @@ fn validate_zero_padding_usize(
     end: usize,
 ) -> Result<(), EmbeddingError> {
     let padding = bytes.get(start..end).ok_or(EmbeddingError::Truncated)?;
-    if let Some(relative) = padding.iter().position(|byte| *byte != 0) {
-        return Err(EmbeddingError::InvalidPadding {
-            offset: u64::try_from(start + relative).unwrap_or(u64::MAX),
-        });
+    // Wired per OPT-52 (docs/jira/v26.10.26/optimization/OPT-52-*.md).
+    // DIVERGENCE from bcinr (2x): (1) head-free `as_chunks::<8>` layout —
+    // whole words first, byte loop only over the <8-byte tail;
+    // `u64::from_le_bytes` copies so the scan stays unaligned-safe.
+    // (2) The sanctioned kernel `find_byte_in_word(word, 0)` (bcinr
+    // swar_str.rs:112-117, Mycroft `(x - ONES) & !x & HIGHS` zero-detect) is
+    // borrow-INEXACT: it false-flags a `0x01` byte whose lower lanes are all
+    // zero (exhaustive 2-lane witness `0x0100`; would over-refuse valid
+    // padding and corrupt the offset). The scan therefore uses the exact
+    // SWAR nonzero-lane test — high bit set iff the lane byte is nonzero:
+    // `((w & SEVENS) + SEVENS | w) & HIGHS` (no cross-lane borrow: each lane
+    // of `(w & SEVENS) + SEVENS` is <= 0xFE). Relocating this as a named
+    // kernel in `purrdf_branchless::swar` is the coordinator's call; until
+    // then it lives here behind this single call site.
+    const SEVENS: u64 = 0x7F7F_7F7F_7F7F_7F7F;
+    const HIGHS: u64 = 0x8080_8080_8080_8080;
+    let (words, tail) = padding.as_chunks::<8>();
+    for (word_index, word) in words.iter().enumerate() {
+        let loaded = u64::from_le_bytes(*word);
+        let nonzero_lanes = ((loaded & SEVENS).wrapping_add(SEVENS) | loaded) & HIGHS;
+        if nonzero_lanes != 0 {
+            let lane = nonzero_lanes.trailing_zeros() / 8;
+            return Err(EmbeddingError::InvalidPadding {
+                offset: u64::try_from(start + word_index * 8 + lane as usize).unwrap_or(u64::MAX),
+            });
+        }
+    }
+    for (relative, byte) in tail.iter().enumerate() {
+        if *byte != 0 {
+            return Err(EmbeddingError::InvalidPadding {
+                offset: u64::try_from(start + words.len() * 8 + relative).unwrap_or(u64::MAX),
+            });
+        }
     }
     Ok(())
 }
@@ -5454,6 +5483,115 @@ mod tests {
         assert!(matches!(
             validate_index_guard(&guard),
             Err(EmbeddingError::DigestMismatch { .. })
+        ));
+    }
+}
+
+// OPT-52 differential court: the SWAR word scan in
+// `validate_zero_padding_usize` must agree byte-for-byte with the original
+// scalar byte loop (kept here as an independent oracle, a different
+// formulation than the implementation under test).
+#[cfg(test)]
+mod padding_scan_differential {
+    use super::validate_zero_padding_usize;
+    use crate::ir::embedding::error::EmbeddingError;
+
+    /// Independent scalar oracle: the pre-OPT-52 byte loop, verbatim.
+    fn oracle(bytes: &[u8], start: usize, end: usize) -> Result<(), EmbeddingError> {
+        let padding = bytes.get(start..end).ok_or(EmbeddingError::Truncated)?;
+        if let Some(relative) = padding.iter().position(|byte| *byte != 0) {
+            return Err(EmbeddingError::InvalidPadding {
+                offset: u64::try_from(start + relative).unwrap_or(u64::MAX),
+            });
+        }
+        Ok(())
+    }
+
+    fn assert_agrees(bytes: &[u8], start: usize, end: usize) {
+        let expected = oracle(bytes, start, end);
+        let actual = validate_zero_padding_usize(bytes, start, end);
+        assert_eq!(
+            expected,
+            actual,
+            "swar scan disagrees with scalar oracle at [{start}, {end}) over {} bytes",
+            bytes.len()
+        );
+    }
+
+    #[test]
+    fn differential_over_randomized_spans_matches_scalar_oracle() {
+        // 64-bit LCG; deterministic, no external rng dependency.
+        let mut state: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut bytes = [0u8; 128];
+        for _ in 0..4096 {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            // Sparse nonzeros: mostly-zero buffers with a few struck bytes,
+            // the shape word scanning exists to accelerate.
+            for lane in 0..4 {
+                let index = usize::try_from((state >> (lane * 16)) & 0x7F).expect("7 bits");
+                bytes[index] = u8::try_from((state >> (32 + lane * 8)) & 0xFF).expect("8 bits");
+            }
+            for start in 0..=bytes.len() {
+                for end in start..=bytes.len() {
+                    assert_agrees(&bytes, start, end);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn differential_boundaries_match_oracle() {
+        let all_zero = [0u8; 64];
+        let max_byte = [0xFFu8; 64];
+        for (label, bytes) in [("all-zero", &all_zero[..]), ("all-max", &max_byte[..])] {
+            for length in 0..=bytes.len() {
+                assert_agrees(bytes, 0, length);
+                assert_agrees(bytes, bytes.len() - length, bytes.len());
+            }
+            let _ = label;
+        }
+        // Empty span at every offset, including the very end.
+        for offset in 0..=all_zero.len() {
+            assert_agrees(&all_zero, offset, offset);
+        }
+    }
+
+    #[test]
+    fn first_nonzero_offsets_are_exact_at_ticket_positions() {
+        // Nonzero at 0, at k<8, at 8 (first byte of the second word), at the
+        // last byte, and multiple nonzeros: the reported offset must be the
+        // FIRST offender in every case.
+        for position in [0usize, 3, 7, 8, 15, 16, 23, 63] {
+            let mut bytes = [0u8; 64];
+            bytes[position] = 1;
+            assert_agrees(&bytes, 0, 64);
+            match validate_zero_padding_usize(&bytes, 0, 64) {
+                Err(EmbeddingError::InvalidPadding { offset }) => {
+                    assert_eq!(offset, u64::try_from(position).expect("fits u64"));
+                }
+                other => panic!("position {position}: expected refusal, got {other:?}"),
+            }
+        }
+        let mut multi = [0u8; 64];
+        multi[9] = 5;
+        multi[40] = 7;
+        assert_agrees(&multi, 0, 64);
+        assert!(matches!(
+            validate_zero_padding_usize(&multi, 0, 64),
+            Err(EmbeddingError::InvalidPadding { offset: 9 })
+        ));
+    }
+
+    #[test]
+    fn truncated_span_is_refused_like_the_oracle() {
+        let bytes = [0u8; 16];
+        assert_agrees(&bytes, 0, 17);
+        assert_agrees(&bytes, 17, 17);
+        assert!(matches!(
+            validate_zero_padding_usize(&bytes, 0, 17),
+            Err(EmbeddingError::Truncated)
         ));
     }
 }

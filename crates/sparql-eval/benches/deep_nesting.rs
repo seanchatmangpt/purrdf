@@ -28,14 +28,22 @@
 //! [`DEPTHS`] is the list every construct is measured at; extending it is the one
 //! line a deeper evaluator needs. How deep a request may nest today is the stack of
 //! the thread answering it, so before sampling, each construct's deepest answering
-//! level on the bench thread is found by bisection up to [`PROBE_CEILING`] — a
-//! refusal there is the typed stack diagnostic, never an abort. A listed depth past
-//! that limit is skipped with a note on stderr, never silently. The limit itself is
-//! measured too, as `<construct>/bench_thread_limit`, at fifteen sixteenths of the
-//! probed depth: the timed frames sit a little deeper in the harness than the probe
-//! does, and the margin keeps that difference from turning the case into a refusal.
-//! The probed depth is printed on stderr; the case id stays fixed so reports compare
+//! level is found by bisection up to [`PROBE_CEILING`] — a refusal there is the
+//! typed stack diagnostic, never an abort. A listed depth past that limit is
+//! skipped with a note on stderr, never silently. The limit itself is measured
+//! too, as `<construct>/bench_thread_limit`, at fifteen sixteenths of the probed
+//! depth: the timed frames sit a little deeper in the harness than the probe does,
+//! and the margin keeps that difference from turning the case into a refusal. The
+//! probed depth is printed on stderr; the case id stays fixed so reports compare
 //! across revisions.
+//!
+//! Every construct's probe and samples run on a dedicated worker thread with a
+//! large explicit stack ([`MEASUREMENT_STACK`]): the depth the engine's typed
+//! stack guard can answer at is close enough to the thread's true limit that a
+//! probe or a recursive drop of the parsed spine could abort the whole bench
+//! before the guard trips. One worker per construct keeps every depth a
+//! construct answers at — including `<construct>/bench_thread_limit` — measured
+//! on the same stack, so the reported limit stays self-consistent.
 //!
 //! Report-only, `cargo bench -p purrdf-sparql-eval --bench deep_nesting` (the
 //! `make bench` lane) — excluded from `make check`. No timing is asserted.
@@ -62,6 +70,23 @@ const DEPTHS: &[usize] = &[16, 64, 256];
 /// The deepest level the limit probe tries. A construct that still answers here is
 /// measured here.
 const PROBE_CEILING: usize = 20_000;
+
+/// The explicit stack every construct is probed and sampled on. Deep enough that
+/// the engine's typed stack refusal always wins the race against the thread's real
+/// limit — even while the bench harness's own frames sit below the recursion.
+const MEASUREMENT_STACK: usize = 256 * 1024 * 1024;
+
+/// Run `body` on a thread with a [`MEASUREMENT_STACK`] stack, propagating panics.
+fn on_measurement_stack<R>(body: impl FnOnce() -> R + Send) -> R {
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(MEASUREMENT_STACK)
+            .spawn_scoped(scope, body)
+            .expect("the deep-nesting measurement thread spawns")
+            .join()
+            .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+    })
+}
 
 /// `<s1>` … `<s4>` each `<p>` their number, and only `<s1>` also `<q>` it.
 fn dataset() -> Arc<RdfDataset> {
@@ -269,23 +294,30 @@ fn bench_deep_nesting(c: &mut Bench) {
     let mut group = c.benchmark_group("deep_nesting");
     group.sample_size(10);
     for construct in constructs() {
-        let limit = deepest(&data, &construct);
-        eprintln!(
-            "deep_nesting: {} answers {limit} levels deep on the bench thread",
-            construct.name
-        );
-        for &depth in DEPTHS {
-            if depth > limit {
-                eprintln!(
-                    "deep_nesting: {} skipped at {depth}: the bench thread's stack holds {limit}",
-                    construct.name
-                );
-                continue;
+        // Probe and sample on one large-stack thread: the typed stack guard races
+        // the thread's real limit, and on the default bench stack the guard lost
+        // that race (hard overflow aborting the whole bench after the previous
+        // construct's rows had printed).
+        on_measurement_stack(|| {
+            let limit = deepest(&data, &construct);
+            eprintln!(
+                "deep_nesting: {} answers {limit} levels deep on the measurement thread",
+                construct.name
+            );
+            for &depth in DEPTHS {
+                if depth > limit {
+                    eprintln!(
+                        "deep_nesting: {} skipped at {depth}: the measurement thread's \
+                         stack holds {limit}",
+                        construct.name
+                    );
+                    continue;
+                }
+                bench_at(&mut group, &data, &construct, depth, &depth.to_string());
             }
-            bench_at(&mut group, &data, &construct, depth, &depth.to_string());
-        }
-        let margin = limit - limit / 16;
-        bench_at(&mut group, &data, &construct, margin, "bench_thread_limit");
+            let margin = limit - limit / 16;
+            bench_at(&mut group, &data, &construct, margin, "bench_thread_limit");
+        });
     }
     group.finish();
 }

@@ -23,7 +23,7 @@
 
 use std::sync::Arc;
 
-use purrdf_testkit::bench::{Bench, BenchmarkId, bench_group, bench_main};
+use purrdf_testkit::bench::{Bench, BenchmarkId, bench_group, bench_main, black_box};
 
 use purrdf_core::{RdfDataset, RdfDatasetBuilder};
 use purrdf_entail::{Materialization, materialize};
@@ -78,10 +78,14 @@ fn dataset_hierarchy(n: usize, graphs: usize) -> Arc<RdfDataset> {
 
 fn bench_chase(c: &mut Bench) {
     let mut group = c.benchmark_group("rdfs_chase");
-    for &n in &[16usize, 64] {
+    // The 10_000 row is a scale probe, not a regression point: the
+    // subClassOf-transitivity + instance-typing rules are quadratic here, so this
+    // row materializes on the order of 10^8 inferred triples and exists to show
+    // where the semi-naive fixpoint stops being interactive. Report-only.
+    for &n in &[16usize, 64, 10_000] {
         let ds = hierarchy(n);
         group.bench_with_input(BenchmarkId::from_parameter(n), &ds, |bch, ds| {
-            bch.iter(|| materialize(ds, Materialization::Rdfs).expect("materialize"));
+            bch.iter(|| black_box(materialize(ds, Materialization::Rdfs).expect("materialize")));
         });
     }
     group.finish();
@@ -93,7 +97,7 @@ fn bench_dataset(c: &mut Bench) {
     for &graphs in &[0usize, 1, 4, 16] {
         let ds = dataset_hierarchy(32, graphs);
         group.bench_with_input(BenchmarkId::from_parameter(graphs), &ds, |bch, ds| {
-            bch.iter(|| materialize(ds, Materialization::Rdfs).expect("materialize"));
+            bch.iter(|| black_box(materialize(ds, Materialization::Rdfs).expect("materialize")));
         });
     }
     group.finish();

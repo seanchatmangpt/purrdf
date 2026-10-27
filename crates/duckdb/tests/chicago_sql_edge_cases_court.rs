@@ -8,15 +8,13 @@
 //! unary/ternary operator parsing disambiguation, declarative LIMIT envelope refusal,
 //! mid-materialization circuit breaker on row 65, and zero-dependency Arrow IPC framing.
 
-use purrdf_arrow::{
-    ArrowEgressHeader, ArrowEgressHeaderError, canon_arrow_empty_v1,
-};
+use purrdf_arrow::{ArrowEgressHeader, ArrowEgressHeaderError, canon_arrow_empty_v1};
 use purrdf_core::TermValue;
 use purrdf_duckdb::{EvaluatorError, PurRdfDuckDB};
 use purrdf_hash::blake3;
 use purrdf_sql::{
-    compile_turtle, refusal_arm, AstError, Operator, RefusalCode, SelectItem,
-    SelectStatement, SetOpKind, SetOperationStatement, SqlExpr, SqlLiteral, TableRef,
+    AstError, Operator, RefusalCode, SelectItem, SelectStatement, SetOpKind, SetOperationStatement,
+    SqlExpr, SqlLiteral, TableRef, compile_turtle, refusal_arm,
 };
 use purrdf_testkit::temp_dir;
 
@@ -137,8 +135,7 @@ fn test_section_1_three_valued_logic_null_reshaping_and_schema_drift() {
         ORDER BY entity_id, metric_name
         LIMIT 64;
     ";
-    let compiled_unpivot =
-        purrdf_sql::CompiledQuery::raw_compiled(unpivot_sql.to_string(), vec![]);
+    let compiled_unpivot = purrdf_sql::CompiledQuery::raw_compiled(unpivot_sql.to_string(), vec![]);
     let res_unpivot = db
         .eval_ast_query_bounded(
             "http://graphlaw.org/test#unpivot_null_pruning",
@@ -214,8 +211,16 @@ fn test_section_1_three_valued_logic_null_reshaping_and_schema_drift() {
         .filter(|t| t.subject.ends_with("row_2"))
         .collect();
 
-    assert!(row1_triples.iter().all(|t| !t.predicate.ends_with("confidence_score")));
-    assert!(row2_triples.iter().any(|t| t.predicate.ends_with("confidence_score")));
+    assert!(
+        row1_triples
+            .iter()
+            .all(|t| !t.predicate.ends_with("confidence_score"))
+    );
+    assert!(
+        row2_triples
+            .iter()
+            .any(|t| t.predicate.ends_with("confidence_score"))
+    );
     // Attributes aligned by name (s, p, o), not physical column ordinal
     let p_in_row2 = row2_triples
         .iter()
@@ -277,9 +282,24 @@ fn test_section_2_temporal_boundary_and_join_corner_cases() {
     assert_eq!(res_asof.rows_emitted, 1);
     // Matched fx columns evaluate to NULL, so only trade_id and trade_time project quads
     assert_eq!(res_asof.triples.len(), 2);
-    assert!(res_asof.triples.iter().any(|t| t.predicate.ends_with("/trade_id")));
-    assert!(res_asof.triples.iter().any(|t| t.predicate.ends_with("/trade_time")));
-    assert!(res_asof.triples.iter().all(|t| !t.predicate.ends_with("/rate")));
+    assert!(
+        res_asof
+            .triples
+            .iter()
+            .any(|t| t.predicate.ends_with("/trade_id"))
+    );
+    assert!(
+        res_asof
+            .triples
+            .iter()
+            .any(|t| t.predicate.ends_with("/trade_time"))
+    );
+    assert!(
+        res_asof
+            .triples
+            .iter()
+            .all(|t| !t.predicate.ends_with("/rate"))
+    );
 
     // ------------------------------------------------------------------------
     // Scenario 2.2: POSITIONAL JOIN Over Mismatched Row Cardinalities
@@ -331,7 +351,11 @@ fn test_section_2_temporal_boundary_and_join_corner_cases() {
         .collect();
 
     assert_eq!(row10_triples.len(), 4, "Row 10 has 4 non-null values");
-    assert_eq!(row30_triples.len(), 2, "Row 30 has 2 non-null values (right side is NULL)");
+    assert_eq!(
+        row30_triples.len(),
+        2,
+        "Row 30 has 2 non-null values (right side is NULL)"
+    );
 }
 
 #[test]
@@ -431,7 +455,9 @@ fn test_section_3_ternary_and_unary_parsing_integrity_in_purrdf_sql() {
     };
     let compiled_regex_case = infix_regex_case.compile().expect("compile regex case");
     assert!(
-        compiled_regex_case.sql.contains("WHERE (lexical_col ~* $1)"),
+        compiled_regex_case
+            .sql
+            .contains("WHERE (lexical_col ~* $1)"),
         "Formatted SQL: {}",
         compiled_regex_case.sql
     );
@@ -468,11 +494,16 @@ fn test_section_3_ternary_and_unary_parsing_integrity_in_purrdf_sql() {
     };
     let compiled_between = between_stmt.compile().expect("compile between statement");
     assert!(
-        compiled_between.sql.contains("WHERE target_col BETWEEN $1 AND $2"),
+        compiled_between
+            .sql
+            .contains("WHERE target_col BETWEEN $1 AND $2"),
         "Formatted SQL: {}",
         compiled_between.sql
     );
-    assert_eq!(compiled_between.params, vec![SqlLiteral::Integer(100), SqlLiteral::Integer(500)]);
+    assert_eq!(
+        compiled_between.params,
+        vec![SqlLiteral::Integer(100), SqlLiteral::Integer(500)]
+    );
 }
 
 #[test]
@@ -501,9 +532,14 @@ fn test_section_4_adversarial_ast_and_circuit_breaker_boundary_refusals() {
         offset: None,
     };
 
-    let compile_err = adversarial_query.compile().expect_err("must refuse limit > 64");
+    let compile_err = adversarial_query
+        .compile()
+        .expect_err("must refuse limit > 64");
     assert_eq!(compile_err.code, RefusalCode::MalformedAst);
-    assert_eq!(compile_err.ctx.shape_id, refusal_arm::LIMIT_EXCEEDS_ENVELOPE);
+    assert_eq!(
+        compile_err.ctx.shape_id,
+        refusal_arm::LIMIT_EXCEEDS_ENVELOPE
+    );
     assert_eq!(compile_err.ctx.num, 256);
 
     // ------------------------------------------------------------------------
@@ -535,7 +571,11 @@ fn test_section_4_adversarial_ast_and_circuit_breaker_boundary_refusals() {
         .expect_err("materialization must trip on row 65");
 
     match err {
-        EvaluatorError::RowEnvelopeExceeded { limit, observed, max } => {
+        EvaluatorError::RowEnvelopeExceeded {
+            limit,
+            observed,
+            max,
+        } => {
             assert_eq!(limit, "duckdb_result_rows");
             assert_eq!(observed, 65, "Circuit breaker must trip on the 65th row");
             assert_eq!(max, 64);
@@ -619,7 +659,11 @@ fn test_section_5_zero_dependency_arrow_ipc_payload_integrity() {
     full_ipc_stream.extend(std::iter::repeat(0u8).take(64)); // 64-byte trailing padding
 
     assert_eq!(full_ipc_stream.len() as u64, full_header.total_byte_len);
-    assert_eq!(full_ipc_stream.len() % 64, 0, "Entire stream is 64-byte aligned");
+    assert_eq!(
+        full_ipc_stream.len() % 64,
+        0,
+        "Entire stream is 64-byte aligned"
+    );
 
     let parsed_full = ArrowEgressHeader::from_bytes(&header_bytes).expect("parse full header");
     assert_eq!(parsed_full.batch_count, 1);
