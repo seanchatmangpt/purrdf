@@ -65,7 +65,7 @@
   (128-byte header, 64-byte trailing padding).
 - **Proposed Type Layout & Signatures:** none added to production code —
   the harness consumes `purrdf_arrow::ArrowEgressHeader` verbatim
-  (`to_bytes`/`from_bytes`/`fits_in`, header.rs:71-165); if the OPT-17
+  (`to_bytes`/`from_bytes`/`fits_in`, header.rs:71-189); if the OPT-17
   writer does not yet exist, the harness builds the envelope with
   `ArrowEgressHeader { .. }` struct literal + `to_bytes` over the canonical
   bytes as payload. This is the pre-wiring court for OPT-17, not a second

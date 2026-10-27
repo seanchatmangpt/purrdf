@@ -1911,6 +1911,7 @@ name = "purrdf-capi"
 version = "3.0.1"
 dependencies = [
  "purrdf",
+ "purrdf-arrow",
  "purrdf-core",
  "purrdf-hash",
  "purrdf-lex",
@@ -2460,6 +2461,7 @@ name = "purrdf-sparql-results"
 version = "3.0.1"
 dependencies = [
  "purrdf-alloc-probe",
+ "purrdf-arrow",
  "purrdf-core",
  "purrdf-hash",
  "purrdf-iri",
@@ -2558,6 +2560,7 @@ name = "purrdf-wasm"
 version = "3.0.1"
 dependencies = [
  "purrdf",
+ "purrdf-arrow",
  "purrdf-core",
  "purrdf-events",
  "purrdf-lex",
@@ -2566,7 +2569,6 @@ dependencies = [
  "purrdf-sparql-eval",
  "purrdf-sparql-results",
  "purrdf-stack",
- "purrdf-testkit",
  "purrdf-validate",
  "wasm-bindgen",
 ]

@@ -5,7 +5,7 @@
 > the README renumbering convention.
 
 ## 1. TARGET CONTEXT
-- **Crate & File:** hooks verified in `crates/arrow/src/header.rs:138-140`
+- **Crate & File:** hooks verified in `crates/arrow/src/header.rs:174-176 (re-pinned 2026-10-27; was 138-140 pre-edit)`
   (reserved-region byte loop); `crates/branchless/src/{packing,bitset,swar}.rs`
   (extension homes); LEB128 home per OPT-57
   (`crates/rdf-core/src/ir/pack/bits.rs:1052` `write_varint`, `:1066` region
@@ -16,7 +16,7 @@
 
 ## 2. MECHANICAL PATHOLOGY
 - **Current Code Construct:**
-  1. **Reserved-region check is a byte loop.** `header.rs:138-140`:
+  1. **Reserved-region check is a byte loop.** `header.rs:174-176 (re-pinned 2026-10-27; was 138-140 pre-edit)`:
      `if bytes[100..128].iter().any(|&b| b != 0) { return
      Err(...ReservedNotZero); }` — 24 scalar loads with a data-dependent
      early-exit branch.
@@ -67,7 +67,9 @@
   branchless crate contract, no_std clean, wasm32 clean.
 - **Proposed Type Layout & Signatures:**
   - `branchless::swar`:
-    `pub const fn region_is_zero<const N: usize>(bytes: &[u8; N]) -> bool`
+    `pub const fn region_is_zero(bytes: &[u8]) -> bool` (slice form — the
+  call site holds a `&[u8]` wire buffer; the const-generic form buys
+  nothing for the single N=24 instantiation)
     — the minimal form the header site needs (`N = 24` at the call site;
     kernel folds the slice through u64 windows + tail mask, one compare).
   - `branchless::packing`: `pub fn encode_run(out: &mut impl Extend<u8>,
@@ -92,9 +94,9 @@
   `validity_run_words` returns the run length, single caller-side branch;
   run-codec encode/decode round-trip identity over the fixed-bound corpus.
 - **Over-refusal / valid-neighbor pairing:** the reserved-region tightening
-  is already refusal-shaped (`ReservedNotZero`, header.rs:138-140) — its
+  is already refusal-shaped (`ReservedNotZero`, header.rs:174-176 (re-pinned 2026-10-27; was 138-140 pre-edit)) — its
   neighbor court is the existing `Default` header (`reserved: [0u8; 24]`,
-  header.rs:252) round-tripping `Ok` (pinned at
+  header.rs:187) round-tripping `Ok` (pinned at
   `arrow_header_test.rs:189-196` region); any new refusal added by these
   kernels carries its paired valid-neighbor test in the same file.
 - **Chicago oracles (crates/branchless/oracles/, Python over shared JSON

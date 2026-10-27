@@ -8,8 +8,9 @@ SPDX-License-Identifier: CC-BY-4.0
 [`purrdf-sparql-results`](https://docs.rs/purrdf-sparql-results) is the results
 boundary of the SPARQL stack: the canonical authority for turning a
 `SparqlResult` (SELECT solutions, ASK boolean, or CONSTRUCT graph) into the
-four W3C SPARQL Results formats — JSON (SRJ), XML, CSV, and TSV — plus an
-additive, caller-named provenance extension where the format can carry one.
+four W3C SPARQL Results formats — JSON (SRJ), XML, CSV, and TSV — plus two
+additive extensions: a caller-named provenance extension where the format can
+carry one, and the canon-arrow columnar frame extension (`to_canon_arrow`).
 JSON and XML documents can also be read back (`from_json`, `from_xml`).
 
 ```rust
@@ -30,7 +31,7 @@ assert_eq!(decoded.variables, ["s"]);
 assert_eq!(decoded.rows, [vec![Some(TermValue::Iri("https://example.org/alice".to_owned()))]]);
 ```
 
-Per-format writers (`to_json`, `to_xml`, `to_csv`, `to_tsv`) and readers
+Per-format writers (`to_json`, `to_xml`, `to_csv`, `to_tsv`, `to_canon_arrow`) and readers
 (`from_json`, `from_json_boolean`, `from_xml`, `from_xml_boolean`) are also
 exported directly.
 
@@ -64,6 +65,14 @@ exported directly.
 | XML | yes | yes | rejected | yes, with a namespace |
 | CSV | yes | rejected | rejected | dropped, flagged |
 | TSV | yes | rejected | rejected | dropped, flagged |
+| canon-arrow | yes | yes | yes | dropped, flagged |
+
+Like CSV/TSV, canon-arrow has no provenance extension point — the v1 frame's
+reserved region is zero-checked, so a populated `ResultProvenance` is dropped
+at the exit gate with `provenance_dropped` set. Unlike them, it accepts all
+three result shapes: `Solutions` encodes its rows as record-batch slabs, while
+`Boolean`, `Graph`, and an empty or unprojected `Solutions` emit the fixed
+192-byte canon-empty frame.
 
 ## The provenance extension
 

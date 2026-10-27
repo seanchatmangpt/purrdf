@@ -583,6 +583,7 @@ fn negotiation_follows_weights_wildcards_specificity_and_preference_order() {
         (Some("application/sparql-results+json"), Graph, None),
         (Some("text/turtle"), Solutions, None),
         (Some("image/*"), Graph, None),
+        (Some("application/x-purrdf-canon-arrow"), Solutions, None),
         // Malformed elements are skipped; a well-formed neighbour still counts.
         (
             Some("text/csv;q=2, text/tab-separated-values"),

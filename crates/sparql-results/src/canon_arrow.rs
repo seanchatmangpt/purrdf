@@ -232,15 +232,13 @@ fn measure_solutions(
         }
         // Fixed slab region: kinds (`rows * cols` bytes) plus offset tables
         // (`(rows + 1)` little-endian u32s per column).
-        let fixed = u64::from_usize(batch.len())
-            .and_then(|rows| {
-                rows.checked_mul(u64::from_usize(variables.len()).ok_or(None)?)
-                    .and_then(|term| term.checked_mul(5))
-                    .and_then(|term| {
-                        term.checked_add(u64::from_usize(variables.len()).ok_or(None)? * 4)
-                    })
-            })
-            .map_err(|_: Option<()>| storage_overflow())?;
+        let rows = u64::try_from(batch.len()).map_err(|_| storage_overflow())?;
+        let columns = u64::try_from(variables.len()).map_err(|_| storage_overflow())?;
+        let fixed = rows
+            .checked_mul(columns)
+            .and_then(|term| term.checked_mul(5))
+            .and_then(|term| term.checked_add(columns.checked_mul(4).ok_or_else(storage_overflow)?))
+            .ok_or_else(storage_overflow)?;
         payload = payload
             .checked_add(fixed)
             .and_then(|sum| sum.checked_add(lexical_total))

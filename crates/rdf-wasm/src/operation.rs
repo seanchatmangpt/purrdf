@@ -702,7 +702,8 @@ impl OperationInput<'_> {
                 // frame here would be silently corrupted. Mirror the sync
                 // queryRaw refusal and point at queryCanonArrow.
                 if format.as_deref() == Some("canon-arrow") {
-                    return Err(JsValue::new(
+                    return Err(JobError::message(
+                        SERIALIZE_CODE,
                         "canon-arrow is a binary frame; queryRawAsync returns \
                          text. Use queryCanonArrow instead.",
                     ));
