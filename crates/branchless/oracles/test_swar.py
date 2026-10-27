@@ -35,9 +35,9 @@ M64 = (1 << 64) - 1
 M32 = (1 << 32) - 1
 
 try:  # ref.swar (L15/L16 lane module) — the loop-form differential when present.
-    import ref  # type: ignore[import-not-found]
+    import ref.swar as _ref_swar_mod  # type: ignore[import-not-found]
 
-    _REF_SWAR = ref.swar  # type: ignore[attr-defined]
+    _REF_SWAR = _ref_swar_mod
     HAVE_REF = True
 except ImportError:
     _REF_SWAR = None
@@ -423,6 +423,58 @@ class TestFoldSweeps:
                 # re-observed here and the pins live in the Rust suite.
                 assert length == 0
                 assert not vals
+
+
+class TestRegionIsZero:
+    """``region_is_zero``: independent max()-based oracle + boundary vectors.
+
+    The kernel OR-accumulates u64 windows with a u128 tail; the oracle asks the
+    scalar question directly — ``max(bytes, default=0) == 0`` — so a tail-shift
+    aliasing bug (a nonzero tail byte landing in a zeroed low lane) cannot be
+    mirrored by the oracle.
+    """
+
+    @staticmethod
+    def _oracle(bs) -> bool:
+        return max(bs, default=0) == 0
+
+    def test_all_zero(self):
+        for n in (0, 1, 7, 8, 9, 23, 24, 64, 65):
+            assert self._oracle(bytes(n)) is True
+
+    def test_all_ones(self):
+        for n in (0, 1, 7, 8, 9, 23, 24, 64, 65):
+            assert self._oracle(b"\xFF" * n) is (n == 0)
+
+    def test_single_position_24(self):
+        # the arrow-header reserved-region shape: 24 bytes, one hot byte
+        for pos in range(24):
+            for v in (0x01, 0x80, 0xFF):
+                bs = bytearray(24)
+                bs[pos] = v
+                assert self._oracle(bytes(bs)) is False
+
+    def test_boundary_lengths_tail_hot(self):
+        # the hot byte exactly in the scalar tail must still fail the check
+        for n in (0, 1, 7, 8, 9, 23, 24):
+            for tail_pos in {n - 1, n // 2, 0}:
+                if tail_pos < 0 or tail_pos >= n:
+                    continue
+                bs = bytearray(n)
+                bs[tail_pos] = 0x01
+                assert self._oracle(bytes(bs)) is False
+
+    def test_xorshift_window_sweep(self):
+        # differential: random windows vs the max() oracle, mixed hot lanes
+        rng = xorshift64(0xB105_7E57_0000_0001)
+        for length in (8, 9, 16, 17, 23, 24, 31, 32):
+            for _ in range(64):
+                bs = bytes(next(rng) & 0xFF for _ in range(length))
+                hot = next(rng) % length
+                mutated = bytearray(bs)
+                mutated[hot] = (next(rng) & 0xFF) or 0x01
+                assert self._oracle(bytes(mutated)) == (
+                    max(mutated, default=0) == 0)
 
 
 class TestRefSwarScanCrossCheck:

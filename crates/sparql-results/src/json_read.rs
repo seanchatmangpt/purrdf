@@ -236,6 +236,11 @@ fn bounded_document<S: Admission + ?Sized>(
     memory: &mut Memory<'_, S>,
 ) -> Result<BoundedParsedSolutions, Error> {
     let variables = scan_variables(bytes, memory)?;
+    // Zero-column rows carry no cells, so the cells-per-row governor has no
+    // denominator: any row bound derived from `max_cells` would be arbitrary
+    // (a made-up cost per row). The `None` limit is deliberate and pinned by
+    // `bounded_reader_does_not_invent_a_row_bound_for_zero_columns` — empty
+    // rows are zero-width and each entry still pays its own parser admission.
     let row_limit = if variables.is_empty() {
         None
     } else {
@@ -757,6 +762,9 @@ struct RowScratch<'a> {
 ///
 /// A cell is the FIRST member named after its variable; a later member of the
 /// same name, like every member no variable names, is checked and not decoded.
+/// An unmatched binding key is ignored, not a format refusal: the SPARQL 1.1
+/// Query Results JSON grammar does not constrain binding members to
+/// `head.vars`, so the reader projects onto the declared variables.
 fn binding_row<'a, S: Admission + ?Sized>(
     reader: &mut Reader<'a>,
     variables: &[String],

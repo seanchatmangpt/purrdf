@@ -2484,8 +2484,9 @@ impl CliTransport {
 }
 
 /// The `--results-format` choices the `query` subcommand accepts: a SUPERSET of the
-/// four W3C SPARQL-results serializations (for SELECT solutions / ASK booleans) and
-/// the nine native RDF syntaxes (for CONSTRUCT / DESCRIBE graphs).
+/// four W3C SPARQL-results serializations and purrdf's `canon-arrow` frame extension
+/// (OPT-17) (for SELECT solutions / ASK booleans), plus the nine native RDF syntaxes
+/// (for CONSTRUCT / DESCRIBE graphs).
 ///
 /// The result SHAPE selects which half is legal: a SELECT/ASK result serializes
 /// through a SPARQL-results format, a CONSTRUCT/DESCRIBE graph through an RDF syntax.

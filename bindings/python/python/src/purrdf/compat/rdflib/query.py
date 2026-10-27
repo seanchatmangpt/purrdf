@@ -276,6 +276,8 @@ class Result:
         identity for it. Neither is fabricated: PurRDF mints no vocabulary IRIs
         of its own, and this :class:`Result` carries no query text to hash on
         its own. Omit both for pure-W3C output, exactly as before they existed.
+        The canon-arrow frame format is reachable only through the low-level
+        purrdf.serialize_sparql_* functions.
         """
         if self.type in ("CONSTRUCT", "DESCRIBE"):
             assert self.graph is not None
@@ -311,7 +313,9 @@ class Result:
         Mirrors RDFLib's ``Result.parse`` static method: reads a SELECT or ASK
         result document (from a file-like, ``bytes``, ``str``, or path) in the
         given ``format`` (or ``content_type`` media type) and returns the
-        reconstructed :class:`Result`.
+        reconstructed :class:`Result`. canon-arrow is not accepted here at all;
+        the low-level purrdf.parse_sparql_results refuses it with ValueError
+        (write-only frame format — serialize-only).
         """
         fmt_id = _result_format_id(format or content_type)
         data = _read_result_source(source)

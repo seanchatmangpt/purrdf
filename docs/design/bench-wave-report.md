@@ -225,7 +225,7 @@ close path is a phase-5 fast-lane run or a CI `make bench` run (see §7.0).
 | Phase-4 queued | 8 subjects (§9) | phase-4 register rows |
 | No lane this wave | gts, json, geo, markdown, xsd, jsonschema, deflate, ed25519 | CI/make bench |
 | wasm/js selections | all — never run, no receipts | `make wasm-test` (CI) |
-| Post-freeze OPT-17 arm | `to_canon_arrow_5k_rows` (`crates/sparql-results/benches/graph_serialize.rs:166`) — new bench subject from the arrow-egress wiring wave; UNRUN (no receipt, and the module body is not yet on disk so the crate does not compile on the current tree) | phase-5 fast-lane or CI `make bench` (phase-4 queue frozen pre-wave, cannot cover it; §7.0) |
+| Post-freeze OPT-17 arm | `to_canon_arrow_5k_rows` (`crates/sparql-results/benches/graph_serialize.rs:166`) — new bench subject from the arrow-egress wiring wave; UNRUN (no receipt; the arms HAVE landed at `crates/sparql-results/benches/graph_serialize.rs:166,191,353`, but only after the phase-4 queue froze, so no queued run can cover them) | phase-5 fast-lane or CI `make bench` (§7.0) |
 | Full gate | `make check` — fmt, clippy, tests, hygiene (pedantic+nursery) | CI-only on this box |
 
 In-flight detail: phase-2 entail, shex, plus the misnamed purrdf-rdf-core

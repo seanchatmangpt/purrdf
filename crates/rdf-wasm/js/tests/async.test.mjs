@@ -40,6 +40,10 @@ import init, {
 import { NO_JSPI_MESSAGE, runJob } from "../pkg/purrdf_jspi.mjs";
 import { CROSS_COUNT, crossDataset, expectedCrossCount } from "./fixtures/yield-workload.mjs";
 
+// Capture the raw wasm method before the package root wraps the prototype, so the
+// wrapper-vs-raw identity test can drive both identities over the same bytes.
+const wasmQueryCanonArrowRaw = QueryEngine.prototype.queryCanonArrow;
+
 // One-time wasm instantiation before any test runs.
 await ready();
 
@@ -1876,4 +1880,96 @@ test("a job's memo keeps rows only: a repeated request whose first answer failed
   });
   assert.equal(steady, 1);
   assert.equal(outcome.result.rowCount, 4);
+});
+
+// ---------------------------------------------------------------------------
+// queryCanonArrow: the wrapper, the wire frame, and the raw wasm identity
+// ---------------------------------------------------------------------------
+
+// The wrapper exists to refuse what it cannot honour: `format` is fixed to
+// canon-arrow on this entry point, so a caller who sets it would be silently
+// ignored — a TypeError is the honest answer. The valid neighbour: the same
+// call without `format` answers with a frame.
+test("refusal pair: queryCanonArrow refuses a format option with its exact message; without it, answers", () => {
+  const engine = new QueryEngine();
+  const error = syncThrow(() =>
+    engine.queryCanonArrow(local(), `SELECT ?s ?o WHERE { ?s <${EX}p> ?o }`, { format: "json" }),
+  );
+  assert.ok(error instanceof TypeError);
+  assert.equal(
+    error.message,
+    "query option format is fixed to canon-arrow on queryCanonArrow; this call " +
+      "would ignore it entirely",
+  );
+  const frame = engine.queryCanonArrow(local(), `SELECT ?s ?o WHERE { ?s <${EX}p> ?o }`);
+  assert.ok(frame instanceof Uint8Array);
+});
+
+// The SELECT frame carries the fixed 128-byte little-endian GLAWARRW header: the
+// field order and offsets are the wire contract (`ArrowEgressHeader::to_bytes`),
+// read here through DataView exactly as a downstream Arrow-IPC reader would.
+test("queryCanonArrow SELECT frame: the GLAWARRW header fields read little-endian via DataView", () => {
+  const engine = new QueryEngine();
+  const frame = engine.queryCanonArrow(local(), `SELECT ?s ?o WHERE { ?s <${EX}p> ?o }`);
+  assert.ok(frame.length > 192, `a two-row SELECT frame spans ${frame.length} bytes, past header + padding`);
+  const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+  assert.equal(new TextDecoder().decode(frame.slice(0, 8)), "GLAWARRW");
+  assert.equal(view.getUint16(8, true), 0x0002, "schema version");
+  assert.equal(view.getUint32(16, true), 128, "payload offset");
+  const payloadByteLen = view.getBigUint64(20, true);
+  const totalByteLen = view.getBigUint64(28, true);
+  assert.equal(totalByteLen, BigInt(frame.length), "total_byte_len covers payload + 128 header + 64 padding");
+  assert.equal(totalByteLen - payloadByteLen, 192n);
+  assert.ok(view.getUint32(12, true) >= 1, "at least one record batch");
+  assert.ok(
+    frame.slice(100, 128).every((byte) => byte === 0),
+    "the reserved region is zero-filled",
+  );
+});
+
+// A non-tabular result (ASK) emits the canon-empty frame: the default header with
+// both digests over the domain digest, then 64 bytes of trailing padding — 192
+// bytes total, payload region empty.
+test("queryCanonArrow ASK frame is the 192-byte canon-empty frame", () => {
+  const engine = new QueryEngine();
+  const frame = engine.queryCanonArrow(local(), `ASK { ?s <${EX}p> ?o }`);
+  assert.equal(frame.length, 192);
+  const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+  assert.equal(new TextDecoder().decode(frame.slice(0, 8)), "GLAWARRW");
+  assert.equal(view.getUint16(8, true), 0x0002);
+  assert.equal(view.getUint32(12, true), 1, "one record batch");
+  assert.equal(view.getUint32(16, true), 128);
+  assert.equal(view.getBigUint64(20, true), 0n, "the payload region is empty");
+  assert.equal(view.getBigUint64(28, true), 192n, "total_byte_len is header + padding");
+  assert.ok(
+    frame.slice(100, 128).every((byte) => byte === 0),
+    "the reserved region is zero-filled",
+  );
+});
+
+// The package-root wrapper only normalizes options and forwards positionally to the
+// wasm method captured above: over the same dataset, query and option values, the
+// two identities must agree byte for byte — the wrapper is a boundary, not a codec.
+test("queryCanonArrow wrapper matches the raw wasm method byte for byte", () => {
+  const engine = new QueryEngine();
+  const data = local();
+  const sparql = `SELECT ?s ?o WHERE { ?s <${EX}p> ?o }`;
+  const base = EX;
+  const provenanceNamespace = { prefix: "prov", iri: `${EX}ns/prov#` };
+  const wrapped = engine.queryCanonArrow(data, sparql, {
+    base,
+    provenanceNamespace,
+    xpathRegex: undefined,
+  });
+  const raw = wasmQueryCanonArrowRaw.call(
+    engine,
+    data,
+    sparql,
+    base,
+    provenanceNamespace.prefix,
+    provenanceNamespace.iri,
+    undefined,
+  );
+  assert.ok(raw instanceof Uint8Array);
+  assert.deepEqual([...wrapped], [...raw], "the wrapper's bytes are the raw wasm method's bytes");
 });

@@ -135,3 +135,24 @@ test("generated host Reflect.get preserves throwing getter refusal", async () =>
     return true;
   });
 });
+
+// The shipped release surface must emit a well-formed GLAWARRW canon-arrow frame,
+// and the same call must be byte-deterministic: a release whose frame moved between
+// identical calls would be nondeterministic egress, not a serializer.
+test("release frame contract: queryCanonArrow emits a well-formed frame, byte-deterministic across calls", async () => {
+  const engine = new QueryEngine();
+  const ds = new Dataset();
+  const select = engine.queryCanonArrow(ds, query);
+  const view = new DataView(select.buffer, select.byteOffset, select.byteLength);
+  assert.equal(new TextDecoder().decode(select.slice(0, 8)), "GLAWARRW");
+  assert.equal(view.getUint16(8, true), 0x0002, "schema version");
+  assert.equal(view.getUint32(16, true), 128, "payload offset");
+  const total = view.getBigUint64(28, true);
+  assert.equal(total, BigInt(select.length), "total_byte_len covers the whole frame");
+  assert.equal(total - view.getBigUint64(20, true), 192n, "total = payload + 128 header + 64 padding");
+  assert.deepEqual(
+    [...select],
+    [...engine.queryCanonArrow(ds, query)],
+    "the frame is byte-deterministic across calls",
+  );
+});

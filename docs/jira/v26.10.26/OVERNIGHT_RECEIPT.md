@@ -62,6 +62,42 @@ Canonical receipt log `scripts/fb-receipts.jsonl` is NOT YET PRESENT (F2 `ls`: n
 This is by design (OPT-64): the first `fb-ladder.sh` run appends it; until then the court exits
 2 fail-closed — witnessed live in the self-test above. Absence is not a pass.
 
+### Arrow-finish wave (LANDED, 2026-10-27)
+
+Two commits, `130fb2f0` + `6258a0f8`, closing the 20-lane arrow sweep's actionable scope:
+`feat(arrow): finish the crate — validation, golden wire, docs truth, tickets` (`130fb2f0`;
+compile-time layout pins, `Default` canonical header, `batch_count` validation per OPT-66 with
+valid-neighbour over-refusal courts, golden wire-image test, 2 -> 11 bench rows, docs truth,
+OPT-66/67/68 tickets) and `fix(arrow): refuse overflowing length headers; add fits_in guard +
+refusal matrix` (`6258a0f8`; checked-subtraction rewrite of the length-consistency check,
+`fits_in(available)` sanctioned length gate, wrap regression test). Standing caveat: UNVERIFIED
+APPLIED-UNCOMPILED — compile-shape verified by inspection only on this no-build machine; truth
+owner is remote CI plus the phase-4b arrow rerun rc row.
+
+### OPT-17 wiring wave (LANDED, 2026-10-27)
+
+Three commits, `6e93aca3` + `dc8f5709` + `868329d0`, landing OPT-17: `feat(sparql-results):
+wire canon-arrow egress through capi, wasm, and the escaper law` (`6e93aca3`), two review-gap
+fix commits (`dc8f5709` wiring-wave review gaps, `868329d0` 20-lane gap review findings).
+CanonArrow is a first-class SPARQL results format reaching every language surface (CAPI,
+WASM, book); escaper consolidation DONE (gts -> purrdf_lex::json_escape, n3 hand-rolled
+escape_json deleted). Standing caveat: UNVERIFIED APPLIED-UNCOMPILED (same machine law) —
+truth owner remote CI + the phase-5 fast-lane / CI bench receipts; the `to_canon_arrow_5k_rows`
+bench row is UNRUN (no receipt, not counted green).
+
+### Phase-4b / phase-5 planned lanes (PLANNED, not executed at receipt time)
+
+Phase-4 partial (one terminal row): `purrdf-hnsw` rc=124 at the 3600s cap
+(`/tmp/bench-logs/purrdf-hnsw.phase4.log`) — a timeout, not a green row; the partial log is
+preserved (`purrdf-hnsw.phase4.partial.log`) and the subject requeued to phase-4b. Remaining
+register rows: not yet present — absence is not a pass. Phase-4b (`/tmp/run_benches_phase4b.py`):
+hnsw build ~550s / recall 5k+50k ~2700s / recall 200k 5400s (own entry, last), arrow post-FQ-09,
+branchless post lib-test fixes, n3 + datalog solo reruns, entail post ladder fix (10_000 ->
+2_000), duckdb post FQ-10, sparql-eval deep_nesting post FQ-08. Phase-5 fast lane
+(`scripts/run_benches_fast.py` + `scripts/sccache-fast.sh`, opt-in only, zero repo-default
+config changes): proof run over purrdf-lex + purrdf-cdt completed — lex scan rc=0 214s, cdt
+parse_render rc=0 123s; rollout to the remaining crates is planned, receipts pending.
+
 ## 2. Publish-gates receipts (release readiness, crates.io definition-of-done)
 
 Executed by lane F5-dod-bundle via `scripts/bounded python3 /tmp/dod_run.py`, gate-loop wall
@@ -154,6 +190,15 @@ remote CI run (`.github/workflows/bounded-gates.yml`) receipts it. Nothing below
   Court scope note: the court owns the agent-iteration law; bench batch runs are
   outside its scope (operator law).
 
+Phase-4 partial (BLOCKED, 2026-10-27): the phase-4 runner's only terminal row is `purrdf-hnsw
+rc=124 3600s` (`/tmp/bench-logs/register.txt`, log `/tmp/bench-logs/purrdf-hnsw.phase4.log`) —
+a 3600s-cap timeout, not a green row, and not rounded up. `purrdf-core` was in flight at
+receipt time (no terminal rc row). The partial hnsw log is preserved
+(`purrdf-hnsw.phase4.partial.log`); the remaining queue requeues to phase-4b with per-subject
+budgets per the cap-strategy spec (hnsw build ~550s / recall 5k+50k ~2700s / recall 200k 5400s
+own-entry-last; arrow post-FQ-09, branchless post lib-test fixes, n3 + datalog solo reruns,
+entail post ladder fix, duckdb post FQ-10, sparql-eval deep_nesting post FQ-08).
+
 ### UNVERIFIED until remote CI (Rust-executed, CI-bound)
 
 - `make check` (fmt + clippy pedantic/nursery -D warnings + tests + hygiene + `make wasm`)
@@ -169,6 +214,11 @@ remote CI run (`.github/workflows/bounded-gates.yml`) receipts it. Nothing below
 ```
 COMMIT-1-SHA: 15269ce4  # feat(branchless): land constant-time algebraic kernels (wave v26.10.26) — 126 files, 137454 insertions
 COMMIT-2-SHA: c1731de0  # infra(gate): enforce 5-second wall-clock feedback SLA and bounded harness — 26 files, 3476 insertions
+COMMIT-3-SHA: 130fb2f0  # feat(arrow): finish the crate — validation, golden wire, docs truth, tickets
+COMMIT-4-SHA: 6258a0f8  # fix(arrow): refuse overflowing length headers; add fits_in guard + refusal matrix
+COMMIT-5-SHA: 6e93aca3  # feat(sparql-results): wire canon-arrow egress through capi, wasm, and the escaper law (OPT-17)
+COMMIT-6-SHA: dc8f5709  # fix(sparql-results): close the wiring-wave review gaps
+COMMIT-7-SHA: 868329d0  # fix(wiring): close the 20-lane gap review findings
 REMOTE-CI-RUN: <pending> # flips every UNVERIFIED row above or stamps it RED
 ```
 

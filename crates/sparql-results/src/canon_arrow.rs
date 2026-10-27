@@ -157,6 +157,10 @@ fn canon_empty_frame() -> [u8; 192] {
 /// Bounded by [`ROWS_PER_BATCH`] rows by construction: the callers chunk with
 /// `chunks(ROWS_PER_BATCH)` and never hand a batch larger than that.
 fn encode_batch(variables: &[String], batch: &[Vec<Option<TermValue>>]) -> Result<Vec<u8>, Error> {
+    debug_assert!(
+        batch.len() <= ROWS_PER_BATCH,
+        "encode_batch callers chunk; an oversized batch is a caller bug"
+    );
     let mut slab = Vec::new();
     for (column, _name) in variables.iter().enumerate() {
         // Kinds and the offset table are sized up front; the column's lexical
@@ -227,7 +231,9 @@ fn measure_solutions(
                 let token = lexical(value)?;
                 triples.update(token.as_bytes());
                 triples.update(&[0]);
-                lexical_total += token.len() as u64;
+                lexical_total = lexical_total
+                    .checked_add(token.len() as u64)
+                    .ok_or_else(storage_overflow)?;
             }
         }
         // Fixed slab region: kinds (`rows * cols` bytes) plus offset tables

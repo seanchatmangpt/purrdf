@@ -313,6 +313,33 @@ pub fn is_all_ascii(bytes: &[u8]) -> bool {
     acc & HIGHS == 0
 }
 
+/// Whether every byte in `bytes` is zero.
+///
+/// OR-accumulates 8-byte little-endian windows so a whole word collapses to a
+/// single comparison; the scalar tail is shifted into the high bits of a
+/// 128-bit accumulator so tail bytes cannot alias into a false zero lane.
+/// Const so header-sized fixed regions (e.g. 24-byte reserved fields) can be
+/// checked at compile time.
+#[inline]
+#[must_use]
+pub const fn region_is_zero(bytes: &[u8]) -> bool {
+    let mut acc: u128 = 0;
+    let (chunks, remainder) = bytes.as_chunks::<8>();
+    let mut i = 0;
+    while i < chunks.len() {
+        acc |= u64::from_le_bytes(chunks[i]) as u128;
+        i += 1;
+    }
+    let mut shift = 64u32;
+    let mut j = 0;
+    while j < remainder.len() {
+        acc |= (remainder[j] as u128) << shift;
+        shift += 8;
+        j += 1;
+    }
+    acc == 0
+}
+
 /// Number of consecutive ASCII spaces at the start of `bytes`.
 ///
 /// The offset accumulates only while the current position equals the running

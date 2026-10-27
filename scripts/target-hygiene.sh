@@ -14,6 +14,11 @@
 #   - ICE recovery (`ice <crate>`) deletes only
 #     target/debug/incremental/<crate>-* — the pinned fix for incremental-cache
 #     corruption (missing pre-lto.bc), never the whole incremental tree.
+#   - fast-scope: prune --fast-scope deletes only stale /tmp/purrdf-fast-t*
+#     measurement leases (>1 day = orphan, build-architecture.md §8) — never
+#     /tmp/purrdf-fast-target (best-effort shared cold cache) and never
+#     /tmp/purrdf-sccache (self-evicting at its own SCCACHE_CACHE_SIZE;
+#     deleting it would evict the hit-rate lever, not reclaim waste).
 #
 # Fast status: `status --fast` reads sizes from scripts/.target-hygiene-state
 # (written only by an explicit `audit` run, which does the full du walk) so the
@@ -51,6 +56,15 @@ DRIFT_FILE="${REPO_ROOT}/scripts/.target-hygiene-drift"
 BUDGET_GB="${PURRDF_TARGET_BUDGET_GB:-20}"
 PRUNE_DAYS="${PURRDF_TARGET_PRUNE_DAYS:-14}"
 DRIFT_WARN_KB="${PURRDF_DRIFT_WARN_KB:-262144}"
+
+# Fast-lane target family (build-architecture.md §8): the shared cold target,
+# the per-run measurement lease dirs, and the sccache cache live in /tmp,
+# outside the repo-root scope above.
+FAST_TARGET_DIR="/tmp/purrdf-fast-target"
+FAST_LEASE_GLOB="/tmp/purrdf-fast-t[0-3]"
+SCCACHE_DIR="/tmp/purrdf-sccache"
+FAST_BUDGET_GB="${PURRDF_FAST_BUDGET_GB:-30}"
+FAST_LEASE_MAX_AGE_DAYS=1
 
 die() { printf 'target-hygiene: ERROR: %s\n' "$1" >&2; exit 2; }
 
@@ -127,6 +141,36 @@ cmd_status() {
     done
     return 0
   fi
+  if [[ "${1:-}" == "--fast-scope" ]]; then
+    # build-architecture.md §8: the fast-lane /tmp family, reported against its
+    # own budget. Advisory-only — sccache is never deleted here.
+    local p
+    local fast_entries=()
+    [[ -e "${FAST_TARGET_DIR}" ]] && fast_entries+=("${FAST_TARGET_DIR}")
+    for p in ${FAST_LEASE_GLOB}; do
+      [[ -d "$p" ]] && fast_entries+=("$p")
+    done
+    [[ -d "${SCCACHE_DIR}" ]] && fast_entries+=("${SCCACHE_DIR}")
+    if (( ${#fast_entries[@]} == 0 )); then
+      printf 'fast-scope: no /tmp fast-lane paths present (nothing to report)\n'
+      return 0
+    fi
+    for p in "${fast_entries[@]}"; do
+      if [[ "$p" == "${SCCACHE_DIR}" ]]; then
+        local sccache_kb
+        sccache_kb=$(du -sk "$p" 2>/dev/null | cut -f1)
+        printf 'sccache (advisory): %s (%sGB, budget %sGB via PURRDF_FAST_BUDGET_GB) — self-evicting at SCCACHE_CACHE_SIZE, never pruned here\n' \
+          "$(dir_size_human "$p")" "$(( sccache_kb / 1048576 ))" "$FAST_BUDGET_GB"
+        if (( sccache_kb > FAST_BUDGET_GB * 1048576 )); then
+          printf 'target-hygiene: WARNING: sccache %sGB exceeds fast budget %sGB (advisory only — self-evicting, not pruned here)\n' \
+            "$(( sccache_kb / 1048576 ))" "$FAST_BUDGET_GB" >&2
+        fi
+      else
+        printf '%s: %s (%sd old)\n' "$p" "$(dir_size_human "$p")" "$(dir_age_days "$p")"
+      fi
+    done
+    return 0
+  fi
   if ! budget_ok; then
     bounded_skip 'status' 'full-tree du walk skipped; falling through to cached fast-mode output'
     cmd_status --fast
@@ -172,9 +216,41 @@ cmd_audit() {
   cmd_status --fast
 }
 
+# cmd_prune_fast_scope <dry_run> — build-architecture.md §8 rule 2: this scope
+# owns only the /tmp/purrdf-fast-t* measurement leases; an entry older than
+# FAST_LEASE_MAX_AGE_DAYS (1 day) is an orphan by definition. Every candidate
+# is listed WOULD-PRUNE first (the dry-run listing always prints, even on a
+# live run), then removed via fail-closed rmtree_one — one explicit directory
+# per deletion, never a glob, never /tmp/purrdf-fast-target, never sccache.
+cmd_prune_fast_scope() {
+  local dry_run="$1"
+  local now
+  now=$(date +%s)
+  printf 'fast-scope prune policy: stale /tmp/purrdf-fast-t* entries older than %sd (sccache and the shared fast target are never touched)\n' \
+    "$FAST_LEASE_MAX_AGE_DAYS"
+  local entry path age
+  for entry in ${FAST_LEASE_GLOB}; do
+    [[ -d "$entry" ]] || continue
+    path="$entry"
+    age=$(( ( now - $(stat -f %m "$path" 2>/dev/null || echo "$now") ) / 86400 ))
+    if (( age < FAST_LEASE_MAX_AGE_DAYS )); then
+      printf 'KEEP  %s (age %sd < %sd)\n' "$path" "$age" "$FAST_LEASE_MAX_AGE_DAYS"
+      continue
+    fi
+    printf 'WOULD-PRUNE  %s (age %sd >= %sd, %s)\n' "$path" "$age" "$FAST_LEASE_MAX_AGE_DAYS" "$(dir_size_human "$path")"
+    (( dry_run )) && continue
+    printf 'PRUNE %s\n' "$path"
+    rmtree_one "$path"
+  done
+}
+
 cmd_prune() {
   local dry_run=0
-  [[ "${1:-}" == "--dry-run" ]] && dry_run=1
+  [[ "${1:-}" == "--dry-run" || "${2:-}" == "--dry-run" ]] && dry_run=1
+  if [[ "${1:-}" == "--fast-scope" || "${2:-}" == "--fast-scope" ]]; then
+    cmd_prune_fast_scope "$dry_run"
+    return $?
+  fi
   local cutoff=$(( PRUNE_DAYS * 86400 ))
   local now
   now=$(date +%s)
@@ -356,12 +432,18 @@ cmd_drift() {
 
 usage() {
   printf '%s\n' \
-    'usage: target-hygiene.sh status [--fast] | audit | prune [--dry-run] | ice <crate> | drift' \
+    'usage: target-hygiene.sh status [--fast] [--fast-scope] | audit | prune [--dry-run] [--fast-scope] | ice <crate> | drift' \
     '' \
     'subcommands:' \
     '  status [--fast]   target/ + incremental + lane sizes (fast reads cached state)' \
+    '  status --fast-scope  du the /tmp fast-lane family (/tmp/purrdf-fast-target,' \
+    '                       /tmp/purrdf-fast-t*, /tmp/purrdf-sccache vs PURRDF_FAST_BUDGET_GB,' \
+    '                       default 30; sccache advisory-only, never pruned)' \
     '  audit             full du walk, writes scripts/.target-hygiene-state' \
     '  prune [--dry-run] stale-idle-lane prune + budget enforcement (evicts incremental oldest-first)' \
+    '  prune --fast-scope [--dry-run]  delete /tmp/purrdf-fast-t* entries older than 1 day' \
+    '                       (WOULD-PRUNE listing always prints first; never touches sccache' \
+    '                       or /tmp/purrdf-fast-target)' \
     '  ice <crate>       delete corrupted target/debug/incremental/<crate>-* (DRY_RUN_ICE=1 previews)' \
     '  drift             per-crate incremental size census + growth vs scripts/.target-hygiene-drift' \
     '' \
@@ -370,6 +452,7 @@ usage() {
     '  PURRDF_TARGET_BUDGET_GB    prune eviction budget (default 20)' \
     '  PURRDF_TARGET_PRUNE_DAYS   idle-lane prune cutoff (default 14)' \
     '  PURRDF_DRIFT_WARN_KB       drift growth warning threshold (default 262144)' \
+    '  PURRDF_FAST_BUDGET_GB      fast-scope sccache advisory budget (default 30)' \
     '  DRY_RUN_ICE=1              ice: list would-delete targets, no deletion' >&2
   exit 2
 }

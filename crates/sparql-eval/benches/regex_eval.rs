@@ -138,8 +138,14 @@ fn bench_regex_eval(c: &mut Bench) {
     // `rayon::current_num_threads()`, so an implicit pool would let the numbers
     // drift with background rayon work. A scoped `install` pool is not an
     // option here — `NativeSparqlEngine` holds a `RefCell` plan cache and is
-    // `!Sync`, so it cannot be captured by an `install` closure.
-    let threads = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
+    // `!Sync`, so it cannot be captured by an `install` closure. With
+    // `RAYON_NUM_THREADS` unset this is byte-identical to the machine's
+    // available parallelism; when set, the env cap takes instead.
+    let threads = std::env::var("RAYON_NUM_THREADS")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|&n| n > 0)
+        .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, std::num::NonZero::get));
     rayon::ThreadPoolBuilder::new()
         .num_threads(threads)
         .build_global()

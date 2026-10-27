@@ -20,6 +20,7 @@
 
 #![allow(clippy::inline_always)]
 
+use purrdf_lex::json_escape::{JsonEscapes, push_string};
 use wasm_bindgen::prelude::*;
 
 use crate::ast::Document;
@@ -345,20 +346,11 @@ fn line_col(source: &str, offset: usize) -> (usize, usize) {
     (line, col)
 }
 
+/// JSON string escaper — the shared `purrdf_lex::json_escape` law
+/// (`push_string` with `JsonEscapes::Minimal`), not a local implementation.
 fn json_string(value: &str) -> String {
     let mut out = String::with_capacity(value.len() + 2);
-    out.push('\"');
-    for ch in value.chars() {
-        match ch {
-            '\\' => out.push_str("\\\\"),
-            '\"' => out.push_str("\\\""),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            ch if ch <= '\u{1f}' => out.push_str(&format!("\\u{:04x}", ch as u32)),
-            ch => out.push(ch),
-        }
-    }
+    purrdf_lex::json_escape::push_string(&mut out, value, JsonEscapes::Minimal);
     out
 }
 

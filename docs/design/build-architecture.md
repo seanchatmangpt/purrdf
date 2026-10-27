@@ -184,6 +184,48 @@ Non-vacuity rules:
    launders a flaky class into a measured class — that is mock-laundering in
    a register format.
 
+### 7.1 Register formats
+
+Two register files exist; they are **separate series**, never summed. A
+count that adds rows across both files is a miscount (the wave's "123"
+purrdf-rdf miscount came from exactly this class — cross-file mixing, not
+arithmetic).
+
+- **`register.txt`** (serial lane, phase runners) — one row per phase-runner
+  execution: `CRATE rc=R Ns=S log=PATH`. Receipts:
+  `docs/design/bench-coverage-report.md` §1d (rows re-read verbatim).
+- **`register-fast.txt`** (fast lane, `scripts/run_benches_fast.py`) — one
+  row per bench attempt, `CRATE BENCH=NAME rc=R SECS=S log=PATH`, appended
+  under flock in a single `O_APPEND` write; `--resume` skips a crate only
+  when every manifest bench has a green (rc=0) row. Producer:
+  `register_row` (`scripts/run_benches_fast.py`).
+
+**rc=124 has three distinct meanings — always disambiguate by lane before
+reading the row.**
+
+1. **Serial phase-runner timeout, with footer.** The runner killed at its
+   wall budget; the paired log still closes with a typed
+   `N benchmarks measured; 0 failed` footer, which — not the `rc=` string —
+   is the receipt for the measured count.
+2. **Phase-4 timeout, no footer.** Same rc, but the log has no measured
+   footer: the row receipts only that the run was killed, and the crate
+   counts as red (fix-queue), not partially green.
+3. **Fast-lane CAP expiry.** `run_benches_fast.py` kills the bench at its
+   CAP and normalizes the death to rc=124 (rc is never None); SIGKILL
+   deaths are normalized to rc=137.
+
+**rc=137 = OOM signature (fast lane).** A SIGKILL'd attempt records its own
+red row, then is retried exactly ONCE, SOLO (pool drained to empty first);
+the retry row is marked ` retry=1` and a green retry makes the bench green.
+Retry-once-then-red is the only retry law (rule 4 above); repeat-solo
+SIGKILL means 4-way exceeds the 48GB ceiling — drop to 2-way, re-receipt
+(§6).
+
+**Never-sum rule.** Counts are per-series: serial greens sum only over
+`register.txt` rows, fast-lane greens only over `register-fast.txt` rows.
+No documented total may combine the two; where both lanes measure the same
+crate, the rows are independent measurements, not partitions of one total.
+
 ## 8. Hygiene and the fast-lane target family
 
 The fast-lane target family — `/tmp/purrdf-fast-target`,

@@ -47,6 +47,13 @@ lint closes both gaps as a hard, no-optionality gate:
    (path deps win locally), then publishes a crate wired to the OLD registry
    crate — an irreversible break this gate catches before the tag is cut.
 
+5. **Arrow wire-header schema coherence.** The ``SCHEMA_VERSION`` constant in
+   ``crates/arrow/src/header.rs`` and the ``schema_version`` row of the wire
+   table in ``crates/arrow/README.md`` must name the same value. The README is
+   the one prose surface that documents the on-the-wire layout; a header bump
+   that leaves the table behind ships documentation describing a protocol no
+   build ever produced.
+
 The gate is deterministic and offline: it reads in-tree files plus
 ``cargo metadata`` and never touches the network.
 """
@@ -304,6 +311,47 @@ def release_list_consumer_violations(root: Path) -> list[str]:
     return violations
 
 
+_ARROW_HEADER = "crates/arrow/src/header.rs"
+_ARROW_README = "crates/arrow/README.md"
+
+_SCHEMA_VERSION_RE = re.compile(r"pub const SCHEMA_VERSION: u16 = (0x[0-9A-Fa-f]+);")
+# One wire-table row: | <offset range> | `schema_version` | `<hex>` |
+_SCHEMA_TABLE_RE = re.compile(
+    r"^\|\s*\d+\.\.\d+\s*\|\s*`schema_version`\s*\|\s*`(0x[0-9A-Fa-f]+)`\s*\|",
+    re.MULTILINE,
+)
+
+
+def arrow_schema_version_violations(root: Path) -> list[str]:
+    """The README wire table's ``schema_version`` row matches the header constant.
+
+    The header is the source of truth; it is parsed straight from the Rust
+    source so a version bump cannot leave the documented table behind without
+    this check noticing. A missing constant is a parse error (SystemExit), not
+    a mere violation, because the gate cannot say anything at all about a file
+    it cannot read its one fact from.
+    """
+    header = root / _ARROW_HEADER
+    text = header.read_text(encoding="utf-8")
+    match = _SCHEMA_VERSION_RE.search(text)
+    if match is None:
+        raise SystemExit(
+            f"check-versions: no `SCHEMA_VERSION` constant in {_ARROW_HEADER}"
+        )
+    expected = match.group(1).lower()
+
+    violations: list[str] = []
+    rows = _SCHEMA_TABLE_RE.findall((root / _ARROW_README).read_text(encoding="utf-8"))
+    agreeing = [value for value in rows if value.lower() == expected]
+    if len(rows) != 1 or len(agreeing) != 1:
+        violations.append(
+            f"{_ARROW_README}: wire table must contain exactly one "
+            f"`schema_version` row at `{expected}` (found "
+            f"{len(rows)} row(s), {len(agreeing)} at `{expected}`)"
+        )
+    return violations
+
+
 def main() -> int:
     root = repo_root()
     failures: list[str] = []
@@ -371,6 +419,9 @@ def main() -> int:
         )
         failures.extend(pin_violations)
 
+    # 5. Arrow wire-header schema coherence (header constant vs README table).
+    failures.extend(arrow_schema_version_violations(root))
+
     if failures:
         print("FAIL: release coherence check found problems:", file=sys.stderr)
         for line in failures:
@@ -379,7 +430,8 @@ def main() -> int:
 
     print(
         f"OK: version {version} coherent across crates.io/PyPI/npm; "
-        f"release lane publishes all {len(publishable)} publishable crates."
+        f"release lane publishes all {len(publishable)} publishable crates; "
+        "arrow wire-header schema_version matches its README table."
     )
     return 0
 

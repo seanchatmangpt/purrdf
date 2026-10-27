@@ -579,34 +579,55 @@ its log does not show.
   `reasoner` SIGKILL'd (signal 9) after printing n3_parse rows
   (`purrdf-n3.phase2.log` tail). Needs a diagnosis owner before the phase-4
   rerun. |
+| purrdf-hnsw | build.rs + recall.rs | **RED-CAPPED (content-complete cap-out,
+  not a fix-class red)** — rc=124 (timeout kill) mid-run, but the full
+  build+recall tables are on disk: 72 recall@10 rows across 12 corpus-sweeps
+  with a closing epilogue (`/tmp/bench-logs/purrdf-hnsw.phase4.log:91-103`
+  build table, `:418` epilogue). Report-only rows: **excluded from the
+  measured totals below** (Chicago honesty — no `N benchmarks measured` rc=0
+  footer exists). Superseded by the phase-4b split re-run
+  (`/tmp/run_benches_phase4b.py`), which owns the authoritative hnsw rows. |
+| purrdf-toml | parse.rs (NEW) | **GREEN** — rc=0, 391s, 7 measured / 0
+  failed (`/tmp/bench-logs/purrdf-toml.phase2.log` footer; register row). |
+| purrdf-mime | decode.rs (NEW) | **GREEN** — rc=0, 3 measured / 0 failed
+  (register row; `/tmp/bench-logs/purrdf-mime.phase2.log`). |
+| purrdf-glob | execute.rs (NEW) | **GREEN** — rc=0, 4 measured / 0 failed
+  (register row; `/tmp/bench-logs/purrdf-glob.phase2.log`). |
+| purrdf-geo-kernel | cells/covers/geodesic/transforms | **GREEN** — rc=0,
+  2220s, 109 measured / 0 failed (`/tmp/bench-logs/
+  purrdf-geo-kernel.phase3.log` footer; register row). |
+| purrdf-shex | pattern_validate + prepared_validate | **GREEN** — rc=0, 18
+  measured / 0 failed (register row; `/tmp/bench-logs/purrdf-shex.phase2.log`). |
+| purrdf-retrieval | on_demand_read + fusion_frontier_alloc | **GREEN** —
+  rc=0, 455s, 18 measured / 0 failed (register row;
+  `/tmp/bench-logs/purrdf-retrieval.phase3.log`). |
+| purrdf-text | 7 bench files | **GREEN** — rc=0, 1365s, 32+ measured / 0
+  failed (register row; `/tmp/bench-logs/purrdf-text.phase3.log`). |
+| purrdf-datalog | seminaive.rs (PRE) | **RED** — rc=101 (register row);
+  needs a SIGKILL diagnosis owner before rerun (section 5). |
+| purrdf-entail | chase/classify/consistency/schema_scan | **RED** — rc=101
+  (register row); needs a SIGKILL diagnosis owner before rerun (section 5). |
+| purrdf-rdf-core | 20 bench files (PRE) | **RED** — offline-manifest
+  failure (register row): needs a **vendoring fix owner, not a bench fix**
+  (section 5). |
 
-Terminal green total (footer-recounted, fix-queue ground truth): purrdf 44 +
-purrdf-rdf 122 + shapes 36 + iri 2 + sparql-algebra 140 + sparql-results 14 +
-columnar 12 + lex 22 + cdt 12 = **404 measured / 0 failed**, plus 12 green
-sparql-eval rows inside an otherwise-red crate run.
+Terminal green total (recounted 2026-10-27 from the register rc=0 receipts,
+fix-queue ground truth): purrdf 44 + purrdf-rdf 122 + shapes 36 + iri 2 +
+sparql-algebra 140 + sparql-results 14 + columnar 12 + lex 22 + cdt 12 +
+toml 7 + mime 3 + glob 4 + geo-kernel 109 + shex 18 + retrieval 18 +
+text 299 = **862 measured / 0 failed**, plus 12 green sparql-eval rows inside
+an otherwise-red crate run. Report-only rows (e.g. the hnsw build/recall
+tables, section 4) carry no measured count and are excluded.
 
 ### IN-FLIGHT (no register row, no rc — explicitly not measured)
 
 | crate | runner | state |
 |---|---|---|
-| purrdf-toml | phase-2 | bench rows printing
-  (`purrdf-toml.phase2.log` tail: `toml_codec/decode_document/64 101.2 ms`),
-  no footer yet — IN-FLIGHT |
-| purrdf-geo-kernel | phase-3 (FQ-02 re-run, no `--locked`) | measuring now:
-  `offline_transform/cgcs2000_gk3_inverse/batch256` 2.594 s / 98.68 elem/s
-  rows on disk (`purrdf-geo-kernel.phase3.log` tail); no footer, no register
-  row — IN-FLIGHT |
-| purrdf-hash-conformance, purrdf-mime, purrdf-glob, purrdf-datalog,
-  purrdf-entail, purrdf-markdown, purrdf-json, purrdf-rdf-core, purrdf-shex |
-  phase-2, queued behind toml (order per `/tmp/run_benches_phase2.py`) |
-  zero phase-2 log lines yet — UNVERIFIED. Static receipts exist for
-  hash-conformance, mime, glob, datalog, entail, markdown, json, shex-adjacent
-  n3 (section 1f) — source-verified, NOT run-verified. FQ-07: hash-conformance
-  was missing from every runner queue; coordinator owns adding it. |
-| purrdf-hnsw, purrdf-retrieval, purrdf-text | phase-3, queued behind
-  geo-kernel (FQ-03..05 re-runs, no `--locked`) | their on-disk logs
-  (`purrdf-{hnsw,retrieval,text}.log`, 223 bytes each) still hold only the
-  phase-1 `--locked` refusals — UNVERIFIED, zero measured rows |
+| purrdf-hash-conformance, purrdf-markdown, purrdf-json | phase-2 queue
+  (order per `/tmp/run_benches_phase2.py`) | zero log lines yet — UNVERIFIED.
+  Static receipts exist (section 1f) — source-verified, NOT run-verified.
+  FQ-07: hash-conformance was missing from every runner queue; coordinator
+  owns adding it. |
 
 Known unknown retained: **first compiler contact** — NEW/TOUCHED bench files
 that have not yet appeared in a register row have not compiled on this
@@ -620,10 +641,14 @@ Any may fail E0425-style until their row lands.
   hash-conformance — it was absent from every queue).
 - Phase-3, remaining: geo-kernel (measuring now), then hnsw / retrieval /
   text (FQ-03..05, no `--locked`).
-- Phase-4 re-runs, fixes already applied: sparql-eval deep_nesting (FQ-08,
-  large-stack wrapper), arrow ipc_egress (FQ-09), duckdb sql_rdf_e2e
-  (FQ-10), branchless lib-test repair; plus shapes `pydantic_package`
-  (FQ-06). Close condition for each: a register row with a rc.
+- Phase-4: the core runner is in flight with a 126-bench footer already on
+  disk; the remaining queue follows it. The phase-4 run is split — the
+  **phase-4b split re-run** (`/tmp/run_benches_phase4b.py`) supersedes the
+  earlier phase-4 table (it owns the authoritative hnsw rows, section 4).
+  n3 / entail / datalog each need a **SIGKILL diagnosis owner** before their
+  reruns; rdf-core's red is an **offline-manifest** failure that needs a
+  **vendoring fix owner, not a bench fix**. Close condition for each: a
+  register row with a rc.
 - n3: SIGKILL diagnosis owner needed before rerun (section 4).
 - No-bench crates with runtime code: sql, rdf-capi, rdf-events, validate.
 - Datapoint refresh: re-run the F10-class count

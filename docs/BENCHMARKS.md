@@ -44,12 +44,21 @@ SPDX-License-Identifier: CC-BY-4.0
 >
 > **IN-FLIGHT-GREEN-SO-FAR**:
 >
-> - `purrdf-geo-kernel` — phase-3 in flight; 46/0 footers so far. Do not cite
->   until terminal.
+> - `purrdf-geo-kernel` — **TERMINAL GREEN (closed 2026-10-27)**: register
+>   rc=0, 2220s, 109 measured / 0 failed
+>   (`/tmp/bench-logs/purrdf-geo-kernel.phase3.log`).
 >
-> **UNVERIFIED-in-flight** — live runner, do not cite: `purrdf-hnsw`,
-> `purrdf-retrieval`, `purrdf-text`, `purrdf-toml` (register rc=0 391s logged,
-> run treated as in-flight pending footer confirmation).
+> **TERMINAL GREEN (footer confirmations closed 2026-10-27)**:
+>
+> - `purrdf-toml` — register rc=0, 391s, 7 measured / 0 failed
+>   (`/tmp/bench-logs/purrdf-toml.phase2.log`).
+> - `purrdf-retrieval` — register rc=0, 455s, 18 measured / 0 failed
+>   (`/tmp/bench-logs/purrdf-retrieval.phase3.log`).
+> - `purrdf-text` — register rc=0, 1365s, 32+ measured / 0 failed
+>   (`/tmp/bench-logs/purrdf-text.phase3.log`).
+> - `purrdf-hnsw` — build+recall report-only tables complete under rc=124 cap
+>   (`/tmp/bench-logs/purrdf-hnsw.phase4.log:91-103, :418`); **not in measured
+>   totals**; the phase-4b re-run (`/tmp/run_benches_phase4b.py`) supersedes.
 >
 > **RED-QUEUED** — no receipt, not yet queued: every crate not yet run this
 > wave (rdf-core PURREMB and pack_index_compare tables, xsd exact-tower

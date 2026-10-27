@@ -1136,7 +1136,8 @@ def xsd_normalize_whitespace(lexical: str, datatype: str) -> str | None: ...
 
 # ── SPARQL Results serialization / parsing (bindings/python/src/py_store/results.rs) ──
 #
-# The four W3C SPARQL Results formats plus the write-only canon-arrow frame format are keyed by the short id `"json"` / `"xml"`
+# The four W3C SPARQL Results formats plus the write-only canon-arrow frame format are keyed by
+# the short id `"json"` / `"xml"`
 # / `"csv"` / `"tsv"`. Serialization is byte-deterministic; parsing supports
 # JSON and XML only (CSV/TSV have no native reader).
 

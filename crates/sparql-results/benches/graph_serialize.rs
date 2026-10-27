@@ -132,6 +132,25 @@ fn bench_results_serialize(c: &mut Bench) {
         );
     }
 
+    // Canon-arrow sanity + byte volume, serialized once outside timing: the
+    // canon-arrow arms below report Throughput::Bytes against this length.
+    // Group-level `Throughput::Elements` would be misleading here — the formats
+    // move wildly different byte volumes per row, so elements/second makes the
+    // canon-arrow number look inflated relative to the bytes it actually moves.
+    let canon = serialize(
+        &result,
+        SparqlResultsFormat::CanonArrow,
+        &provenance,
+        None,
+    )
+    .expect("canon-arrow sanity pass");
+    assert!(
+        canon.bytes.len() > SELECT_ROWS * 8,
+        "canon-arrow output is implausibly small ({} bytes for {SELECT_ROWS} rows)",
+        canon.bytes.len()
+    );
+    let canon_bytes_len = canon.bytes.len() as u64;
+
     let mut group = c.benchmark_group("sparql_results_select_serialize");
     group.throughput(Throughput::Elements(SELECT_ROWS as u64));
     group.bench_function("to_json_5k_rows_escaping", |bencher| {
@@ -163,6 +182,9 @@ fn bench_results_serialize(c: &mut Bench) {
     // The canon-arrow eager arm routes through the public `serialize` dispatch
     // (the only eager spelling of the format; lib.rs backs it with the streaming
     // writer), so the bench measures the production path, not a test shortcut.
+    // Bytes throughput (`throughput` persists until the next call, so it must be
+    // reset for the arms that follow).
+    group.throughput(Throughput::Bytes(canon_bytes_len));
     group.bench_function("to_canon_arrow_5k_rows", |bencher| {
         bencher.iter(|| {
             let outcome = serialize(
@@ -190,6 +212,11 @@ fn bench_results_serialize(c: &mut Bench) {
         ("to_tsv_5k_rows_streamed", SparqlResultsFormat::Tsv),
         ("write_canon_arrow", SparqlResultsFormat::CanonArrow),
     ] {
+        if format == SparqlResultsFormat::CanonArrow {
+            group.throughput(Throughput::Bytes(canon_bytes_len));
+        } else {
+            group.throughput(Throughput::Elements(SELECT_ROWS as u64));
+        }
         group.bench_function(name, |bencher| {
             bencher.iter(|| {
                 let outcome = serialize_into(
@@ -350,6 +377,9 @@ fn bench_graph_serialize(c: &mut Bench) {
         "canon-arrow graph output is implausibly small ({} bytes for {ROWS} quads)",
         canon.bytes.len()
     );
+    // Bytes throughput for the canon-arrow arm: its document volume differs
+    // enough from N-Triples JSON that a shared Elements rate reads inflated.
+    group.throughput(Throughput::Bytes(canon.bytes.len() as u64));
     group.bench_function("to_canon_arrow_10k_quads", |bencher| {
         bencher.iter(|| {
             let outcome = serialize(

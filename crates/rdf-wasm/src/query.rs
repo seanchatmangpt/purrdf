@@ -2423,7 +2423,7 @@ pub(crate) fn serialize_query_result(
                 Some(format) => SparqlResultsFormat::from_name(format).ok_or_else(|| {
                     format!(
                         "unsupported SPARQL results format {:?} \
-                         (use json/xml/csv/tsv or graph formats for CONSTRUCT/DESCRIBE)",
+                         (use json/xml/csv/tsv/canon-arrow or graph formats for CONSTRUCT/DESCRIBE)",
                         format.trim()
                     )
                 })?,
