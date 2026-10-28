@@ -146,7 +146,14 @@ bytes are identical whichever tier decides, on every host. A true distance
 within rounding of a half-micrometre tie needs the fixed tier. The
 `geodesic` benchmark (`cargo bench -p purrdf-geo-kernel --bench geodesic`)
 reports, for a GeodTest row on the x86_64 host and profile described with the
-index measurements below: prepared distance about 23.6 µs, plain
+index measurements below:
+
+> Series note (2026-10-27): the numeric figures below are from the pre-shrink
+> batch4096 ladder era. Current default ladders top out at 1024; reproduce the
+> old series only via `GEO_GEODESIC_LARGE_BATCH=1` /
+> `GEO_TRANSFORMS_LARGE_BATCH=1`. Not comparable to current-ladder rows.
+
+prepared distance about 23.6 µs, plain
 `geodesic::distance` about 35.3 µs, inverse with metadata about 3.47 ms and
 direct about 1.89 ms. Batches cost the scalar price
 per element; their benefit is caller-owned output buffers and zero

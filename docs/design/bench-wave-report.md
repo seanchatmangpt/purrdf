@@ -134,7 +134,7 @@ close path; "no unowned red remains" stands as of 13:08 PDT.
 | FQ-ID | crate | defect | fix | state |
 |---|---|---|---|---|
 | FQ-01 | sparql-eval | E0599 FastMap::new (solution.rs:1965) | FastMap::default() | **APPLIED** |
-| FQ-02 | geo-kernel | RESOLVED: register rc=0 2220s, 109 measured / 0 failed (phase-3 log) |
+| FQ-02 | geo-kernel | RESOLVED: register rc=0 2220s, 109 measured / 0 failed (phase-3 log; measured-at 2026-10-27, serial phase-3, pre-shrink ladder batch256-4096; 26 rows at batch4096 are not comparable to current 1024-capped ladders - capacity probe via GEO_TRANSFORMS_LARGE_BATCH=1 / GEO_GEODESIC_LARGE_BATCH=1) |
 | FQ-03 | hnsw | PARTIAL-RESOLVED: phase-3 rc=101 2237s (SIGKILL during build), phase-4 rc=124 3600s with content-complete report tables (build cost + 72 recall rows); phase-4b split re-run queued |
 | FQ-04 | retrieval | RESOLVED: register rc=0 455s, 18 measured / 0 failed (phase-3 log) |
 | FQ-05 | text | RESOLVED: register rc=0 1365s, 299 measured / 0 failed across 7 footers (phase-3 log) |

@@ -628,7 +628,9 @@ fix-queue ground truth): purrdf 44 + purrdf-rdf 122 + shapes 36 + iri 2 +
 sparql-algebra 140 + sparql-results 14 + columnar 12 + lex 22 + cdt 12 +
 toml 7 + mime 3 + glob 4 + geo-kernel 109 + shex 18 + retrieval 18 +
 text 299 = **862 measured / 0 failed**, plus 12 green sparql-eval rows inside
-an otherwise-red crate run. Report-only rows (e.g. the hnsw build/recall
+an otherwise-red crate run. Includes 26 geo-kernel rows measured at the
+pre-shrink batch4096 ladder (see §6.3 geo-kernel row) — the total spans two
+ladder series and is not a single homogeneous run. Report-only rows (e.g. the hnsw build/recall
 tables, section 4) carry no measured count and are excluded.
 
 ### IN-FLIGHT (no register row, no rc — explicitly not measured)
