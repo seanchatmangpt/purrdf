@@ -220,12 +220,6 @@ fn run<W: Write + ?Sized>(mut jobs: Vec<Job<'_>>, out: &mut W, canonical: bool) 
                     }
                 }
             }
-                    for (key, value) in entries.iter().rev() {
-                        jobs.push(Job::Value(value));
-                        jobs.push(Job::Value(key));
-                    }
-                }
-            }
             _ => unreachable!("every other value is a scalar"),
         }
     }
