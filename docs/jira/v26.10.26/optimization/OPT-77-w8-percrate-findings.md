@@ -775,3 +775,21 @@ n3 printing.rs round-trip (5):
 - convert.rs:437-441 — ViewCanonError::NotReady arm binds and
   discards the error (silent-drop shape the file elsewhere refuses).
 - Base-IRI threading verified clean across all three lanes.
+
+## wave-13 additions (jsonschema output, geo cover)
+
+- jsonschema output.rs:244-255/:365-368 — Basic/Detailed outputs omit
+  the annotations/errors key when the list is empty; Core §12.3
+  requires the array member present (shape-compliance bug).
+- geo cover.rs:235-260 — CellCover::contains refuses InvalidStoredLevel
+  whenever ANY cover cell is deeper than the query even when a
+  shallower region strictly contains it: over-broad refusal on
+  level-mixed covers, predicate non-total.
+- geo cover.rs:1308-1326 — coalesce can produce a parent above
+  `minimum` partly from straddling padding: the receipt's level
+  histogram misreports the emitted-level distribution.
+- geo chart.rs:517-521 — the ±180 seam shortcut over-classifies
+  approaching-but-non-intersecting cells as Straddling (over-inclusive
+  only, safe direction).
+- geo hierarchy.rs:230-243 — descendant_range count shift unguarded
+  (safe via validate_level cap; downstream multi-cell sums unchecked).
