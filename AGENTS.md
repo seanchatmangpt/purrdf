@@ -115,8 +115,9 @@ Crate map (all under `crates/`, published names in `Cargo.toml`):
 
 Every job the workspace implements once has one home. `helpers-ledger.toml` is
 authoritative (with each job's specification, frozen vectors, sanctioned
-variants and forbidden fingerprints); this table lists its rows, in ledger
-order, with the home each names. Call the home; never write a second body.
+variants and forbidden fingerprints) and lists every job; this table carries
+selected rows — the homes most often called across crates — in ledger order.
+Call the home; never write a second body.
 
 | Job | Home |
 |---|---|
@@ -152,7 +153,7 @@ order, with the home each names. Call the home; never write a second body.
 | `frame-le` | `purrdf_hash::frame::frame_le` |
 | `le-bytes` | `purrdf_core::bytes::read_u32_le` |
 | `align-up` | `purrdf_core::bytes` |
-| `div-ceil` | `purrdf_retrieval::reciprocal_rank::ceil_div` |
+| `div-ceil` | `purrdf_retrieval::reciprocal_rank::ceil_div` (crate-private) |
 | `wide-arith` | `purrdf_xsd::wide::mul_div` |
 | `bigint` | `purrdf_xsd::bigint::BigInt` |
 | `calendar` | `purrdf_xsd::temporal::days_from_civil` |

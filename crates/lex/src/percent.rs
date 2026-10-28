@@ -186,6 +186,19 @@ pub fn push_triplet(out: &mut String, byte: u8) {
 /// assert_eq!(percent::encode("a:b", REG_NAME), "a%3Ab");
 /// assert!(matches!(percent::encode("abc", REG_NAME), std::borrow::Cow::Borrowed(_)));
 /// ```
+/// Encode `text` under `set`.
+///
+/// The output is at most `3 * text.len()` bytes (each stop adds two), computed
+/// with checked arithmetic, so the required size cannot overflow `usize` for
+/// any `&str`. Under the [`crate::allocation::Resident`] admission — which
+/// never refuses — the [`crate::allocation::StorageError`] this call can see
+/// is therefore a physical allocation refusal only, which this convenience
+/// panics on per the crate's resident-allocation idiom; a caller holding a
+/// real ceiling must use [`encode_with_memory`].
+///
+/// # Panics
+///
+/// Panics when the resident allocator refuses the certified reservation.
 #[must_use]
 pub fn encode(text: &str, set: EncodeSet) -> Cow<'_, str> {
     encode_with_memory(
