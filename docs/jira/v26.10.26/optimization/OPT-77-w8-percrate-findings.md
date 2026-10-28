@@ -1186,3 +1186,16 @@ n3 printing.rs round-trip (5):
   conforms_with_id_depth → silently dropped targets). Exposure not
   unique to targetWhere (any path-bearing shape recursing into these
   arms).
+
+## wave-15 additions (gts sign1 CRIT/kid lane)
+
+- sign1.rs:495-498 — verify_resolved erases sig.kid for valid but
+  non-UTF-8 kids (recorded binary kid silently lost).
+- sign1.rs:465-470 — a composite envelope with a resolvable text kid
+  is marked "invalid" (key-type mismatch) instead of "unverified":
+  denial-of-validity on shared-kid setups.
+- sign1.rs:403-406 — CRIT-listing KID with kid absent entirely passes
+  validation vacuously; criticality never enforced against resolution
+  behavior.
+- sign1.rs:352-365 — CRIT checks label membership only; the required
+  header's existence is verified later and independently.
