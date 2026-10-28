@@ -1316,3 +1316,16 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   gate looks semi-intentional (interned.rs established_rows filters
   undecided as non-members) — the unguarded probe_has_match boolean
   is the side ignoring that model. No test covers the case.
+
+## wave-16 additions (shapes profile, W15 wave-14 stragglers)
+
+- shapes profile.rs:345-354 — Request::admit re-resolves with the
+  thread-local current() limits when one exists, silently discarding
+  the caller's explicitly supplied xpath_regex limits (contradicts
+  resolve_xpath's documented preserve-everything clause).
+- profile.rs:345 — with no caller override, thread-native limits are
+  ignored in favor of Limits::default() (inconsistent threading
+  between the two paths).
+- profile.rs:403-410 — run() drops a captured runtime failure on any
+  Err variant other than Execution/Shapes::Invalid/Processor:
+  governor resource exhaustion can be silently swallowed.
