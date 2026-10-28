@@ -1296,3 +1296,13 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   are never stored).
 - capi rowcursor stale reads: CONFIRMED (next() never clears current
   on exhaustion; the only guard fires pre-first-_next).
+
+- jsonschema ref-chain reset: REFUTED as "unbounded" — targets and
+  addresses are finite, the exact-repeat scan covers the whole stack,
+  so any path over |targets|×|addresses| trips ReferenceCycle. The
+  real weakness is bounded blowup (alternating addresses defeat the
+  chain cap up to that product).
+- update DELETE-template blanks: mechanics CONFIRMED (fresh-mint per
+  row, never WHERE-bound, deletes nothing) — but fresh-mint is what
+  SPARQL 1.1 prescribes for template blanks, so spec-conformant;
+  the gate asymmetry at :675 (insert-only) is the factual residue.
