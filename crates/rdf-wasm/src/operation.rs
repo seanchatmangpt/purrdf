@@ -39,7 +39,7 @@ use purrdf_sparql_eval::{
     GovernedOutcome, GovernedUpdateOutcome, GraphResolver, NativeSparqlEngine, QueryGovernors,
     QueryOptions, ServiceResolver, StopCause, StopSignal, TrippedGovernor,
 };
-use purrdf_sparql_results::ProvenanceNamespace;
+use purrdf_sparql_results::{ProvenanceNamespace, SparqlResultsFormat};
 use wasm_bindgen::prelude::*;
 
 use crate::async_query::{AsyncCounters, AsyncOperationKind, add_ms, now_ms};
@@ -701,7 +701,12 @@ impl OperationInput<'_> {
                 // text-decoded downstream (takeText/queryRawAsync), so a
                 // frame here would be silently corrupted. Mirror the sync
                 // queryRaw refusal and point at queryCanonArrow.
-                if format.as_deref() == Some("canon-arrow") {
+                if format.as_deref().is_some_and(|format| {
+                    matches!(
+                        SparqlResultsFormat::from_name(format),
+                        Some(SparqlResultsFormat::CanonArrow)
+                    )
+                }) {
                     return Err(JobError::message(
                         SERIALIZE_CODE,
                         "canon-arrow is a binary frame; queryRawAsync returns \

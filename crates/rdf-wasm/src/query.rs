@@ -631,7 +631,7 @@ fn decode_governor_args(
     max_intermediate_cells: Option<i64>,
     max_scratch_bytes: Option<i64>,
     max_remote_requests: Option<i64>,
-) -> Result<GovernorArgs, JsError> {
+) -> Result<GovernorArgs, JsValue> {
     GovernorArgs::decode(
         fuel,
         deadline_ms,
@@ -640,7 +640,7 @@ fn decode_governor_args(
         max_scratch_bytes,
         max_remote_requests,
     )
-    .map_err(|message| JsError::new(&message))
+    .map_err(|message| coded_error(&message, OPTIONS_CODE))
 }
 
 // ---------------------------------------------------------------------------

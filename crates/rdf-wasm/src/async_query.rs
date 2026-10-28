@@ -224,7 +224,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::ptr::{self, NonNull};
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::Duration;
@@ -2677,7 +2677,7 @@ impl JobInner {
 thread_local! {
     /// Every job not yet finished, by id. Borrowed only for an insert, a lookup or a
     /// removal — never across a run.
-    static JOBS: RefCell<BTreeMap<u32, Rc<JobInner>>> = const { RefCell::new(BTreeMap::new()) };
+    static JOBS: RefCell<BTreeMap<u32, Weak<JobInner>>> = const { RefCell::new(BTreeMap::new()) };
     /// The last job id handed out.
     static LAST_JOB_ID: Cell<u32> = const { Cell::new(0) };
 }
@@ -2689,19 +2689,25 @@ fn register_job(build: impl FnOnce(u32) -> JobInner) -> Rc<JobInner> {
         let mut candidate = LAST_JOB_ID.with(Cell::get);
         loop {
             candidate = candidate.wrapping_add(1).max(1);
-            if !jobs.contains_key(&candidate) {
+            let free = match jobs.get(&candidate) {
+                None => true,
+                // A dangling entry means the handle was dropped without
+                // `finish`; the id is recyclable (strong_count is 0 then).
+                Some(weak) => weak.strong_count() == 0,
+            };
+            if free {
                 break candidate;
             }
         }
     });
     LAST_JOB_ID.with(|last| last.set(id));
     let job = Rc::new(build(id));
-    JOBS.with(|jobs| jobs.borrow_mut().insert(id, Rc::clone(&job)));
+    JOBS.with(|jobs| jobs.borrow_mut().insert(id, Rc::downgrade(&job)));
     job
 }
 
 fn lookup_job(id: u32) -> Option<Rc<JobInner>> {
-    JOBS.with(|jobs| jobs.borrow().get(&id).cloned())
+    JOBS.with(|jobs| jobs.borrow().get(&id).and_then(Weak::upgrade))
 }
 
 fn unregister_job(id: u32) {
