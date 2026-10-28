@@ -656,3 +656,10 @@ n3 printing.rs round-trip (5):
   be validated TWICE (duplicate results).
 - sh:not implemented correctly (conforms_memoized, no double
   negation); severity mapping verified sound.
+
+## wave-12 clean lanes
+
+- lex json/read.rs: CLEAN (escape boundaries, depth accounting,
+  duplicate-member release all verified; 2 benign delayed-observer
+  observations).
+- shapes validate/shacl.rs (delegation boundary): clean.
