@@ -1008,3 +1008,12 @@ n3 printing.rs round-trip (5):
 - store (:453) — claim subject is digest(text): identical-text claims
   share one subject, conflating per-claim provenance and suppression
   scope.
+
+## wave-14 additions (hnsw relation)
+
+- relation.rs:967-974 — scoped_rows_per_invocation omits
+  guard.max_neighbours(): a scoped plan can get a larger per-
+  invocation ceiling than the same relation declares unscoped.
+- relation.rs:875-883 — the neighbour-bound branch cannot distinguish
+  KNN_MEMBERSHIP_MODE from KNN_MODE: any position-0-bound pattern
+  returns rows.min(1) regardless of the admitted mode.
