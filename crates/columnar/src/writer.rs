@@ -734,9 +734,28 @@ mod tests {
             named_graphs: BTreeSet::new(),
         };
         let missing = TermValue::Iri("https://example.org/missing".to_owned());
+        // The reifier side-table contractually binds through `rdf:reifies`; the
+        // refusal corpus pins both the non-reifies-predicate and non-triple-object
+        // contract violations as loud, allocation-free refusals.
+        let reifies = TermValue::Iri(purrdf_core::vocab::rdf::REIFIES.to_owned());
+        let reifier_quad = dataset.as_ref().reifier_quads().next().unwrap();
         let mut nontriple = Resolver::new(&*dataset);
+        nontriple.values.insert(reifier_quad.p, reifies);
         nontriple.values.insert(id, missing.clone());
+        let mut wrong_predicate = Resolver::new(&*dataset);
+        wrong_predicate.values.insert(id, missing.clone());
         let reifier = SourceRows {
+            quads: Vec::new(),
+            reifiers: vec![QuadIds {
+                s: id,
+                p: reifier_quad.p,
+                o: id,
+                g: None,
+            }],
+            annotations: Vec::new(),
+            named_graphs: Vec::new(),
+        };
+        let misbound = SourceRows {
             quads: Vec::new(),
             reifiers: vec![QuadIds {
                 s: id,
@@ -751,6 +770,7 @@ mod tests {
             "columnar-projection-cyclic-triple",
             "columnar-projection-unresolved-source",
             "columnar-projection-missing-term",
+            "columnar-projection-reifier-predicate",
             "columnar-projection-reifier-object",
         ]
         .into_iter()
@@ -761,7 +781,10 @@ mod tests {
                 0 => cyclic.resolve(id).unwrap_err(),
                 1 => empty.get(id).unwrap_err().into(),
                 2 => dictionary.id(&missing).unwrap_err().into(),
-                3 => build_reifiers_table(&reifier, &nontriple, &dictionary)
+                3 => build_reifiers_table(&misbound, &wrong_predicate, &dictionary)
+                    .unwrap_err()
+                    .into(),
+                4 => build_reifiers_table(&reifier, &nontriple, &dictionary)
                     .unwrap_err()
                     .into(),
                 _ => unreachable!("each fixture names one production refusal"),

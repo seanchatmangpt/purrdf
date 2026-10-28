@@ -814,8 +814,11 @@ impl TargetDispatch {
     ///
     /// # Errors
     ///
-    /// When a SHACL-SPARQL target's `sh:ask` fails to evaluate, or answers `focus`
-    /// differently from its own `sh:select` ([`ShapesError::SparqlTargetDisagreement`]).
+    /// When a SHACL-SPARQL target's `sh:ask` answers `focus` differently from its own
+    /// `sh:select` ([`ShapesError::SparqlTargetDisagreement`]). An `sh:ask` that fails
+    /// to EVALUATE is not propagated: one shape's unanswerable target must not abort
+    /// the dispatch for every other shape and focus node, so it is treated as
+    /// non-claiming and validation continues.
     fn claimants(
         &self,
         data: &ShaclData,
@@ -828,8 +831,22 @@ impl TargetDispatch {
         // every shape is decided — not skipped once its shape is claimed — so a
         // disagreement is never hidden behind a second target of the same shape.
         for (position, ask) in &self.asks {
-            if ask.decide(data, focus)? && !out.contains(position) {
-                out.push(*position);
+            match ask.decide(data, focus) {
+                // An `sh:ask` that fails to evaluate is this ONE shape's bad target,
+                // not a failure of the data graph or the dispatch: treating it as
+                // non-claiming keeps the remaining shapes and focus nodes validable
+                // instead of aborting the whole run on the first bad target.
+                Err(ShapesError::Invalid(_)) => {}
+                // A disagreement between an ask and its own `sh:select` is a real
+                // correctness signal about the shapes graph, not an evaluation
+                // failure; it keeps propagating.
+                Err(error) => return Err(error),
+                Ok(true) => {
+                    if !out.contains(position) {
+                        out.push(*position);
+                    }
+                }
+                Ok(false) => {}
             }
         }
         let Some(id) = focus.id() else {

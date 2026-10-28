@@ -239,6 +239,12 @@ pub struct StreamingReadResult {
     pub segment_meta: Vec<Vec<(String, Value)>>,
     /// Ordered per-segment streamable-layout state.
     pub segment_streamable: Vec<StreamableInfo>,
+    /// Number of segments finished so far, including invalid-header ones.
+    ///
+    /// The next segment's [`FrameContext::segment_index`] must be distinct even
+    /// when an invalid-header segment records no head, so sink events from two
+    /// segments are never attributed to the same index.
+    pub segment_count: u64,
     /// Byte offset of a torn trailing CBOR item, if present.
     pub torn: Option<u64>,
 }
@@ -2206,6 +2212,11 @@ impl ActiveStreamingSegment {
                 sink.streamable_layout(self.segment_index, info);
             }
         }
+        // One index per finished segment, valid header or not: an
+        // invalid-header segment records no head, but its sink events were
+        // already emitted under `self.segment_index`, so the next segment must
+        // not reuse that index.
+        result.segment_count += 1;
         absorb_segment_result(result, &self.g);
     }
 }
@@ -2294,7 +2305,7 @@ pub fn read_to_sink_from_reader<R: Read>(
             current = Some(ActiveStreamingSegment::new(
                 &item,
                 item_index,
-                result.segment_heads.len() as u64,
+                result.segment_count,
                 sink,
             ));
         } else if let Some(segment) = current.as_mut() {
