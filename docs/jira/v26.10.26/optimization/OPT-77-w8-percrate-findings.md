@@ -1634,3 +1634,16 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   benign only because every caller ?-outs (terminal).
 - Dispatch/stack discipline, IN error propagation, suspend re-push:
   verified correct.
+
+## wave-18 additions (segmented read, csvw language tag)
+
+- segmented read paths: CLEAN of block-boundary/lifetime/binary-search
+  bugs (cache-position hint invariants valid; reverse-block phase-2
+  partition covers boundaries; pinned lifetimes hold). Two
+  hardening notes: format.rs:871 expect on an authenticated-but-
+  untrusted graph index; format.rs:211 div_ceil unguarded if a
+  section width ever exceeds block_bytes-9.
+- csvw language-tag byte-match: REFUTED — @EN fails loudly at
+  ProjectionTerm construction (validate_inner enforces lowercase),
+  never silently reclassified; both comparison sides are
+  canonicalized-lowercase by invariant.
