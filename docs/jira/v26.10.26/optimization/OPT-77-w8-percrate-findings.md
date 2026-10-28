@@ -2332,3 +2332,71 @@ corrected anchors (wave-12's dtd line numbers had drifted).
   the lane receipt; tests pinned by buffered==streamed diagnostic
   identity (Diagnostic PartialEq on code/detail/frame_index).
 
+---
+
+## wave-26 status (2026-10-28)
+
+### Fixed this wave (in-tree, UNVERIFIED)
+
+- gts reader: inline blob payload under pub.digest is now VERIFIED
+  (digest_str(content) == declaration, else DamagedFrame + opaque) — the
+  HIGH finding closed; reference-only lazy blobs unchanged by design. The
+  one vector with pub+inline-d (22-inline-blob.gts) has a correct digest,
+  so frozen vectors pass; a mismatch vector should be added upstream.
+- shapes severity_of: multi-valued sh:severity refuses deterministically
+  (count+first-well-typed loop; store-order conformance flips closed).
+  components.rs:1147/:1250 share the first_object_of(SEVERITY) pattern —
+  FLAGGED, not yet changed.
+- validate SARIF: column-only regions omitted (schema-invalid per §3.30);
+  rdf_kind() maps Note/Info -> informational (was silent fail default);
+  artifact URIs percent-encoded via purrdf_lex::percent::PATH.
+- testkit bench: --list records Outcomes (accurate tally), duplicate id in
+  List mode = fail outcome not panic, zero-match selection = typed error
+  exit (List keeps 0).
+- testkit alloc-probe: TLS-dropped record ledger (TlsDropped +
+  dropped_tls_records()); recorders track per-leg failure and charge the
+  dropped counters instead of vanishing.
+- CHANGELOG + design doc: SHACL allocation pins corrected to the test's
+  authoritative figures (OPT-75 partially closed — the OPT-75 ticket
+  should be marked LANDED).
+- cli sink: GTS-arm expect_err -> typed CliError::Usage.
+
+### Verdicts
+
+- sparql-eval expr.rs numeric arms + modifier.rs aggregate folds: CLEAN
+  (i128 saturation provably exact for its only consumers; SUM/AVG replay
+  on unprovable merges; MIN/MAX tie behavior sequential==parallel; all
+  expects documented-unreachable). No change.
+- retrieval/hnsw scoring sweep: CLEAN (fixed-point scores, guarded
+  denominators, consistent top-k, no float in ranking). No change.
+- jsonschema numerics: multipleOf/exclusive exact; one arguable
+  over-refusal — unknown `format` under a format-assertion dialect refuses
+  the whole schema (2020-12 §7.2 language favors annotation); documented
+  deliberate in-code, FLAGGED for a decision, not changed.
+- shapes report readers (conforms vs disallows from different nodes;
+  tuples absent-severity -> Violation conflation): CONFIRMED with full
+  fix plan (the_report_node() helper + refuse multi-report; absent
+  severity -> Err). Banked, not yet applied.
+- sql from_turtle: RdfTerm::Literal lacks language/direction (TermValue
+  carries both); verdict EXTEND — banked plan, 4+ consumer sites need
+  pattern updates, not blind-applied.
+- bounded-tier single-sourcing: script text verified against the real
+  workflow (7 call lines verbatim, helpers confirmed); the lane's YAML
+  replacement block was output-corrupted — the mechanical rule is
+  prefix each verbatim call with `bash scripts/bounded-tier.sh ` and drop
+  the 4 inline bounded() bodies. Apply next wave from the verbatim list.
+- python bindings sweep: ring-fence NOT enforced by check-layers (only a
+  Makefile cargo-tree grep that misses optional deps) — finding filed;
+  QuerySolutions __len__ stale after iteration (mem::take vs rows.len())
+  — CONFIRMED small fix, banked; GIL-held projection loop + canon.rs
+  panic pair — banked; mutex-poisoning expects — hardening note.
+
+### Still queued (banked plans awaiting application)
+
+COSE Encrypt0 kid bytes (6 sites), entail classify union-find +
+SaturatedIncomplete, duckdb B19 LexicalCell rewrite (needs xsd dep),
+agent_memory B18 (EmptySuccessor + known_iri + ID_SCHEME), sql ast.rs
+SelectStatement move, check-gate-parity bounded-tier extension, hnsw
+RankedSearchRefusal seams, probe_evidence mirror test, shapes report
+reader fixes, from_turtle RdfTerm extension, python __len__ fix.
+
