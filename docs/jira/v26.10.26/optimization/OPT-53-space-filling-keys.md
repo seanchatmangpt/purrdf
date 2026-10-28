@@ -59,3 +59,7 @@
 Reference: bcinr `crates/bcinr-logic/src/algorithms/{morton_encode_2d_u32.rs:22,
 morton_decode_2d_u32.rs:22, morton_encode_3d_u32.rs:22,
 hilbert_curve_encode_u32.rs:27, hilbert_curve_decode_u32.rs:28}`.
+
+> STATUS (2026-10-27, W2 audit): LANDED — Morton family at
+> crates/branchless/src/packing.rs:305, hilbert_encode_2d at :440,
+> hilbert_path adapter wired at crates/geo-kernel/src/cells.rs:428.

@@ -6,16 +6,16 @@
 //! `AGG(<iri>...)` call fragment, embedded in shipped human-facing text that
 //! does not actually parse.
 //!
-//! Five shipped surfaces carried the SAME wrong `AGG(<iri>NAME, ...)` spelling
+//! Four shipped surfaces carried the SAME wrong `AGG(<iri>NAME, ...)` spelling
 //! (the IRI closed before the aggregate's local name instead of after it) —
-//! the CLI's `--help` text, the npm `.d.ts` typings, the Python `.pyi` stub,
-//! and two spots in the mdBook user guide — and none of the eight
+//! the CLI's `--help` text, the npm `.d.ts` typings, and two spots in the
+//! mdBook user guide — and none of the eight
 //! compiling/executing gates this workspace already runs (`make check`,
 //! `make conformance`, `make capi-check`, the wasm and Python test suites)
-//! could have caught any of them: `--help` text, `.d.ts` typings, `.pyi`
-//! stubs, and mdBook prose are never compiled or executed by anything else in
+//! could have caught any of them: `--help` text, `.d.ts` typings,
+//! and mdBook prose are never compiled or executed by anything else in
 //! this repository. This is that gate, extended to the same surfaces —
-//! **the book, `--help` text, `.pyi`, `.d.ts`, rustdoc across every crate,
+//! **the book, `--help` text, `.d.ts`, rustdoc across every crate,
 //! and `CHANGELOG.md`** — and it parses every candidate with THIS crate's
 //! own [`SparqlParser`], not a hand-rolled approximation of the grammar: a
 //! candidate is wrong exactly when the real parser says so.
@@ -71,13 +71,13 @@
 //!    query broken that way fails here the same way it fails on the command
 //!    line.
 //! 3. **Quoted string literals inside documentation text** — rustdoc
-//!    (`///`/`//!` lines) in every crate's `.rs` sources, `#`-comment lines in
-//!    the Python `.pyi` stub, and JSDoc/line-comment text in the npm `.d.ts`
+//!    (`///`/`//!` lines) in every crate's `.rs` sources, and JSDoc/line-comment
+//!    text in the npm `.d.ts`
 //!    typings, PLUS every line of a Markdown book page (which is entirely
 //!    "documentation text" already). Consecutive lines that are each, on
 //!    their own, nothing but one quoted string literal are joined in order —
-//!    the Rust/Python "adjacent string literal" idiom the `.pyi` stub's own
-//!    worked example uses (`"SELECT ... " "WHERE ... "`).
+//!    the Rust/Python "adjacent string literal" idiom
+//!    (`"SELECT ... " "WHERE ... "`).
 //! 4. **`AGG(<iri>...)` call fragments** — a narrower pass over the same
 //!    documentation text, independent of whether the fragment sits inside a
 //!    full query: it matches `AGG(<...>...)` and ALWAYS parses the fragment
@@ -139,7 +139,7 @@
 //!   yet — named here rather than left to be discovered missing.
 //! * **Python (`.py`) implementation source** and the `rdflib`-compat shim are
 //!   out of scope: they are library CODE, not the documentation surfaces the
-//!   finding named (`--help` text, `.pyi`, `.d.ts`, rustdoc, the book).
+//!   finding named (`--help` text, `.d.ts`, rustdoc, the book).
 //! * **Inline expression fragments other than `AGG(<iri>...)`** (e.g. the
 //!   `ADJUST(?x)` arity examples in the book's own prose) are not swept by
 //!   pass 4, which is deliberately narrow to the one call shape the finding
@@ -688,18 +688,6 @@ fn rust_doc_lines(text: &str) -> Vec<(usize, String)> {
     out
 }
 
-/// Python `.pyi` `#`-comment lines, stripped of their marker.
-fn python_comment_lines(text: &str) -> Vec<(usize, String)> {
-    let mut out = Vec::new();
-    for (i, line) in text.lines().enumerate() {
-        let trimmed = line.trim_start();
-        if let Some(rest) = trimmed.strip_prefix('#') {
-            out.push((i + 1, rest.strip_prefix(' ').unwrap_or(rest).to_string()));
-        }
-    }
-    out
-}
-
 /// TypeScript `.d.ts` JSDoc block-comment and line-comment text.
 fn typescript_doc_lines(text: &str) -> Vec<(usize, String)> {
     let mut out = Vec::new();
@@ -796,11 +784,6 @@ fn collect_candidates() -> Vec<Candidate> {
     let header = root.join("crates/rdf-capi/include/purrdf.h");
     let text = fs::read_to_string(&header).unwrap_or_else(|e| panic!("read {header:?}: {e}"));
     scan_doc_lines(&header, &typescript_doc_lines(&text), &mut out);
-
-    // The Python `.pyi` stub.
-    let pyi = root.join("bindings/python/python/src/purrdf/__init__.pyi");
-    let text = fs::read_to_string(&pyi).unwrap_or_else(|e| panic!("read {pyi:?}: {e}"));
-    scan_doc_lines(&pyi, &python_comment_lines(&text), &mut out);
 
     // The changelog — shipped, human-facing prose, and (per its own header)
     // the authoritative migration guide for exactly the kind of breaking
@@ -961,10 +944,6 @@ fn every_shipped_sparql_example_parses() {
         "crates/rdf-capi/include/purrdf.h",
         "crates/rdf-wasm/js/index.mjs",
         "bindings/python/src/py_store/quad_store.rs",
-        // The binding's registry builder moved to `purrdf_validate::query::
-        // statistical_aggregates`, shared by every host; the Python surface's
-        // `AGG(<iri>…)` text is its type stub's.
-        "bindings/python/python/src/purrdf/__init__.pyi",
         "docs/playground/examples/gallery.mjs",
     ];
     for surface in REQUIRED_SURFACES {

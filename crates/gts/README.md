@@ -83,7 +83,7 @@ without a resolved key remain unverified.
 
 The four vector manifests at the corpus root (`vectors/manifest.json`,
 `manifest.core.json`, `manifest.profiles.json`, `manifest.transforms.json`)
-each carry `"generated_by": "scripts/check_vector_manifest.py --write"`. No
+each carry `"generated_by": "the upstream gmeow-gts repo's manifest generator (not a local script; the corpus is governed upstream)"`. No
 such script exists in this repository, and `git log` over the manifests shows
 no commit ever added one — the field names a generator that was never built
 here. It is not corrected in place: `vectors/` is governed upstream by

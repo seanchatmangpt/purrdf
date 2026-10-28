@@ -74,3 +74,9 @@
   `purrdf_testkit::bench`, report-only.
 - **Layer Boundary:** rdf-core-internal change; `make check` green; no
   new crate edges (check-layers.py unchanged).
+
+> STATUS CORRECTION (2026-10-27, W2 audit): PARTIAL LANDING — the
+> declared_pos FastMap mirror is in (crates/rdf-core/src/ir/mutable.rs:326,
+> maintained :485-491/:1008-1015, tagged // OPT-50); the blank_index half is
+> NOT landed (visit_blank_identities still walks full term space,
+> mutable.rs:628).

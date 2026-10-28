@@ -18,7 +18,7 @@ SPDX-License-Identifier: CC-BY-4.0
 >   measured, 0 failed (`/tmp/bench-logs/purrdf-rdf.phase2.log`).
 > - `purrdf-iri` — register rc=0, 2 measured, 0 failed
 >   (`/tmp/bench-logs/purrdf-iri.log`).
-> - `purrdf-shapes` — register rc=0, 36 measured (2+2+2+30), 0 failed
+> - `purrdf-shapes` — register rc=0, 37 measured (1+2+2+2+30), 0 failed
 >   (`/tmp/bench-logs/purrdf-shapes.log`).
 > - `purrdf-sparql-algebra` — register rc=0, 140 measured (72+31+30+3+2+2),
 >   0 failed (`/tmp/bench-logs/purrdf-sparql-algebra.log`).
@@ -1819,8 +1819,8 @@ answer any other implementation would produce.
 > **Standing: CONVERGING (updated 2026-10-27 ~12:25).** Green receipts so far:
 > facade `pipeline_e2e`/`pipeline_alloc` — rc=0, 1338s, **44 measured / 0
 > failed** (`/tmp/bench-logs/purrdf.phase2.log`); `native_codecs` — rc=0,
-> 1903s, **122 measured / 0 failed** (`/tmp/bench-logs/purrdf-rdf.phase2.log`);
-> `shapes` phase-1b — 36 measured / 0 failed, `pydantic_package` binary cut
+> 1903s, **123 measured / 0 failed** (`/tmp/bench-logs/purrdf-rdf.phase2.log`);
+> `shapes` phase-1b — 37 measured / 0 failed, `pydantic_package` binary cut
 > off mid-run (`/tmp/bench-logs/purrdf-shapes.log`). Every other row below is
 > still UNVERIFIED — its phase-2 run has not landed yet (runner alive;
 > register `/tmp/bench-logs/register.txt` is the receipt of record). Do not

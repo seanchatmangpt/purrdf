@@ -94,3 +94,9 @@
   numerics, two IRIs of different lexical forms) still orders
   exactly as the reference comparator does, and stability (equal
   keys keep input order) is preserved.
+
+> STATUS CORRECTION (2026-10-27, W2 audit): order_values was rewritten with
+> the precomputed rank envelope — explicit `// OPT-47` comments at
+> crates/sparql-eval/src/modifier.rs:1957-1968. The "NOT yet implemented"
+> status above is stale; remaining scope: verify the ticket's acceptance
+> criteria against the landed body.

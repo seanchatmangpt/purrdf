@@ -83,3 +83,10 @@
   the paired valid-neighbor suite asserting every finite bit pattern
   (`f32::MIN`, subnormal, -0.0, smallest normal) still assembles
   successfully.
+
+> STATUS CORRECTION (2026-10-27, W2 audit): the branchless half has LANDED —
+> `first_nonfinite_index` at crates/branchless/src/simd_fallback.rs:430 and
+> `first_nonfinite_f32` at :459 (differential test :743). The hnsw-side wiring
+> remains open (crates/hnsw/src/graph.rs:127-140 still scalar; no branchless
+> dep in hnsw Cargo.toml). The ticket's earlier "no float lane-mask kernel"
+> claim is stale.

@@ -32,7 +32,8 @@ that names its own scope only guards what someone remembered to register:
   * every rule-coverage table is found by the table's own header row
     (``rule_coverage_table_claims``), wherever it is published;
   * the Python reasoner service table is checked against the set of services the
-    type stub declares (``py_service_table_claim``), not against a count.
+    PyO3 binding declares (``py_service_table_claim``, reading
+    ``bindings/python/src/py_entail.rs``), not against a count.
 
 Both generalizations are load-bearing: ``crates/entail/README.md`` published
 ``RDF 3 | 1`` and ``RDFS 18 | 14`` while this script read only the book chapter
@@ -132,7 +133,7 @@ _CLI_README = _REPO / "crates" / "cli" / "README.md"
 # none of it was gated here, which is how it came to claim four missing RDFS
 # rules and a refusal for two regimes that both materialize.
 _PY_README = _REPO / "bindings" / "python" / "README.md"
-_PY_STUB = _REPO / "bindings" / "python" / "python" / "src" / "purrdf" / "__init__.pyi"
+_PY_ENTAIL = _REPO / "bindings" / "python" / "src" / "py_entail.rs"
 _RELEASE = _REPO / "docs" / "RELEASE.md"
 _AGENTS = _REPO / "AGENTS.md"
 _RELEASE_CRATES = _REPO / "scripts" / "release-crates.sh"
@@ -822,7 +823,7 @@ def _documented_surface() -> list[Path]:
     for path in _tracked_paths():
         parts = path.relative_to(_REPO).parts
         if parts[0] in ("crates", "bindings", "docs"):
-            if path.suffix not in {".rs", ".md", ".pyi", ".mjs", ".ts"}:
+            if path.suffix not in {".rs", ".md", ".mjs", ".ts"}:
                 continue
             if _UNDOCUMENTED_SEGMENTS.intersection(parts):
                 continue
@@ -2713,9 +2714,6 @@ def reasoning_session_hosts_claim() -> list[str]:
         return text[start : text.index(closer, start + len(opener))]
 
     py_native = (_REPO / "bindings" / "python" / "src" / "py_entail.rs").read_text()
-    py_stub = (
-        _REPO / "bindings" / "python" / "python" / "src" / "purrdf" / "__init__.pyi"
-    ).read_text()
     wasm = (_REPO / "crates" / "rdf-wasm" / "src" / "entail.rs").read_text()
     dts = (_REPO / "crates" / "rdf-wasm" / "js" / "index.d.ts").read_text()
 
@@ -2727,10 +2725,6 @@ def reasoning_session_hosts_claim() -> list[str]:
         "Python (bindings/python/src/py_entail.rs)": (
             block(py_native, "impl PyReasoner {", "\n}\n"),
             lambda n: f"fn {n}(",
-        ),
-        "Python stub (__init__.pyi)": (
-            block(py_stub, "class Reasoner:", "\n# "),
-            lambda n: f"def {n}(",
         ),
         "WASM (crates/rdf-wasm/src/entail.rs)": (
             block(wasm, "impl Reasoner {", "\n}\n"),
@@ -4528,40 +4522,42 @@ def rule_coverage_table_claims(
 
 
 # The `purrdf.entail` entry points that are the CHASE lane rather than the OWL 2
-# Direct-Semantics reasoner. Everything else the type stub declares on
-# `class entail` is a reasoning service, and the Python README documents each one
-# in its service table. Mirrors the stub's own two-block layout.
+# Direct-Semantics reasoner. Everything else the PyO3 binding registers on the
+# `entail` submodule is a reasoning service, and the Python README documents each
+# one in its service table. Mirrors the register block's class/function split.
 _CHASE_ENTRY_POINTS = frozenset(
     {"materialize", "materialize_nt", "rules", "implemented_rules", "extensions"}
 )
 
 
 def load_py_entail_services() -> list[str]:
-    """Every Description-Logic service `purrdf.entail` declares, from the stub.
+    """Every Description-Logic service `purrdf.entail` declares, from the binding.
 
-    ``bindings/python/python/src/purrdf/__init__.pyi`` is the committed, typed
-    declaration of the Python surface — the artifact mypy checks call sites
-    against — so it is what "reachable from Python" means in-tree. Reading the
-    stub keeps this script text-over-committed-files: no import of a built wheel.
+    ``bindings/python/src/py_entail.rs`` is the PyO3 binding source: its
+    ``pub(crate) fn register`` block enumerates every member of the `purrdf.entail`
+    submodule (``m.add_function(wrap_pyfunction!(name, m)?)``). Reading the
+    binding keeps this script text-over-committed-files: no import of a built wheel.
     """
-    text = _read(_PY_STUB)
-    body = re.search(r"\nclass entail:\n(.*?)(?:\n\S|\Z)", text, re.DOTALL)
+    text = _read(_PY_ENTAIL)
+    body = re.search(
+        r"pub\(crate\) fn register\(.*?\n(.*?)\n\}", text, re.DOTALL
+    )
     if not body:
         raise SystemExit(
-            f"check-doc-claims: no `class entail:` block in "
-            f"{_PY_STUB.relative_to(_REPO)}"
+            f"check-doc-claims: no `pub(crate) fn register` block in "
+            f"{_PY_ENTAIL.relative_to(_REPO)}"
         )
-    declared = re.findall(r"^    def (\w+)\(", body.group(1), re.MULTILINE)
+    declared = re.findall(r"add_function\(wrap_pyfunction!\((\w+),", body.group(1))
     if not declared:
         raise SystemExit(
-            f"check-doc-claims: `class entail:` in {_PY_STUB.relative_to(_REPO)} "
-            f"declares no methods"
+            f"check-doc-claims: `register` in {_PY_ENTAIL.relative_to(_REPO)} "
+            f"registers no functions"
         )
     unknown = _CHASE_ENTRY_POINTS - set(declared)
     if unknown:
         raise SystemExit(
             f"check-doc-claims: _CHASE_ENTRY_POINTS names {sorted(unknown)}, "
-            f"which {_PY_STUB.relative_to(_REPO)} no longer declares; update the "
+            f"which {_PY_ENTAIL.relative_to(_REPO)} no longer registers; update the "
             f"chase/reasoner split rather than leaving the service table ungated"
         )
     return [name for name in declared if name not in _CHASE_ENTRY_POINTS]
@@ -4582,13 +4578,13 @@ def py_service_table_claim(services: list[str]) -> list[str]:
     for name in sorted(expected - documented):
         problems.append(
             f"{rel}: the Description-Logic service table has no row for "
-            f"`entail.{name}(...)`, which {_PY_STUB.relative_to(_REPO)} declares"
+            f"`entail.{name}(...)`, which {_PY_ENTAIL.relative_to(_REPO)} registers"
         )
     for name in sorted(documented - expected):
         problems.append(
             f"{rel}: the Description-Logic service table has a row for "
             f"`entail.{name}(...)`, which is not a reasoning service "
-            f"{_PY_STUB.relative_to(_REPO)} declares"
+            f"{_PY_ENTAIL.relative_to(_REPO)} registers"
         )
     return problems
 

@@ -84,3 +84,10 @@
 - **Layer Boundary:** rdf-core already depends on branchless
   (eytzinger re-export precedent); `scripts/check-layers.py` +
   `make check` green.
+
+> STATUS CORRECTION (2026-10-27, W2 audit): the wiring LANDED —
+> validate_zero_padding_usize at
+> crates/rdf-core/src/ir/embedding/view.rs:4772 (SWAR body ~:4790-4800) is
+> converted, but as a LOCAL SWAR expression, diverging from the one-home
+> rule the ticket itself declares (self-documented 2x divergence awaiting
+> coordinator). Ticket's "wiring is the open work" status is stale.

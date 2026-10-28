@@ -110,90 +110,14 @@ def test_no_purrdf_native_leak_in_public_code() -> None:
     assert not offenders, f"purrdf_native leaked into public code: {offenders}"
 
 
-def test_stub_signatures_match_the_built_bindings() -> None:
-    """Check the complete book inventory against installed canonical stubs.
+def test_exports_match_the_runtime_surface() -> None:
+    """`__all__` must name only attributes the compiled module actually has.
 
-    Python's AST retains classes, properties, overloads, aliases, annotations and
-    parameter kinds/defaults without a second custom signature parser. Discovery
-    covers every installed stub; duplicate or missing document blocks fail.
-    The native comparison additionally checks engine namespaces and the fold-view
-    class's PyO3 parameter names/default presence, with per-type vacuity guards.
+    Formerly this parity was held against the shipped `__init__.pyi` stub;
+    the stubs are removed (operator directive: no Python stubs anywhere),
+    so the compiled module itself is the declaration of record.
     """
-    import ast
-    import re
-
     import purrdf
 
-    stub = Path(purrdf.__file__).with_name("__init__.pyi")
-    text = stub.read_text(encoding="utf-8")
-    surface = ast.parse(text).body
-    declared_names = {node.name for node in surface if isinstance(node, (ast.ClassDef, ast.FunctionDef))}
-    declared_names.update(node.target.id for node in surface if isinstance(node, ast.AnnAssign))
-    declared_names.update(name.id for node in surface if isinstance(node, ast.Assign) for name in node.targets if isinstance(name, ast.Name))
-    assert set(purrdf.__all__) <= declared_names, "every public root export needs a canonical declaration"
-
-    reference = Path(__file__).resolve().parents[3] / "docs/book/src/reference/python-api-signatures.md"
-    blocks = re.findall(
-        r"<!-- python-api-stub: ([^\s]+) -->\n```pyi\n(.*?)\n```",
-        reference.read_text(encoding="utf-8"), re.DOTALL,
-    )
-    package = stub.parent
-    canonical = {path.relative_to(package).as_posix(): path for path in package.rglob("*.pyi")}
-    assert canonical and len(blocks) == len(dict(blocks)), "empty stub discovery or duplicate inventory"
-    assert set(dict(blocks)) == set(canonical), "the book must cover every installed stub"
-    for name, declaration in blocks:
-        documented = ast.dump(ast.parse(declaration))
-        installed = ast.dump(ast.parse(canonical[name].read_text(encoding="utf-8")))
-        assert documented == installed, f"complete book signature inventory drifted from {name}"
-
-    def shape(params: str) -> list[str]:
-        """Ordered `name` / `name=` tokens, annotations and default VALUES removed."""
-        out: list[str] = []
-        for raw in re.sub(r"\[[^]]*\]", "", params).split(","):
-            param = raw.strip()
-            if not param or param in {"self", "$self", "*", "/"}:
-                continue
-            name = param.split(":")[0].split("=")[0].strip()
-            has_default = "=" in param
-            out.append(f"{name}=" if has_default else name)
-        return out
-
-    engines = ("entail", "shapes", "shex", "retrieval", "GtsFoldViewNative")
-    checked: dict[str, int] = dict.fromkeys(engines, 0)
-    for engine in engines:
-        body = re.search(rf"\nclass {engine}:\n(.*?)(?:\n\S|\Z)", text, re.DOTALL)
-        assert body, f"no `class {engine}:` block in {stub}"
-        for name, params in re.findall(
-            # `[^)]` already matches a newline — a negated class is not narrowed by
-            # `re.DOTALL`, which only governs `.` — so the old `(?:[^)]|\n)*?` gave every
-            # newline TWO ways to be matched and 2**n paths to backtrack through. Same
-            # language, one path.
-            r"^    def (\w+)\(\s*\n?([^)]*?)\)\s*->", body.group(1), re.MULTILINE
-        ):
-            fn = getattr(getattr(purrdf, engine), name, None)
-            signature = getattr(fn, "__text_signature__", None)
-            if fn is None or signature is None:
-                continue  # a class or a non-PyO3 callable: nothing to compare
-            declared = shape(params)
-            actual = [
-                token
-                for token in shape(signature.strip("()"))
-                if token != "$module"
-            ]
-            assert declared == actual, (
-                f"purrdf.{engine}.{name}: the stub declares {declared} but the "
-                f"binding accepts {actual}. mypy checks callers against the stub, "
-                f"so this drift approves a call that raises TypeError, or rejects "
-                f"one that works."
-            )
-            checked[engine] += 1
-
-    # A parser that silently matched nothing would make every assertion vacuous,
-    # and so would an engine whose block parsed to no comparable entry point.
-    silent = sorted(engine for engine, count in checked.items() if count == 0)
-    assert not silent, (
-        f"no signature compared for {silent}: the stub block did not parse, or the "
-        f"engine's entry points are no longer reachable through `purrdf`"
-    )
-    total = sum(checked.values())
-    assert total >= 15, f"only {total} signature(s) compared; the parser regressed"
+    missing = [name for name in purrdf.__all__ if not hasattr(purrdf, name)]
+    assert not missing, f"__all__ names missing runtime attributes: {missing}"

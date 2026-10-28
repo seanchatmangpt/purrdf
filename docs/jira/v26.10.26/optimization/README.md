@@ -69,6 +69,7 @@ No source code was modified by the inspection; tickets are engineering specs onl
 | OPT-66 | `OPT-66-arrow-batch-count-validation.md` | ticket-writer | arrow — DONE (130fb2f0), residual future |
 | OPT-67 | `OPT-67-arrow-branchless-kernels.md` | ticket-writer (2026-10-27) | branchless, arrow |
 | OPT-68 | `OPT-68-gts-canonarrow-cross-check.md` | ticket-writer (2026-10-27) | gts, arrow |
+| OPT-69 | Python binding drops the provenance exit gate | — OPEN (optimization/OPT-69-python-provenance-exit-gate.md) |
 | OPT-5S | `../OPT-5s-bounded-ceiling.md` | Agent C14 | bounded wrapper + hook + corpus, ENFORCED |
 
 Note (2026-10-27): `OPT-64 and OPT-65-frozen-duckdb-endgame.md` exists on disk but has no
@@ -167,3 +168,7 @@ before any optimization work. Recorded as existing state; remediation needs its 
 and is not performed by this documentation effort.
 
 See Also: `docs/jira/v26.10.26/optimization/OPT-24-cold-path-and-noaction-register.md`
+
+Index addendum (2026-10-27): OPT-42 (top level,
+SUPERSEDED header on file), OPT-64 and OPT-65 (prose-mentioned only)
+are also part of this wave's ticket set; OPT-58..62 are unused ids.

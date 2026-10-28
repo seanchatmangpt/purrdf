@@ -536,19 +536,17 @@ its log does not show.
   (`purrdf.phase2.log`); pipeline_alloc fix: `Arc<RdfDataset>` annotation |
 | purrdf-rdf | 8 of 9 bench files inventoried | **GREEN** — rc=0, 1903s,
   register row (`purrdf-rdf.phase2.log`). Footer recount from the log:
-  **122 testkit (criterion-style) benches measured / 0 failed across 6
+  **123 testkit (criterion-style) benches measured / 0 failed across 7
   binaries** (footers at `:675` flat_view_canon 10, `:708` gts_ingest 12,
   `:727` gts_selected_blobs 6, `:880` native_codecs 46, `:1058` projections
-  45, `:1083` turtle_chains 3; total = 122). Two further binaries are
-  alloc/report-only, no criterion rows: `jsonld_alloc` (12 `[jsonld_alloc]`
-  report lines) and `stream_parse_alloc` (report-only, carries its own
-  not-constant-memory caveat in-log). **Gap: `viz_layout`** (the crate's
-  9th target, `crates/rdf/benches/viz_layout.rs`) has no disposition in any
-  log — its row is MISSING, not measured and not report-only; the earlier
-  "7 measured binaries" and "123" readings are corrected: 6 measured
-  binaries, 122 rows. |
+  45, `:1083` turtle_chains 3, `:1088` viz_layout 1 (`viz_project_scene_layout_120`);
+  total = 123). Two further binaries are alloc/report-only, no criterion
+  rows: `jsonld_alloc` (12 `[jsonld_alloc]` report lines) and
+  `stream_parse_alloc` (report-only, carries its own not-constant-memory
+  caveat in-log). The earlier "122 across 6 binaries" recount had dropped
+  the viz_layout footer; corrected to 123 across 7. |
 | purrdf-shapes | 4 of 13 bench targets inventoried | **GREEN-PARTIAL**
-  (register row, footer recount) — register rc=0, footer **36 = 2+2+2+30
+  (register row, footer recount) — register rc=0, footer **37 = 1+2+2+2+30
   measured / 0 failed** (`/tmp/bench-logs/purrdf-shapes.log`). The footer
   inventories 4 binaries of the crate's 13 targets; 9 targets carry no
   stated disposition. `pydantic_package` still cut off mid-run in the
@@ -630,10 +628,10 @@ its log does not show.
   (section 5). |
 
 Terminal green total (recounted 2026-10-27 from the register rc=0 receipts,
-fix-queue ground truth): purrdf 44 + purrdf-rdf 122 + shapes 36 + iri 2 +
+fix-queue ground truth): purrdf 44 + purrdf-rdf 123 + shapes 37 + iri 2 +
 sparql-algebra 140 + sparql-results 14 + columnar 12 + lex 22 + cdt 12 +
 toml 7 + mime 3 + glob 4 + geo-kernel 109 + shex 18 + retrieval 18 +
-text 299 = **862 measured / 0 failed**, plus 12 green sparql-eval rows inside
+text 299 = **864 measured / 0 failed**, plus 12 green sparql-eval rows inside
 an otherwise-red crate run. Includes 26 geo-kernel rows measured at the
 pre-shrink batch4096 ladder (see section 4's geo-kernel register narration
 and the wave-report FQ-02 row) — the total spans two

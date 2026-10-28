@@ -40,8 +40,9 @@ capability callable —
 * Python: a `fn <name>(` decorated with `#[pyfunction]`, AND a
   `wrap_pyfunction!(<name>, m)` inside the body of `register`, because an unregistered
   `#[pyfunction]` is compiled and unimportable;
-* Python types: a `def <name>(` inside the `class entail:` block of the stub, not at
-  module scope — a free function in the stub would type-check a call nobody can make;
+* Python types: the published spelling is the `#[pyo3(...)]` signature on the `fn` in
+  `bindings/python/src/py_entail.rs` — the PyO3 source is the one host, and an
+  unregistered or unannotated function there is compiled and unimportable;
 * WASM: a `#[wasm_bindgen(js_name = <JsName>)]` in `crates/rdf-wasm/src/entail.rs`, AND
   `<JsName>` in BOTH the `import init, { … } from` block and the `export { … };` block
   of `crates/rdf-wasm/js/index.mjs` — the two are separate lists and a name in only one
@@ -215,8 +216,8 @@ _PUB_FN_RE = re.compile(r"^pub fn (\w+)[(<]", re.MULTILINE)
 # does not implement `VectorFromWasmAbi`), so it is two parallel arrays on that host too.
 #
 # Four host keys, because a host's Rust spelling and its published spelling are
-# different files that can disagree: `python` is the `#[pyo3(signature = …)]` list AND
-# the `.pyi` stub, `wasm` is the `#[wasm_bindgen]` function, `dts` is `index.d.ts`
+# different files that can disagree: `python` is the `#[pyo3(signature = …)]` list on the
+# PyO3 source (`py_entail.rs`), `wasm` is the `#[wasm_bindgen]` function, `dts` is `index.d.ts`
 # (camelCase, hand-written), and `capi` is the Rust entry point AND the cbindgen header.
 _PARAM_SPELLINGS: dict[str, dict[str, tuple[str, ...]]] = {
     "regime": {
@@ -361,7 +362,7 @@ def _named_params(text: str, opener: str, what: str, trailing: bool) -> list[str
     chunks = _params_between_parens(text, start + len(opener) - 1, what)
     names: list[str] = []
     for chunk in chunks:
-        # A Python stub's bare `*` marks the keyword-only arguments; it names no parameter.
+        # A PyO3 signature's bare `*` marks the keyword-only arguments; it names no parameter.
         if chunk.strip() == "*":
             continue
         pattern = r"(\w+)\s*(?:\[\s*\])?\s*$" if trailing else r"^(?:mut\s+)?(\w+)"
@@ -603,24 +604,6 @@ def derived_services() -> set[str]:
     return found
 
 
-def _indented_class_block(text: str, header: str) -> str:
-    """The body of an indented `class`/`impl`-style block, by indentation."""
-    lines = text.splitlines()
-    for index, line in enumerate(lines):
-        if line.strip() == header:
-            indent = len(line) - len(line.lstrip())
-            body: list[str] = []
-            for following in lines[index + 1 :]:
-                if following.strip() and (len(following) - len(following.lstrip())) <= indent:
-                    break
-                body.append(following)
-            return "\n".join(body)
-    raise SystemExit(
-        f"check-entailment-surface: cannot find the block headed {header!r}; the file's "
-        f"layout moved — update this gate rather than leaving it vacuous"
-    )
-
-
 def missing_bindings(services: set[str]) -> list[str]:
     """One message per host binding a service is missing, scoped to that host's block."""
     boundary = _read("crates/validate/src/regime.rs")
@@ -630,9 +613,6 @@ def missing_bindings(services: set[str]) -> list[str]:
     py_source = _read("bindings/python/src/py_entail.rs")
     py_register = _block(
         py_source, "pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {", "\n}\n", "python register"
-    )
-    py_stub = _indented_class_block(
-        _read("bindings/python/python/src/purrdf/__init__.pyi"), "class entail:"
     )
     wasm_source = _read("crates/rdf-wasm/src/entail.rs")
     index_mjs = _read("crates/rdf-wasm/js/index.mjs")
@@ -676,11 +656,6 @@ def missing_bindings(services: set[str]) -> list[str]:
                 "python registration",
                 "bindings/python/src/py_entail.rs::register",
                 f"wrap_pyfunction!({names['python']}, m)" in py_register,
-            ),
-            (
-                "python stub",
-                "bindings/python/python/src/purrdf/__init__.pyi::class entail",
-                f"def {names['python']}(" in py_stub,
             ),
             (
                 "wasm binding",
@@ -750,7 +725,6 @@ def missing_bindings(services: set[str]) -> list[str]:
                     names,
                     boundary=boundary,
                     py_source=py_source,
-                    py_stub=py_stub,
                     wasm_source=wasm_source,
                     index_dts=index_dts,
                     capi_source=capi_source,
@@ -825,7 +799,6 @@ def _arity_problems(
     *,
     boundary: str,
     py_source: str,
-    py_stub: str,
     wasm_source: str,
     index_dts: str,
     capi_source: str,
@@ -866,17 +839,6 @@ def _arity_problems(
             "bindings/python/src/py_entail.rs",
             "python",
             _pyo3_signature(py_source, names["python"]),
-        ),
-        (
-            "python stub",
-            "bindings/python/python/src/purrdf/__init__.pyi",
-            "python",
-            _named_params(
-                py_stub,
-                f"def {names['python']}(",
-                f"the stub for {names['python']}",
-                trailing=False,
-            ),
         ),
         (
             "wasm binding",
@@ -1115,22 +1077,6 @@ _MUTATIONS: tuple[tuple[str, str, Callable[[str], str]], ...] = (
             text,
             "#[pyo3(signature = (regime, data, pattern, imports, premise_iris, *, max_stored_facts=None, max_join_steps=None, max_term_arena_bytes=None))]",
             "#[pyo3(signature = (regime, data, pattern, imports, *, max_stored_facts=None, max_join_steps=None, max_term_arena_bytes=None))]",
-        ),
-    ),
-    (
-        "the stub's `def` is moved out of `class entail:`",
-        "bindings/python/python/src/purrdf/__init__.pyi",
-        lambda text: _swap(
-            text, f"    def {_names('python')}(", f"def {_names('python')}("
-        ),
-    ),
-    (
-        "the stub's `def` loses a parameter",
-        "bindings/python/python/src/purrdf/__init__.pyi",
-        lambda text: _swap(
-            text,
-            f"    def {_names('python')}(\n        regime: RegimeLike,",
-            f"    def {_names('python')}(",
         ),
     ),
     # ── WASM, and the two JS name lists ──
