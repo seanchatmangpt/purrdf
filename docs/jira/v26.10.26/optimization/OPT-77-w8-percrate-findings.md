@@ -1443,3 +1443,14 @@ n3 reasoner.rs (backward chaining — SERIOUS):
 - update insert_data bnode prefix: CONFIRMED (literal None at :553;
   mutable_mint_prefix resolves it to ""; insert_data doesn't even
   receive cfg; tests set the option but never exercise this path).
+
+- columnar resolver leak: REFUTED as reachable (the leak is real but
+  the Resolver is function-local and dropped on every error exit; no
+  caller reuses it). Latent hygiene only.
+- canon probe-graph asymmetry: REFUTED — the g:None is Graph-scope
+  projection (rows pre-filtered q.g == Some(graph)); probing
+  Named(graph) is exactly the emitted quad's true graph.
+- hnsw guard TLV: PLAUSIBLE/downgraded — the Exact fallback is
+  documented ("anything else under Exact") and no silent pass exists;
+  residual is a diagnosability nit (misrouted reassociated payload
+  gets a misleading error class).
