@@ -31,9 +31,25 @@ _RECEIPT = os.environ.get(
 )
 
 
+_RECEIPT_MAX_BYTES = 1 << 20  # 1 MB cap; receipts are short-lived forensic data
+
+
 def log_receipt(command, decision):
     """Append one decision receipt. Fail-open: never flip a classification."""
     try:
+        # Size-cap rotation: truncate in place when the log outgrows the cap.
+        # "a" mode lands the next append at EOF even after the truncate, so a
+        # crash mid-rotation can at worst drop old receipts, never corrupt a
+        # classification.
+        if (os.path.getsize(_RECEIPT)
+                if os.path.exists(_RECEIPT) else 0) > _RECEIPT_MAX_BYTES:
+            with open(_RECEIPT, "w", encoding="utf-8") as fh:
+                fh.write(json.dumps({
+                    "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "command": "<rotated: log truncated at %d bytes>"
+                               % _RECEIPT_MAX_BYTES,
+                    "decision": "rotate",
+                }, separators=(",", ":")) + "\n")
         with open(_RECEIPT, "a", encoding="utf-8") as fh:
             fh.write(json.dumps({
                 "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
