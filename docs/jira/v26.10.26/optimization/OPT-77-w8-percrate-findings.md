@@ -1138,3 +1138,17 @@ n3 printing.rs round-trip (5):
   (profile.rs:226-242, never caller-supplied) and decode re-runs
   analyze + rejects on model.id() != document BEFORE the node walk;
   the alias is unreachable.
+
+## wave-15 additions (entail rif deep-read)
+
+- eval.rs:62-70/:242-247 — by_surface maps each surface to only the
+  LAST-interned id while .expect assumes round-trip fidelity: two
+  distinct TermValues with the same surface (plain literal vs its
+  xsd:string twin) yield wrong ids or a panic at emission. (Deepens
+  the W10 IRI-surface finding into the literal domain.)
+- eval.rs:316-327 — the unbound-head check runs BEFORE the empty-body
+  return: an empty-body rule with a head variable is rejected as
+  UnboundHead instead of the documented derives-nothing path.
+- eval.rs:357-372 (recorded W10; now traced to literal fallback) and
+  body-variable name-identity reliance (engine-level term identity
+  unverified).
