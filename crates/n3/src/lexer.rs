@@ -592,9 +592,27 @@ impl<'a> Lexer<'a> {
                         if next.is_whitespace()
                             || matches!(
                                 next,
-                                '{' | '}' | '[' | ']' | '(' | ')' | ',' | ';' | '|'
+                                '{' | '}'
+                                    | '['
+                                    | ']'
+                                    | '('
+                                    | ')'
+                                    | ','
+                                    | ';'
+                                    | '|'
+                                    | '"'
+                                    | '\''
+                                    | '<'
+                                    | '>'
+                                    | '='
+                                    | '#'
                             ) =>
                     {
+                        // A dot followed by a word-break character closes the
+                        // word BEFORE the dot: none of these are PN_CHARS, and
+                        // `"`, `'`, `<`, `>`, `=`, `#` are not PN_LOCAL_ESC-
+                        // escapable either, so swallowing them after a dot let
+                        // string/IRI residue reach the minted IRI (B6).
                         break;
                     }
                     _ => {}

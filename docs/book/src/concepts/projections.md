@@ -379,7 +379,7 @@ with three ordinary table declarations—classes, properties, and individuals—
 and writes the canonical archive:
 
 ```sh
-cargo run -p purrdf-rdf --example csvw_terms -- /tmp/terms.tar
+cargo run -p purrdf-rdf --example csvw_terms -- csvw-terms.tar
 ```
 
 The separate `okf-terms` profile projects caller-classified RDF resources into

@@ -323,11 +323,17 @@ pub fn link_units(catalog: &SliceCatalog, edges: &[DependencyEdge]) -> Vec<LinkU
 /// The dependency-closed member set of `seeds` over the catalog's S4 edges:
 /// `seeds ∪ all transitive dependencies` (RFC §8 product unit / §4 closure).
 /// Path-independent — built from slice IRIs only.
+///
+/// # Errors
+///
+/// The typed cache-slice refusal for a seed naming no discovered slice — an
+/// empty or partial closure is never returned for an unknown seed (the same
+/// refusal `merkle_root` raises for an unknown member).
 pub fn dependency_closure(
     catalog: &SliceCatalog,
     edges: &[DependencyEdge],
     seeds: &[SliceIri],
-) -> Vec<SliceIri> {
+) -> Result<Vec<SliceIri>, SliceError> {
     // Adjacency: from → {to} over build edges.
     let valid: BTreeSet<&SliceIri> = catalog
         .records()
@@ -347,9 +353,14 @@ pub fn dependency_closure(
     let mut closure: BTreeSet<SliceIri> = BTreeSet::new();
     let mut stack: Vec<SliceIri> = Vec::new();
     for seed in seeds {
-        if valid.contains(seed) {
-            stack.push(seed.clone());
+        if !valid.contains(seed) {
+            return Err(SliceError::InvalidManifest(
+                crate::error::ManifestRefusal::UnknownCacheSlice {
+                    slice: seed.clone(),
+                },
+            ));
         }
+        stack.push(seed.clone());
     }
     while let Some(node) = stack.pop() {
         if !closure.insert(node.clone()) {
@@ -363,23 +374,27 @@ pub fn dependency_closure(
             }
         }
     }
-    closure.into_iter().collect()
+    Ok(closure.into_iter().collect())
 }
 
 /// Build a [`ProductUnit`] for `seeds`: a dependency-closed profile (RFC §8).
+///
+/// # Errors
+///
+/// The typed cache-slice refusal for a seed naming no discovered slice.
 pub fn product_unit(
     catalog: &SliceCatalog,
     edges: &[DependencyEdge],
     seeds: &[SliceIri],
-) -> ProductUnit {
+) -> Result<ProductUnit, SliceError> {
     let mut seed_vec: Vec<SliceIri> = seeds.to_vec();
     seed_vec.sort();
     seed_vec.dedup();
-    let closure = dependency_closure(catalog, edges, &seed_vec);
-    ProductUnit {
+    let closure = dependency_closure(catalog, edges, &seed_vec)?;
+    Ok(ProductUnit {
         seeds: seed_vec,
         closure,
-    }
+    })
 }
 
 // ── Per-slice phase digest (the Merkle leaf) ────────────────────────────────
@@ -489,7 +504,7 @@ fn merkle_root(
     // dependency closure when the phase folds dependencies.
     let mut covered: BTreeSet<SliceIri> = members.iter().cloned().collect();
     if phase.folds_dependencies() {
-        for dep in dependency_closure(catalog, edges, members) {
+        for dep in dependency_closure(catalog, edges, members)? {
             covered.insert(dep);
         }
     }

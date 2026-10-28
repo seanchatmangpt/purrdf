@@ -90,6 +90,9 @@ pub(crate) fn run_project(
             assets: assets.as_ref(),
         },
     )?;
+    // `project` writes a carrier archive: like `convert`, refuse a transport
+    // target that names a compression the writer never applies.
+    format::refuse_transport_target(output, "the --output projection archive")?;
     sink::write_out(output, &outcome.archive)?;
     ledger::surface(ledger_target, &outcome.loss_ledger)
 }

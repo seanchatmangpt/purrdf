@@ -54,7 +54,7 @@ pub(crate) const SHIM_MAX_TOKENS: usize = 30;
 
 /// A body whose structural form is shorter than this is fingerprinted with its
 /// literals verbatim. At this size a body's constants are most of what it says:
-/// two twenty-token `match` arms that map the same variants to different strings
+/// two thirty-token `match` arms that map the same variants to different strings
 /// are two tables, and two that map them to the same strings are one table
 /// written twice.
 pub(crate) const LITERAL_TIER: usize = 30;

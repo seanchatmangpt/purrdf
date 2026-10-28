@@ -2078,3 +2078,84 @@ corrected anchors (wave-12's dtd line numbers had drifted).
   sql bench under a lex subject) — bookkeeping drift, disclosed; do
   not rewrite history (fix-forward doctrine).
 
+---
+
+## wave-22 status pass (2026-10-28, exact-fix-plan wave + inline repairs)
+
+### Fixed this wave (in-tree, UNVERIFIED — compile is CI-owned)
+
+- slice cache.rs dependency_closure/product_unit: unknown seed now refused
+  with the existing ManifestRefusal::UnknownCacheSlice (was a silent empty
+  closure); merkle_root propagates; profile_closure_transitive updated to
+  Result; two new tests (refusal + valid-neighbour).
+- columnar writer.rs:393: dictionary-index `index as i64` replaced with the
+  checked i64::try_from used by the builder (format is Int64 on disk; the
+  i32::MAX refusal bounds the loop — one conversion idiom, no lossy cast).
+- rdf-core dataset.rs: the two graph-axis `index as u32 + 1` sites collapsed
+  into checked graph_axis_key/graph_axis_key_from_index helpers (key 0 =
+  default-graph sentinel; a wrap would alias a named graph onto it); boundary
+  test added (u32::MAX refused, top mintable index == u32::MAX).
+- n3 lexer.rs dot-lookahead break set extended with " ' < > = # — `ex:foo."bar`
+  no longer swallows quote residue into the minted IRI (B6 residue).
+- toml parse.rs: two inverted error strings corrected ("a newline in a
+  single-line string" / "a control character in a string"); no test pinned
+  the wrong text.
+- sql compiler.rs statement_kind: is_object now collects ALL IRI objects
+  (matching document_roots) instead of only "_:"-prefixed; foreign_class
+  fallback made deterministic (collect + sort) instead of HashMap-order
+  find_map. B20 3-of-4 items closed (4th: MIXED_DOCUMENT_ROOTS already
+  refuses by design; from_turtle language-tag discard still OPEN).
+- cli projection.rs run_project: refuse_transport_target applied to --output
+  (an .ustar.gz name no longer writes uncompressed USTAR under it).
+- lex yaml tests: anchor-name colon rule + tab-continuation Tab errors +
+  scalar_keys null-alias `~` spelling — three new test fns across
+  yaml_reader_edges.rs / yaml_scalar_keys.rs (wave-21 test-gap closures).
+
+### Wave-22 verdicts from the verification lanes
+
+- xsd leap-second refusal (temporal.rs:1219): REFUTED-KEPT — XSD 1.1 §D.2.1
+  says second < 60 and "leap seconds are not supported"; the repo's
+  value_space.rs vectors pin the refusal; RFC 3339 lane owns :60 support.
+  No change.
+- sql memo (B-thrash finding): CLEAN — compile_turtle's memo key
+  (BLAKE3 of canonical graph) covers the entire input surface; no options/
+  profile/env affect output. No fix.
+- datalog maintained.rs "never reads restored_lo": COVERED — maintained
+  evaluation uses the term-membership delta (record -> changed/membership,
+  maintained.rs:312-358), which captures restorations; restored_lo belongs
+  to the stratum row-range path only. Defect candidate withdrawn.
+- gts cose Encrypt0 kid: CONFIRMED (RFC 9052: bstr, either bucket; Sign1 is
+  correct, Encrypt0 is unprotected-only + UTF-8-gated incl. the borrowed
+  fast path; the single frozen vector doesn't exercise it). Fix is a
+  6-site receive-path change — scheduled, not blind-applied to crypto.
+- entail classify.rs taxonomy (representative() not transitive under
+  Unknown; Saturated basis misreported on incomplete taxonomies; direct
+  reduction ignores Unknown chains): CONFIRMED, fix plan recorded
+  (union-find over pointwise equivalences + basis gating + Unknown-aware
+  reduction). Needs its own careful lane.
+- text index delta.rs four findings: CONFIRMED with exact fixes (coverage
+  bit path-dependence; observe_source silent-else; contradictory added/
+  removed rows cancel silently — needs ContradictoryDelta refusal;
+  fingerprint-equal early return keeps a stale source_digest). Needs its
+  own lane.
+- csvw cardinality-One: CONFIRMED — One must constrain RAW values (code
+  checks post-filter survivors; a raw-2->1-surviving cell passes and
+  predicate_cell takes first()). Fix plan recorded; note the shared
+  fixture() carries the raw-2 witness, so the fix must split the fixture
+  or the success-path tests break.
+- B18/B19/duckdb rows re-verified STANDING (lexical "N (Microsecond)",
+  inf/NaN lexicals, silent drops, duplicate-column predicate collisions,
+  min_confidence None-drop, empty superseded_by, digest_id file_len,
+  last-segment-only revise). Fix plans in the lane receipts; scheduled.
+- golden_bytes #[ignore] regen fn: lane died on rate limit; still open.
+- OPT-73 count superseded by wave-21 (~115).
+
+### Standing from earlier waves, now disposition-marked
+
+- 12 R-lane repairs, 8 F-lane repairs, B8, and the csvw double-count and
+  capi rowcursor fixes are CONFIRMED-FIXED at HEAD (wave-20 adversarial
+  verdicts + wave-21/22 spot checks). DO-NOT-MARK exceptions: sql memo
+  clear-on-overflow (compiler.rs:2033-2036), sql ast.rs serializer
+  re-export (:6), ast.rs hardcoded sql# literals (:104-123), and retrieval
+  fusion_frontier_alloc.rs stale prose (:144/:404) remain OPEN.
+

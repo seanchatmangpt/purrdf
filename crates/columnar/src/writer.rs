@@ -390,7 +390,11 @@ fn build_terms_table(dictionary: &Dictionary) -> Result<TableData, ColumnarError
     let mut named_graphs = Int64Column::with_capacity(capacity);
 
     for (index, term) in dictionary.terms.iter().enumerate() {
-        ids.push(Some(index as i64));
+        // Checked like the builder's own id mapping (the :331 i32::MAX refusal
+        // bounds the loop; the conversion stays total, never a lossy `as`).
+        let id = i64::try_from(index)
+            .map_err(|_| ColumnarError::limit("term id", index, i64::MAX as usize))?;
+        ids.push(Some(id));
         append_term_columns(
             dictionary,
             term,

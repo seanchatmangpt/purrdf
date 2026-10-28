@@ -97,7 +97,8 @@ pub(crate) struct FormatDescriptor {
     /// `@context.@base`), i.e. whether its serializer can relativize.
     pub emits_base: bool,
     /// The `crates/rdf-core/src/loss.rs` canonical codec name, or `None` for formats
-    /// that carry no loss-ledger codec identity (none today).
+    /// that carry no loss-ledger codec identity (no variant takes the `None`
+    /// arm today).
     pub loss_codec_name: Option<&'static str>,
 }
 
@@ -373,7 +374,8 @@ impl NativeRdfFormat {
     }
 
     /// The `crates/rdf-core/src/loss.rs` canonical codec name, or `None` when this format
-    /// carries no loss-ledger codec identity (none today).
+    /// carries no loss-ledger codec identity (no variant takes the `None` arm
+    /// today).
     pub fn loss_codec_name(self) -> Option<&'static str> {
         descriptor(self).loss_codec_name
     }

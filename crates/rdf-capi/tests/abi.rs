@@ -1659,6 +1659,58 @@ fn select_lists_subjects() {
     }
 }
 
+/// Exhaustion must retire the current-row slot: after the cursor reports
+/// `CursorExhausted`, `_term` answers `InvalidArgument` ("no row is current")
+/// instead of serving the stale last row, and a further `_next` stays
+/// exhausted — the terminal state is idempotent, not a one-shot. This pins
+/// the `rc.current = None` exhaust-clear in `purrdf_rowcursor_next`.
+#[test]
+fn rowcursor_term_after_exhaustion_is_invalid_argument_and_exhaustion_is_idempotent() {
+    unsafe {
+        let dataset = parse("application/n-triples", THREE_QUADS);
+        let rows = run_select(dataset, "SELECT ?s WHERE { ?s ?p ?o }");
+
+        // Drain every row, charging each row's one column so the cursor is
+        // left sitting on a current row the moment before exhaustion.
+        let mut drained = 0;
+        while purrdf_rowcursor_next(rows) == PurrdfStatus::Ok as i32 {
+            let mut view = out_view();
+            let mut bound: u8 = 0;
+            assert_eq!(
+                purrdf_rowcursor_term(rows, 0, &raw mut view, &raw mut bound),
+                PurrdfStatus::Ok as i32
+            );
+            assert_eq!(bound, 1);
+            drained += 1;
+        }
+        assert_eq!(drained, 2, "THREE_QUADS holds two distinct subjects");
+
+        // The cursor is now exhausted. _term must refuse, not serve row 1.
+        let mut view = out_view();
+        let mut bound: u8 = 0;
+        assert_eq!(
+            purrdf_rowcursor_term(rows, 0, &raw mut view, &raw mut bound),
+            PurrdfStatus::InvalidArgument as i32,
+            "an exhausted cursor has no current row; _term must say so"
+        );
+
+        // Exhaustion is a stable terminal state, not a one-shot signal.
+        assert_eq!(
+            purrdf_rowcursor_next(rows),
+            PurrdfStatus::CursorExhausted as i32,
+            "a second _next after exhaustion still reports CursorExhausted"
+        );
+        assert_eq!(
+            purrdf_rowcursor_term(rows, 0, &raw mut view, &raw mut bound),
+            PurrdfStatus::InvalidArgument as i32,
+            "the repeated exhausted _next must also have kept the slot cleared"
+        );
+
+        purrdf_rowcursor_free(rows);
+        purrdf_dataset_free(dataset);
+    }
+}
+
 #[test]
 fn ask_returns_boolean() {
     unsafe {

@@ -126,3 +126,24 @@ fn with_scalar_keys_a_repeated_key_is_still_refused_and_a_collection_is_never_a_
     // `.inf` stays refused as a value.
     assert_eq!(scalar("a: .inf"), Err(ErrorKind::NonFinite));
 }
+
+#[test]
+fn with_scalar_keys_an_alias_or_popped_null_key_keeps_the_canonical_tilde_spelling() {
+    // `key_of` keeps the core schema's canonical `~` for a null that lost
+    // its source text (an alias or a popped single-pair key), as an
+    // implicit `~` key does.
+    for (text, json) in [
+        ("a: &x ~\n*x : b", r#"{"a":null,"~":"b"}"#),
+        ("a: &x ~\n? *x\n: b", r#"{"a":null,"~":"b"}"#),
+        // Both spell the key `~`, so they collide with each other and with
+        // the other null spellings.
+        ("a: &x ~\n~: c\n*x : b", Err(ErrorKind::DuplicateKey)),
+        ("a: &x ~\n*x : b\nnull: c", Err(ErrorKind::DuplicateKey)),
+        ("a: &x ~\n*x : b\n~: c", Err(ErrorKind::DuplicateKey)),
+    ] {
+        assert_eq!(scalar(text), json, "{text:?}");
+    }
+    // By default a null key is not a string, whatever names it.
+    assert_eq!(strict("a: &x ~\n*x : b"), Err(ErrorKind::NonStringKey));
+    assert_eq!(strict("a: &x ~\n? *x\n: b"), Err(ErrorKind::NonStringKey));
+}

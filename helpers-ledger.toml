@@ -94,6 +94,8 @@
 # compared in its value form: borrows, derefs, `ref`, the value adapters
 # (`.as_str()`, `.clone()`, `.to_owned()`, …), a full-range reindex, `let` type
 # annotations and type-only turbofishes are dropped, local names are renamed and
+# a body of fewer than 20 tokens is not grouped by structural form (shims
+# of up to 30 tokens are grouped by their shim form instead);
 # field names kept; a body of 20 to 29 tokens is compared with its literals
 # verbatim, a longer one with them abstracted. Names, constants and fingerprints
 # of a job apply to test code too; the literal rules read shipping code only.

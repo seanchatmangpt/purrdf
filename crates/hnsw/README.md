@@ -195,7 +195,9 @@ on a host that cannot hold it. Both bench harnesses declare the **same** ladder
 and read that one variable, so a value that narrows one narrows the other, and
 the knob can only take rungs away: the parsed list is filtered against the
 declared ladder and a row count naming no rung is a hard failure, rather than an
-extra scale the ladder never contained. Every number it prints is a wall-clock
+extra scale the ladder never contained. The order the variable names its rungs in
+is ignored: the run always follows the declared ladder's order. Every number it
+prints is a wall-clock
 sample from
 whatever host runs it, reported for disclosure and never as an acceptance
 threshold. The cost that is deterministic and hardware-independent is distance

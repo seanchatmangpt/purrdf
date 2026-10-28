@@ -587,9 +587,27 @@ fn axis_key(axis: Axis, q: &QuadRow) -> u32 {
         Axis::O => q.o.index() as u32,
         Axis::G => match q.g {
             None => 0,
-            Some(id) => id.index() as u32 + 1,
+            Some(id) => graph_axis_key(id),
         },
     }
+}
+
+/// The named-graph term's graph-axis sort key: `index + 1`, because key `0` is
+/// the default-graph sentinel. [`TermId::from_index`] refuses dense index
+/// `u32::MAX`, so the sum always fits — but the add is checked so a future mint
+/// path that relaxes that refusal fails loudly here instead of silently
+/// wrapping a named graph onto the default-graph key.
+#[inline]
+fn graph_axis_key_from_index(index: u32) -> Option<u32> {
+    index.checked_add(1)
+}
+
+#[inline]
+fn graph_axis_key(id: TermId) -> u32 {
+    let index = u32::try_from(id.index()).expect("TermId index fits u32 by construction");
+    graph_axis_key_from_index(index).unwrap_or_else(|| {
+        unreachable!("TermId::from_index refuses index u32::MAX; graph key cannot wrap")
+    })
 }
 
 /// Compare two quads under a permutation's axis order, short-circuiting at the first
@@ -1520,7 +1538,7 @@ impl RdfDataset {
                 Axis::O => o.expect("plan prefix axis O is bound").index() as u32,
                 Axis::G => match g {
                     GraphMatch::Default => 0,
-                    GraphMatch::Named(id) => id.index() as u32 + 1,
+                    GraphMatch::Named(id) => graph_axis_key(id),
                     GraphMatch::Any => unreachable!("plan prefix axis G is bound"),
                 },
             }
@@ -2762,6 +2780,27 @@ const _: fn() = || {
 
 #[cfg(test)]
 mod tests {
+    /// The graph-axis key never wraps onto the default-graph sentinel: the
+    /// conversion is checked, and the refused index maps to `None` (which
+    /// `graph_axis_key` turns into a loud failure, never a silent aliasing).
+    #[test]
+    fn graph_axis_key_refuses_wrap_boundary() {
+        use super::{graph_axis_key, graph_axis_key_from_index};
+        use crate::ir::term::TermId;
+        // Default-graph sentinel is 0; the first named graph's key is 1.
+        assert_eq!(graph_axis_key_from_index(0), Some(1));
+        // The largest mintable dense index (TermId::from_index accepts it).
+        assert_eq!(graph_axis_key_from_index(u32::MAX - 1), Some(u32::MAX));
+        // The refused index: unchecked, this would wrap to 0 and alias the
+        // default graph on the G axis.
+        assert_eq!(graph_axis_key_from_index(u32::MAX), None);
+        // The checked path agrees with the sentinel ordering at the top of
+        // the representable range.
+        let top = TermId::from_index(u32::MAX - 1).expect("the top index is mintable");
+        assert_eq!(graph_axis_key(top), u32::MAX);
+        assert_ne!(graph_axis_key(top), 0);
+    }
+
     use super::*;
     use crate::RdfLiteral;
     use crate::TermBox;

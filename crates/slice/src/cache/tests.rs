@@ -14,6 +14,7 @@ use crate::cache::{
     Phase, ToolchainContext, dependency_closure, link_units, product_unit, source_unit_key,
 };
 use crate::catalog::SliceCatalog;
+use crate::error::{ManifestRefusal, SliceError};
 use crate::ownership::OwnershipAnalyzer;
 
 /// Pure fixtures use a caller-supplied example.org vocabulary (the slice
@@ -395,7 +396,8 @@ fn profile_closure_transitive() {
 
     let (catalog, edges) = discover(t.path());
 
-    let closure = dependency_closure(&catalog, &edges, std::slice::from_ref(&a_iri));
+    let closure = dependency_closure(&catalog, &edges, std::slice::from_ref(&a_iri))
+        .expect("known seeds close");
     assert!(closure.contains(&a_iri));
     assert!(closure.contains(&b_iri));
     assert!(
@@ -404,13 +406,70 @@ fn profile_closure_transitive() {
     );
     assert_eq!(closure.len(), 3);
 
-    let product = product_unit(&catalog, &edges, std::slice::from_ref(&a_iri));
+    let product = product_unit(&catalog, &edges, std::slice::from_ref(&a_iri))
+        .expect("known seeds build a product unit");
     assert_eq!(product.seeds, vec![a_iri]);
     assert_eq!(product.closure.len(), 3);
 
     // C alone closes to just {C}.
-    let c_closure = dependency_closure(&catalog, &edges, std::slice::from_ref(&c_iri));
+    let c_closure = dependency_closure(&catalog, &edges, std::slice::from_ref(&c_iri))
+        .expect("known seeds close");
     assert_eq!(c_closure, vec![c_iri]);
+}
+
+/// An unknown seed is refused with the typed cache-slice refusal, not
+/// silently answered with an empty or partial closure.
+#[test]
+fn dependency_closure_refuses_unknown_seed() {
+    let a_iri = format!("{NS}slice/aaa");
+    let b_iri = format!("{NS}slice/bbb");
+    let a_term = format!("{NS}Aaa");
+    let b_term = format!("{NS}Bbb");
+
+    let t = TempDir::for_unit_test().unwrap();
+    let core = t.path().join("slices").join("core");
+    write_slice(&core, "aaa", &a_iri, &a_term, &[(&b_iri, &b_term)], "# a\n");
+    write_slice(&core, "bbb", &b_iri, &b_term, &[], "# b\n");
+    let (catalog, edges) = discover(t.path());
+
+    let unknown = format!("{NS}slice/nope");
+    let err = dependency_closure(&catalog, &edges, std::slice::from_ref(&unknown))
+        .expect_err("an unknown seed must be refused");
+    assert!(matches!(
+        err,
+        SliceError::InvalidManifest(ManifestRefusal::UnknownCacheSlice { .. })
+    ));
+
+    // The refusal is per-seed and names the seed.
+    let mixed = vec![a_iri.clone(), unknown];
+    let err = dependency_closure(&catalog, &edges, &mixed)
+        .expect_err("a mixed seed list with one unknown seed must be refused");
+    match err {
+        SliceError::InvalidManifest(ManifestRefusal::UnknownCacheSlice { slice }) => {
+            assert_eq!(slice, unknown);
+        }
+        other => panic!("unexpected refusal: {other:?}"),
+    }
+}
+
+/// Valid-neighbour guard over the unknown-seed refusal: a known seed with a
+/// dependency still closes and never refuses (over-refusal check).
+#[test]
+fn dependency_closure_accepts_valid_seed_neighbours() {
+    let a_iri = format!("{NS}slice/aaa");
+    let b_iri = format!("{NS}slice/bbb");
+    let a_term = format!("{NS}Aaa");
+    let b_term = format!("{NS}Bbb");
+
+    let t = TempDir::for_unit_test().unwrap();
+    let core = t.path().join("slices").join("core");
+    write_slice(&core, "aaa", &a_iri, &a_term, &[(&b_iri, &b_term)], "# a\n");
+    write_slice(&core, "bbb", &b_iri, &b_term, &[], "# b\n");
+    let (catalog, edges) = discover(t.path());
+
+    let closure = dependency_closure(&catalog, &edges, &[a_iri.clone(), a_iri])
+        .expect("valid seeds must not refuse");
+    assert_eq!(closure, vec![b_iri]);
 }
 
 /// Extra guard: a dependency-output digest change DOES invalidate the

@@ -233,6 +233,7 @@ impl<'a> RelationSpecs<'a> {
             self.base,
             EngineQueryOptions::new()
                 .with_geo(self.geo)
+                .with_division(self.division)
                 .with_env(&engine_env(aggregates, Some(&registry))?),
         )?;
         Ok((Some(registry), Some(prepared)))
@@ -916,6 +917,7 @@ pub(crate) fn run(
         options.base,
         EngineQueryOptions::new()
             .with_geo(options.geo)
+            .with_division(options.division)
             .with_env(&engine_env(aggregates.as_ref(), None)?),
     )?;
 
@@ -1167,7 +1169,11 @@ fn refuse_unenforceable_combinations(
     if options.provenance_namespace.is_some()
         && matches!(
             results_format.to_results_format(),
-            Some(SparqlResultsFormat::Csv | SparqlResultsFormat::Tsv | SparqlResultsFormat::CanonArrow)
+            Some(
+                SparqlResultsFormat::Csv
+                    | SparqlResultsFormat::Tsv
+                    | SparqlResultsFormat::CanonArrow
+            )
         )
     {
         return Err(CliError::Usage(format!(

@@ -2465,12 +2465,15 @@ impl DatasetReader {
     fn statement_kind(&self) -> Result<(String, String), AstError> {
         let ty = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
         let prefix = "http://graphlaw.org/sql#";
+        // A node is somebody's object when ANY subject/predicate pair carries
+        // it — a full-IRI statement node is a member, not a second root
+        // (same rule as `document_roots`).
         let is_object: HashSet<String> = self
             .outgoing
             .values()
             .flat_map(|preds| preds.values().flatten())
             .filter_map(|t| match t {
-                RdfTerm::Iri(i) if i.starts_with("_:") => Some(i.clone()),
+                RdfTerm::Iri(i) => Some(i.clone()),
                 _ => None,
             })
             .collect();
@@ -2500,19 +2503,22 @@ impl DatasetReader {
                 // misstate the defect. Free-form carrier arm (LEGACY_MESSAGE,
                 // the pivot_refusal precedent); codes are append-only, no new
                 // arm is minted.
-                let foreign_class = self.outgoing.iter().find_map(|(subj, preds)| {
+                let mut foreign_classes: Vec<String> = Vec::new();
+                for (subj, preds) in &self.outgoing {
                     if is_object.contains(subj) {
-                        return None;
+                        continue;
                     }
-                    preds.get(ty)?.iter().find_map(|t| match t {
-                        RdfTerm::Iri(iri)
-                            if iri.ends_with("Statement") && !iri.starts_with(prefix) =>
-                        {
-                            Some(iri.clone())
+                    for t in preds.get(ty).into_iter().flatten() {
+                        if let RdfTerm::Iri(iri) = t {
+                            if iri.ends_with("Statement") && !iri.starts_with(prefix) {
+                                foreign_classes.push(iri.clone());
+                            }
                         }
-                        _ => None,
-                    })
-                });
+                    }
+                }
+                // Deterministic across hash-map iteration orders.
+                foreign_classes.sort();
+                let foreign_class = foreign_classes.into_iter().next();
                 match foreign_class {
                     Some(iri) => Err(AstError::new(
                         RefusalCode::MalformedAst,

@@ -332,13 +332,13 @@ impl Reader<'_> {
                 result.push(scalar);
             } else if matches!(byte, b'\n' | b'\r') {
                 if !multiline {
-                    return self.fail("single-line string without a newline");
+                    return self.fail("a newline in a single-line string");
                 }
                 self.newline()?;
                 result.push('\n');
             } else {
                 if byte < 0x20 && byte != b'\t' || byte == 0x7f {
-                    return self.fail("an escaped string control character");
+                    return self.fail("a control character in a string");
                 }
                 let scalar = self.text[self.at..]
                     .chars()

@@ -157,7 +157,7 @@ averages.
 |---|---|---|
 | text | 299 | Full-text search, BM25F ranking, phonetic matching, Unicode segmentation (7 binaries) |
 | sparql-algebra | 140 | SPARQL parsing and algebra construction (6 binaries) |
-| purrdf (facade) | 44 | The all-in-one public API: end-to-end pipeline + allocation profiling |
+| `purrdf` (facade) | 44 | The all-in-one public API: end-to-end pipeline + allocation profiling |
 | purrdf-rdf | 122 | Native codecs: Turtle, N-Triples, RDF/XML, TriG, JSON-LD, CSVW (6 binaries) |
 | geo-kernel | 109 | Geographic computations: cell hierarchies, geodesic operations |
 | lex | 22 | Lexical layer: JSON, YAML, CBOR, XML scanners + Unicode normalization |

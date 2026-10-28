@@ -649,7 +649,7 @@ pub(crate) enum Command {
         /// can honor.
         #[arg(long)]
         explain: bool,
-        /// Register purrdf's first-party statistical aggregate set (`MEDIAN`,
+        /// Register PurRDF's first-party statistical aggregate set (`MEDIAN`,
         /// `PERCENTILE`, `STDDEV`, `STDDEV_POP`, `VARIANCE`, `VAR_POP`, `MODE`, `FIRST`,
         /// `LAST`, `TOPK`) under this IRI namespace, so the query text can call
         /// `AGG(<{NAMESPACE}NAME>, args…)`, e.g. `AGG(<https://ex.example/agg#MEDIAN>,
@@ -771,7 +771,7 @@ pub(crate) enum Command {
         /// any numeric ceiling.
         #[arg(long)]
         no_ceiling: bool,
-        /// Register purrdf's first-party statistical aggregate set under this IRI
+        /// Register PurRDF's first-party statistical aggregate set under this IRI
         /// namespace — identical to `query --aggregate-namespace`, reachable from a
         /// `DELETE`/`INSERT … WHERE` clause through a nested `SELECT … GROUP BY`, which
         /// is the only place SPARQL UPDATE's grammar admits an aggregate. Omit it and

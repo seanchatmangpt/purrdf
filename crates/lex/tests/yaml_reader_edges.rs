@@ -237,3 +237,47 @@ fn a_stream_with_no_document_reads_as_null() {
         assert_eq!(ok(empty), "null", "{empty:?}");
     }
 }
+
+#[test]
+fn an_anchor_or_alias_name_stops_at_a_colon_only_when_it_reads_as_a_value_indicator() {
+    // `name` (read.rs) stops at `:` only when a blank or flow indicator
+    // follows, so a mid-name `:` stays in the name: `&a:b` anchors `a:b`,
+    // not `a` with `:b` as content.
+    assert_eq!(ok("a: &a:b x\nb: *a:b\n"), r#"{"a":"x","b":"x"}"#);
+    assert_eq!(ok("- &a:b x\n- *a:b\n"), r#"["x","x"]"#);
+    // A blank or flow indicator after the `:` does end the name, so the
+    // properties still read as an anchor before a value or a key.
+    assert_eq!(ok("a: &k v\nb: *k\n"), r#"{"a":"v","b":"v"}"#);
+    assert_eq!(ok("a: &k v\n*k: w\n"), r#"{"a":"v","k":"w"}"#);
+    assert_eq!(ok("&k v: w\n"), r#"{"v":"w"}"#);
+    // A quoted anchor name is not a form the reader knows: the quotes are
+    // ordinary name characters, so the anchor is literally spelled with
+    // them, and the alias must repeat them.
+    assert_eq!(ok("a: &\"q\" x\nb: *\"q\"\n"), r#"{"a":"x","b":"x"}"#);
+}
+
+#[test]
+fn a_tab_indented_line_cannot_continue_a_plain_multi_line_scalar() {
+    // A tab is separation, not indentation, so a tab-led line cannot pass
+    // the block's indentation and continue the scalar; the error points at
+    // the first byte after the tab run, the line's first content byte.
+    let refused_at = |text: &str, at: usize| match read(text) {
+        Ok(value) => panic!("{text:?} accepted as {}", write_compact(&value)),
+        Err(error) => {
+            assert_eq!(error.kind(), ErrorKind::Tab, "{text:?}");
+            assert_eq!(error.offset(), at, "{text:?}");
+        }
+    };
+    refused_at("v\n\tw\n", 2);
+    refused_at("v\n \tw\n", 3);
+    refused_at("v\n\tw", 2);
+    // The neighbours: a space-indented line folds into the scalar, and a
+    // tab after a key's colon is separation.
+    assert_eq!(ok("v\n w\n"), r#""v w""#);
+    assert_eq!(ok("v\n  w\n"), r#""v w""#);
+    assert_eq!(ok("k:\n \tv\n"), r#"{"k":"v"}"#);
+    assert_eq!(ok("- \tv\n"), r#"["v"]"#);
+    // A tab-led line that is short of the block's indentation is refused
+    // by the block rule, not the continuation rule; same kind either way.
+    assert_eq!(refused("k: v\n\tw\n"), ErrorKind::Tab);
+}
