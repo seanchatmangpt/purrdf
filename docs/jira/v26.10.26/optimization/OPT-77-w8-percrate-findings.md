@@ -110,3 +110,36 @@ string.
 - geo-kernel: hilbert_path parity test covers levels 0..=16 while the
   production caller uses MAX_LEVEL=30 (coverage gap at the clamp
   boundary; branchless-side tests do cover 30).
+
+## json / columnar (appended)
+
+- json decode.rs:60-67/:199-214 — multi-fault refusal selection is
+  insertion-order dependent (FastMap iteration); error text
+  deterministic per build but not canonical. Fix: sort candidate
+  errors before selection.
+- json parse.rs:119-123 — dead refusal arms (StringBytes /
+  DuplicateMember unreachable under DEFAULT limits); the coupling
+  comment pins it.
+- columnar reader.rs:701-732 — graph-refusal context hardcoded to
+  "graph reference" (no table/column, unlike sibling checks);
+  reader.rs:547-551 DigestOrder refusal loses the `row` field.
+- columnar writer.rs:504-559 — duplicate quad streams silently
+  collapse (set semantics; no ledger entry).
+- cli: help_cli.rs:32-48 pinned subcommand list omits 6 shipped verbs
+  (GlobRdf/GlobSet/Glob/Geo/Lint/Verify) — the drift guard itself has
+  drifted; sink.rs:259-286 one doc block bound to the wrong fn;
+  pack_input.rs:43-48 `tier1_sealed_memfd` label measures Tier-2 on
+  non-Linux; error.rs:177 DownstreamClosed "never printed" comment
+  contradicts run()'s unconditional eprintln.
+
+## lex / xsd / validate / stack (appended)
+
+- xsd README omits the exact tower entirely (fixed in-tree: coverage
+  line added); benches cover no Rat/geometry face; Rat has no in-crate
+  unit tests (delegated downstream); exponent-cap prose duplicated in
+  certified.rs:446-452 and geometry.rs:354-363 (drift trap).
+- stack Cargo.toml comment still claims the parser refuses against
+  stack (dev-dep only) — anchor miss, fix pending.
+- stack widen (lib.rs ~368-378): bytes==0 returns success before the
+  EXHAUSTED check — doc precedence mismatch (cosmetic).
+- geo-kernel + envelope-probe + LUBM items: see prior append.
