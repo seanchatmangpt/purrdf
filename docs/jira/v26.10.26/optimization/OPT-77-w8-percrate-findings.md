@@ -1681,3 +1681,19 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   maps decode_deterministic refuses (documented but reachable).
 - decode.rs:462 — depth-cap arm precedes the indefinite refusal:
   misdiagnosis (Depth vs Malformed), no accept change.
+
+## wave-18 additions (lex yaml read.rs — 4 findings)
+
+- name() (:721-738) — anchor/alias names stop only at blanks/flow
+  indicators, never at ':': *x: v yields name "x:" (UnknownAlias)
+  where mainstream readers read an alias-as-key.
+- fill_scalar explicit-key path (:1705-1709) — NonFinite converted to
+  Value::String(key) when scalar_keys is on: ? .inf silently accepted
+  as a string key, contradicting the blanket .inf/.nan refusal.
+- key_of (:2286) — explicit-key null renders as "null" while implicit
+  keeps source text: ? ~ → "null" but ~: v → "~" (same node, two keys
+  under scalar_keys).
+- plain_rest (:832-838) — tab-indented continuation silently ends the
+  scalar and reparses as block structure at column 0 instead of
+  raising the Tab error.
+- Flow nesting + ?/: block slot machine traced clean.
