@@ -69,13 +69,18 @@ CARGO_FAST = {"fmt", "metadata", "bench"}
 MAKE_FAST_TARGETS = {
     "help", "doctor", "hooks", "fmt",
     "check-issue-refs", "check-brand-casing", "check-spec-attribution",
+    # the feedback-SLA ladder entry points (scripts/fb-ladder.sh behind them)
+    "fb", "fb-static", "fb-oracles", "fb-probe", "fb-lane",
 }
 BLOCK_MAKE = {"test", "check", "wasm", "pytest", "conformance"}
 # Bounded forms: the repo wrapper, or an exact `-k 1 5` coreutils lease.
 BOUNDED_HEADS = {"bounded", "./scripts/bounded", "scripts/bounded"}
 # Documented bounded script entry points (CLAUDE.md command surface); the
 # generic `.sh` refusal still applies to everything not listed here.
-BOUNDED_SCRIPTS = {"lane-lease.sh", "bounded-fmt.sh", "test-bounded-guard.sh"}
+BOUNDED_SCRIPTS = {
+    "lane-lease.sh", "bounded-fmt.sh", "test-bounded-guard.sh",
+    "target-hygiene.sh",
+}
 BOUNDED_TIMEOUT = re.compile(r"^(g?timeout)\s+-k\s+1\s+5(\s|$)")
 # Interpreters whose embedded string must be inspected (or refused).
 SHELL_HEADS = {"sh", "bash", "zsh", "ksh", "dash"}
