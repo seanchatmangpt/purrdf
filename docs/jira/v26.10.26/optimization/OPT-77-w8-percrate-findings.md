@@ -1388,3 +1388,17 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   --base as inert when import_gts_events actually resolves against it
   (needs canonical-lane confirmation).
 - ed25519 lib.rs/keys.rs public verify paths: CLEAN.
+
+## wave-16 additions (rdf-core intern/canon, cli format rest)
+
+- rdf-core canon.rs:1766/:1801 — under FlatAssertion in Graph scope,
+  already_asserted probes the row's OWN graph while the emitted quad
+  has g: None: probe-vs-emitted asymmetry enforced only by convention
+  (candidate duplicate/drop divergence).
+- global.rs:445-471 — insert_missing partial-fail leaves orphan arena
+  bytes and an unused reserved slot (id consistency holds; capacity
+  accounting claim overstated).
+- TermId niche + interner hash/eq protocol verified sound.
+- cli format.rs: transport-strip error-text misattribution +
+  resolve_target precedence asymmetry + Pack/Gts consumes_base
+  question (recorded earlier this wave).
