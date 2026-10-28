@@ -126,6 +126,17 @@ fn selection(
     predicate: Option<&str>,
     count: usize,
 ) -> CliError {
+    selection_detail(dataset, role, subject, predicate, count, None)
+}
+
+fn selection_detail(
+    dataset: DatasetHandle,
+    role: &'static str,
+    subject: &str,
+    predicate: Option<&str>,
+    count: usize,
+    detail: Option<String>,
+) -> CliError {
     let mut resident = Resident;
     let mut memory = Memory::new(&mut resident);
     let owned = (|| {
@@ -135,6 +146,7 @@ fn selection(
             subject: memory.string(subject)?,
             predicate: predicate.map(|value| memory.string(value)).transpose()?,
             count,
+            detail: detail.map(|value| memory.string(value)).transpose()?,
         })
     })();
     owned.map_or_else(CliError::GlobRdfStorage, refusal)
@@ -225,12 +237,13 @@ pub(crate) fn run(args: &GlobRdfArgs) -> Result<(), CliError> {
                 args.input_subject, args.input_predicate
             )
         };
-        return Err(selection_message(
+        return Err(selection_detail(
             input,
+            "input object",
             &args.input_subject,
             Some(&args.input_predicate),
             count,
-            &message,
+            Some(message),
         ));
     }
     let object = objects.iter().next().copied();

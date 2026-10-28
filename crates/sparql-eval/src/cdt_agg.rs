@@ -263,6 +263,16 @@ impl FoldAccumulator {
             purrdf_cdt::CdtOutcome::Value(value) => {
                 crate::cdt_fn::composite_literal_admitted(&value, workspace)
             }
+            // A constructor type error over a non-empty accumulated fold is a real
+            // failure: propagate it typed instead of laundering it into the empty
+            // literal. Only the genuinely-empty group yields the empty "[]"/"{}".
+            purrdf_cdt::CdtOutcome::Error(error) if non_empty => Err(
+                crate::NativeDiagnostic::error(
+                    crate::NativeDiagnosticKind::Data,
+                    error,
+                    workspace,
+                ),
+            ),
             purrdf_cdt::CdtOutcome::Error(_) => crate::cdt_fn::composite_literal_admitted(
                 &if map {
                     CdtValue::empty_map()
