@@ -1105,6 +1105,12 @@ impl Parser {
                 continue;
             }
             if matches!(self.peek_kind(), TokenKind::AtForAll | TokenKind::AtForSome) {
+                if self.profile.is_rdf12() {
+                    return Err(EyeronError::at(
+                        "N3 quantifier directives are not RDF syntax",
+                        self.peek().offset,
+                    ));
+                }
                 self.parse_quantifier()?;
                 continue;
             }
@@ -2048,12 +2054,6 @@ impl Parser {
                 token.offset,
             ));
         }
-        if universal && scope.has_existential_declaration {
-            return Err(EyeronError::at(
-                "@forAll must precede @forSome in the same graph",
-                token.offset,
-            ));
-        }
         loop {
             let name = self.advance().clone();
             let iri = match name.kind {
@@ -2066,7 +2066,11 @@ impl Parser {
                     ));
                 }
             };
-            if self.scopes.last().unwrap().bindings.contains_key(&iri) {
+            if self
+                .scopes
+                .iter()
+                .any(|s| s.bindings.contains_key(&iri))
+            {
                 return Err(EyeronError::at(
                     "IRI is already quantified in this graph",
                     name.offset,

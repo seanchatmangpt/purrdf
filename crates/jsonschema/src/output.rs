@@ -248,13 +248,13 @@ impl Output {
                 } else {
                     ("errors", self.errors().map(leaf).collect())
                 };
-                if !units.is_empty() {
-                    object.insert(key.to_owned(), Value::Array(units));
-                }
+                // Core §12.3: the `errors`/`annotations` member is present
+                // even when the list is empty.
+                object.insert(key.to_owned(), Value::Array(units));
                 Value::Object(object)
             }
             OutputFormat::Detailed => detailed(&self.root, self.root.valid)
-                .unwrap_or_else(|| Value::Object(header(&self.root))),
+                .unwrap_or_else(|| Value::Object(detailed_header(&self.root, self.root.valid))),
         };
         json.sort_keys();
         json
@@ -297,6 +297,15 @@ fn header(unit: &OutputUnit) -> Object {
         "instanceLocation".to_owned(),
         Value::String(unit.instance_location.clone()),
     );
+    object
+}
+
+/// A `detailed` header carrying the Core §12.3 `errors`/`annotations`
+/// member, present even when empty.
+fn detailed_header(unit: &OutputUnit, valid: bool) -> Object {
+    let mut object = header(unit);
+    let key = if valid { "annotations" } else { "errors" };
+    object.insert(key.to_owned(), Value::Array(Vec::new()));
     object
 }
 
@@ -356,15 +365,16 @@ fn condense(unit: &OutputUnit, valid: bool, mut children: Vec<Value>) -> Option<
         }
     }
     let mut object = header(unit);
-    if let Some(error) = unit.error.as_ref().filter(|_| !valid) {
+    // A unit's own error is reported regardless of the result being explained,
+    // matching `leaf`'s behavior for the basic format.
+    if let Some(error) = &unit.error {
         object.insert("error".to_owned(), Value::String(error.to_string()));
     }
     if let Some(annotation) = unit.annotation.as_ref().filter(|_| valid) {
         object.insert("annotation".to_owned(), annotation.clone());
     }
-    if !children.is_empty() {
-        let key = if valid { "annotations" } else { "errors" };
-        object.insert(key.to_owned(), Value::Array(children));
-    }
+    // Core §12.3: the member is present even when every child condensed away.
+    let key = if valid { "annotations" } else { "errors" };
+    object.insert(key.to_owned(), Value::Array(children));
     Some(Value::Object(object))
 }

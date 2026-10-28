@@ -2137,7 +2137,17 @@ pub(crate) fn build_index<I: ViewTermId>(
 /// Cliff note: when `probe` has an **unbound** shared column, no exact key exists, so
 /// this falls back to a per-row compatibility scan over the full inner result — that
 /// case is O(|inner|) per probe. A probe fully bound on its shared columns (the common
-/// anti-join shape) hits the keyed bucket in O(1).
+/// anti-join shape) hits the keyed bucket in O(1) — the bucket scan reads each
+/// row's evidence, so a bucket entirely of undecided rows still costs O(|bucket|).
+///
+/// Evidence gate: a build row whose evidence is [`RowEvidence::is_undecided`] is
+/// **never** a member for this boolean probe. This mirrors [`probe_evidence`]
+/// (`found = !combined.is_undecided()`) and `interned.rs` `established_rows`
+/// (which filters undecided rows out of the established partition): undecided
+/// evidence means the row's membership itself is unestablished, so counting it
+/// as a match would make the constant-time shortcut disagree with the
+/// evidence-tracked answer for the identical probe. Standard queries carry no
+/// declared gaps, so the common path pays only one flag read per row.
 pub(crate) fn probe_has_match<I: ViewTermId>(
     probe: &[Option<SolutionTerm<I>>],
     shared: &[(usize, usize)],
@@ -2146,15 +2156,23 @@ pub(crate) fn probe_has_match<I: ViewTermId>(
     r_rows: &[RetainedRow<I>],
     workspace: &crate::WorkspaceCapability,
 ) -> Result<bool, EvalError> {
+    // A row joins only if it is compatible AND its membership is established.
+    let member =
+        |rrow: &RetainedRow<I>| -> bool { compatible(probe, rrow, shared) && !rrow.evidence().is_undecided() };
     Ok(match bound_key(probe, shared, KeySide::Left, workspace)? {
-        // Fully bound on shared columns: a present exact-key bucket is a match
-        // (`build_index` only inserts non-empty buckets via `or_default().push`),
-        // else any compatible wild build row (its `None` shared column matches).
+        // Fully bound on shared columns: bucket rows share the probe key by
+        // construction (`build_index` only inserts non-empty buckets), so only
+        // the evidence gate distinguishes members; else any compatible
+        // non-undecided wild build row (its `None` shared column matches).
         Some(key) => {
-            keyed.contains_key(&key) || wild.iter().any(|&i| compatible(probe, &r_rows[i], shared))
+            keyed.get(&key).is_some_and(|indices| {
+                indices
+                    .iter()
+                    .any(|&i| !r_rows[i].evidence().is_undecided())
+            }) || wild.iter().any(|&i| member(&r_rows[i]))
         }
-        // Unbound shared column ⇒ wildcard probe: scan for any compatible build row.
-        None => r_rows.iter().any(|rrow| compatible(probe, rrow, shared)),
+        // Unbound shared column ⇒ wildcard probe: scan for any member build row.
+        None => r_rows.iter().any(|rrow| member(rrow)),
     })
 }
 

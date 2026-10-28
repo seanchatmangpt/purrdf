@@ -1135,8 +1135,20 @@ fn xsd_integer_of_admitted(
         return Ok(None);
     };
     let parsed = parse_owned_xsd(lexical_form, datatype, workspace)?;
+    // Both callers (SUBSTR start/length) feed `substring`, whose window math
+    // treats any out-of-range bound exactly (start ≤ 0 clamps to the first
+    // character; a bound past the string yields the empty result). Saturating
+    // an over-`i128` integer is therefore exact for those consumers, whereas
+    // `None` would misreport a valid `xsd:integer` as a type error.
     Ok(match parsed.as_deref() {
-        Some(XsdValue::Integer { value, .. }) => value.to_i128().ok(),
+        Some(XsdValue::Integer { value, .. }) => {
+            let saturated = if value.is_negative() {
+                value.to_i128().unwrap_or(i128::MIN)
+            } else {
+                value.to_i128().unwrap_or(i128::MAX)
+            };
+            Some(saturated)
+        }
         _ => None,
     })
 }

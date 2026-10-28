@@ -342,6 +342,12 @@ fn seed_fact(edb: &mut RelationStore, terms: &Terms, [s, p, o]: [u32; 3]) {
 /// a head variable that never appears in the body has no binding source, so the
 /// rule is malformed rather than silently deriving an unbound term.
 fn translate_rule(rule: &Rule, terms: &mut Terms) -> Result<Vec<DlClause>, EntailError> {
+    // An empty body derives nothing regardless of head variables — check before the
+    // safety scan so a bodiless rule takes this path instead of being rejected as
+    // `UnboundHead` (a head variable has no binding source only when a body exists).
+    if rule.body.is_empty() {
+        return Ok(Vec::new());
+    }
     let body_vars: FastSet<&str> = rule.body.iter().flat_map(atom_var_names).collect();
     for name in rule.head.iter().flat_map(atom_var_names) {
         if !body_vars.contains(name) {
@@ -350,9 +356,6 @@ fn translate_rule(rule: &Rule, terms: &mut Terms) -> Result<Vec<DlClause>, Entai
     }
     let body: Vec<ClauseAtom> = rule.body.iter().map(|a| clause_atom(a, terms)).collect();
     let head: Vec<ClauseAtom> = rule.head.iter().map(|a| clause_atom(a, terms)).collect();
-    if body.is_empty() {
-        return Ok(Vec::new());
-    }
     Ok(head
         .into_iter()
         .map(|atom| DlClause::datalog(atom, body.clone()))

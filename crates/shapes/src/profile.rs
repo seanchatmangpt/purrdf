@@ -338,19 +338,25 @@ impl Request {
         prepared: &crate::engine::PreparedShapes,
     ) -> Result<Option<Self>, crate::report::CompleteValidationError> {
         let options = &prepared.shapes().validation_options;
-        let requested = options
-            .shacl_profile
-            .resolve_xpath(options.xpath_regex)
-            .map_err(crate::report::CompleteValidationError::XPathProfile)?;
-        let selection = if requested.is_some()
-            && let Some(native) = crate::xpath::current()
-        {
+        // Precedence: an explicitly supplied `options.xpath_regex` selection wins
+        // over the thread-local native configuration (resolve_xpath preserves
+        // every supplied limit verbatim); with no caller override, the
+        // thread-local native limits are preferred over `Limits::default()`.
+        let selection = if let Some((profile, limits)) = options.xpath_regex {
+            options
+                .shacl_profile
+                .resolve_xpath(Some((profile, limits)))
+                .map_err(crate::report::CompleteValidationError::XPathProfile)?
+        } else if let Some(native) = crate::xpath::current() {
             options
                 .shacl_profile
                 .resolve_xpath(Some((native.profile, native.limits)))
                 .map_err(crate::report::CompleteValidationError::XPathProfile)?
         } else {
-            requested
+            options
+                .shacl_profile
+                .resolve_xpath(None)
+                .map_err(crate::report::CompleteValidationError::XPathProfile)?
         };
         if options.shacl_profile == ShaclProfile::LEGACY && selection.is_none() {
             return Ok(None);

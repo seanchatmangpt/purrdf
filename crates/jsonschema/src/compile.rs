@@ -502,14 +502,51 @@ impl Compiler<'_> {
                 }
                 "$dynamicRef" if modern => {
                     let (target, resolved) = self.reference(context, keyword, value)?;
-                    let anchor = resolved.split_once('#').and_then(|(base, fragment)| {
-                        let name = percent::decode(fragment).ok()?.into_owned();
-                        if name.is_empty() || name.starts_with('/') {
-                            return None;
+                    // An anchor-shaped fragment (non-empty, not a JSON
+                    // pointer) is an explicit `$dynamicAnchor` reference:
+                    // failing to resolve it is a compile error, never the
+                    // plain-`$ref` fallback (validate.rs unwraps a `None`
+                    // anchor to the target node). The fallback stays only for
+                    // fragments that are JSON pointers or absent, which name
+                    // no anchor at all.
+                    let anchor = match resolved.split_once('#') {
+                        None => None,
+                        Some((base, fragment))
+                            if fragment.is_empty() || fragment.starts_with('/') =>
+                        {
+                            None
                         }
-                        let resource = self.registry.resource_by_uri(base)?;
-                        self.registry.dynamic_anchor(resource, &name).map(|_| name)
-                    });
+                        Some((base, fragment)) => {
+                            let name = percent::decode(fragment).map_err(|_| {
+                                SchemaError::UnresolvedReference {
+                                    location: at(context.absolute, keyword),
+                                    reference: format!("#{fragment}"),
+                                    resolved: resolved.clone(),
+                                }
+                            })?;
+                            let resource = self
+                                .registry
+                                .resource_by_uri(base)
+                                .ok_or_else(|| {
+                                    unresolved(
+                                        &at(context.absolute, keyword),
+                                        &format!("#{fragment}"),
+                                        &resolved,
+                                    )
+                                })?;
+                            if self.registry.dynamic_anchor(resource, &name).is_none() {
+                                // Direct variant, not `unresolved()`: the
+                                // base resource exists (possibly a published
+                                // metaschema), only the anchor is missing.
+                                return Err(SchemaError::UnresolvedReference {
+                                    location: at(context.absolute, keyword),
+                                    reference: format!("#{fragment}"),
+                                    resolved: resolved.clone(),
+                                });
+                            }
+                            Some(name.into_owned())
+                        }
+                    };
                     references.push(Keyword {
                         name: name.clone(),
                         kind: Kind::DynamicRef { target, anchor },

@@ -1432,6 +1432,9 @@ fn parse_regime_vectors(text: &str) -> Result<Vec<RegimeVector>, String> {
                     "closure" => Section::Closure,
                     _ => Section::Report,
                 };
+                if builder.slot(section).is_some() {
+                    return Err(format!("line {line}: duplicate @{keyword} section"));
+                }
                 // Opened but empty is a legal body (an empty closure, say), so the
                 // slot is seeded here rather than by the first body line.
                 *builder.slot(section) = Some(String::new());
@@ -1801,7 +1804,8 @@ fn write_axiom(axiom: &DlAxiom, out: &mut String) {
 /// ```text
 /// purrdf-dl-certificate 1
 /// service <name>
-/// completeness decided | completeness decided-within-boundaries | completeness budget-exhausted
+/// completeness decided | completeness decided-within-boundaries | completeness budget-exhausted |
+/// completeness storage-refused
 /// boundary <construct> <reason>           (0..n, Construct declaration order)
 /// steps <n>
 /// budget <n>
@@ -2010,7 +2014,12 @@ fn proof_body_bytes(text: &str) -> Result<Vec<u8>, String> {
             "a proof body carries {:?}, which is not a lowercase hex digit",
             char::from(byte)
         ),
-        _ => "a proof body line has an odd number of hex digits".to_owned(),
+        purrdf_hash::hex::HexError::OddLength { .. } => {
+            "a proof body line has an odd number of hex digits".to_owned()
+        }
+        purrdf_hash::hex::HexError::OutputTooShort { needed, available } => format!(
+            "a proof body decode needed {needed} output bytes but {available} were available"
+        ),
     })
 }
 

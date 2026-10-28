@@ -85,6 +85,13 @@ struct SearchBudget {
     error_seen: HashSet<ReasonerError>,
     completed_backward_goals: HashMap<String, Vec<Triple>>,
     next_variable_scope: usize,
+    // Monotone count of backward goals cut by cycle detection (re-entry on
+    // `backward_stack`).  A cycle cut makes the goal's truth *unknown*, not
+    // false; NAF callers (log:notIncludes) must not read the resulting empty
+    // solution set as a proven absence.  `current_graph_matches_pattern`
+    // snapshots this counter around its sub-evaluation to detect that its
+    // window was polluted by a cycle cut.
+    backward_cycle_cuts: usize,
 }
 
 impl SearchBudget {
@@ -108,6 +115,7 @@ impl SearchBudget {
             error_seen: HashSet::new(),
             completed_backward_goals,
             next_variable_scope: 0,
+            backward_cycle_cuts: 0,
         }
     }
 
@@ -128,6 +136,7 @@ impl SearchBudget {
             error_seen: HashSet::new(),
             completed_backward_goals: HashMap::new(),
             next_variable_scope: 0,
+            backward_cycle_cuts: 0,
         }
     }
 
@@ -3586,6 +3595,10 @@ fn solve_backward_goal(
         return replayed;
     }
     if !backward_stack.insert(stack_key.clone()) {
+        // Re-entry means this goal's truth is unknown under the current
+        // traversal, not false.  Record the cut so NAF callers can tell a
+        // cycle-induced empty result apart from a proven absence.
+        budget.backward_cycle_cuts += 1;
         return Vec::new();
     }
 
@@ -5686,6 +5699,12 @@ fn current_graph_matches_pattern(
     budget: &mut SearchBudget,
 ) -> bool {
     let mut solutions = Vec::new();
+    // A cycle cut inside this window means the pattern's truth is unknown
+    // (the goal depends on a goal still being proven on the shared backward
+    // stack).  Returning `true` here makes the enclosing log:notIncludes
+    // fail to establish absence — the sound outcome — instead of reading a
+    // cycle-induced empty result as "no derivation".
+    let cuts_before = budget.backward_cycle_cuts;
     match_premise_at(
         pattern,
         facts,
@@ -5698,6 +5717,9 @@ fn current_graph_matches_pattern(
         budget,
         &mut solutions,
     );
+    if solutions.is_empty() && budget.backward_cycle_cuts > cuts_before {
+        return true;
+    }
     !solutions.is_empty()
 }
 
