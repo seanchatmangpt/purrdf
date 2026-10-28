@@ -1724,3 +1724,28 @@ n3 reasoner.rs (backward chaining — SERIOUS):
 - F20 n3 parser: cross-scope quantifier shadowing refused; RDF12
   typed error; either directive order accepted. README.md:38-39 doc
   drift flagged (owner: README).
+
+## wave-20 repair-verification verdicts (adversarial pass on the fix wave)
+
+10 repairs independently verified CORRECT, 0 BUGGY so far:
+- EBV lang-tag (R1): CORRECT — no regression, right fields, empty
+  lang-string → false per RDF 1.1.
+- shapes narrowing guard (R2): CORRECT — as_property() is exact,
+  property_narrowing unconditioned, node shapes preserved.
+- sql memo hoist (R4): CORRECT — nothing feeds the key after the old
+  validation point; store path intact; sibling compile_document
+  ordering confirmed untouched.
+- shapes ask catch (R6): CORRECT — per-ask match, Ok arms unchanged,
+  # Errors doc matches.
+- cdt_agg propagate (R12): CORRECT — non_empty before move, Data kind
+  fits, empty path unchanged.
+- draft-07 bounds (R15): CORRECT — numeric unchanged, exclusive-
+  without-bound no-op, placeholder always overwritten.
+- rif multimap (R19): CORRECT — cross-product expansion, loud refusal
+  on empty slots, sort-driven determinism.
+- gts segment_count (R9): CORRECT — valid-only streams index-identical,
+  Default covers, no missed literals.
+- columnar langtag gate (F5): CORRECT — "en-" refuses, multi-subtag
+  passes, recursive path gated identically.
+- F2 EXISTS alignment: landed with regression test
+  (probe_has_match_treats_undecided_evidence_rows_as_non_members).
