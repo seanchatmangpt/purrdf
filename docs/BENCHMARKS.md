@@ -18,8 +18,10 @@ SPDX-License-Identifier: CC-BY-4.0
 >   measured, 0 failed (`/tmp/bench-logs/purrdf-rdf.phase2.log`).
 > - `purrdf-iri` — register rc=0, 2 measured, 0 failed
 >   (`/tmp/bench-logs/purrdf-iri.log`).
-> - `purrdf-shapes` — register rc=0, 37 measured (1+2+2+2+30), 0 failed
->   (`/tmp/bench-logs/purrdf-shapes.log`).
+> - `purrdf-shapes` — phase-1b register rc=0, 37 measured (1+2+2+2+30),
+>   0 failed (`/tmp/bench-logs/purrdf-shapes.log`). **SUPERSEDED by the
+>   phase-4 full run below (13 measured; different binary set — the 37
+>   spans 5 phase-1b binaries incl. canonical_sort). Do not cite 37.**
 > - `purrdf-sparql-algebra` — register rc=0, 140 measured (72+31+30+3+2+2),
 >   0 failed (`/tmp/bench-logs/purrdf-sparql-algebra.log`).
 > - `purrdf-sparql-results` — register rc=0, 14 measured, 0 failed
@@ -72,7 +74,7 @@ SPDX-License-Identifier: CC-BY-4.0
 >   (`/tmp/bench-logs/purrdf-entail.phase4b.all.log`, in flight at
 >   last read) — do not cite its numbers.
 >
-> **IN-FLIGHT-GREEN-SO-FAR**:
+> **GREEN (terminal, closed 2026-10-27)**:
 >
 > - `purrdf-geo-kernel` — **TERMINAL GREEN (closed 2026-10-27)**: register
 >   rc=0, 2220s, 109 measured / 0 failed
@@ -84,8 +86,9 @@ SPDX-License-Identifier: CC-BY-4.0
 >   comparable to current-ladder rows — cite them with this provenance.
 >
 > **TERMINAL GREEN (footer confirmations closed 2026-10-27)** - the rc=0
-> rows only. The core bullet below is a REPORT-ONLY PARTIAL (rc=124 cap):
-> tables complete, zero measured-count standing.
+> rows only. The core bullet below is the rc=124 phase-4 PARTIAL; the
+> phase-4b shard (14/14 rc=0, 499 measured / 0 failed across 12
+> footer-bearing targets) SUPERSEDES it - see the shard receipts.
 >
 > - `purrdf-toml` — register rc=0, 391s, 7 measured / 0 failed
 >   (`/tmp/bench-logs/purrdf-toml.phase2.log`).

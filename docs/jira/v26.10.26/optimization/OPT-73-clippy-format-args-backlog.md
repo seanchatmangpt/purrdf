@@ -1,8 +1,7 @@
 # OPT-73: uninlined_format_args backlog (wave-5 L11 receipt)
 
-**Status:** OPEN (filed 2026-10-27, wave-5 L11). NOT fixed mid-drain: the
-sites live almost entirely in purrdf-n3, which was the phase-4b compile
-queue's next subject — editing under a live compile is regression risk.
+**Status:** OPEN — READY (the drain has ended; the mid-drain deferral
+no longer applies). All 84 sites verified still open, wave-6.
 
 ## Scope (84 sites, all mechanical positional -> inline-capture)
 

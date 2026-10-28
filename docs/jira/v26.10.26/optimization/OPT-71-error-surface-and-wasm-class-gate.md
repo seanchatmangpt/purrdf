@@ -41,3 +41,9 @@ with an explicit allowlist for deliberately-internalized plumbing.
 reachable from caller input in canon_arrow.rs. Gate: the extended
 check-wasm-js-exports.py exits 1 when a public class goes missing from
 d.ts or mjs.
+
+> UPDATE (2026-10-27, wave-6): the ProvenanceInfo gap is CLOSED — mjs
+> import+export repaired and tests/class-reexport.test.mjs added
+> (1ec93da2). check-wasm-js-exports.py has class reverse-drift + d.ts
+> parsing landed; the open residue is only the forward class-to-d.ts
+> gate with an internalization allowlist.

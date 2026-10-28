@@ -62,3 +62,9 @@ Each item closes with a CI receipt (green `--locked` build incl. the three
 members; check-gate-parity.py covering bounded-gates.yml; check-generated.sh
 covering or documenting the three artifacts; hook self-test accepting the
 documented command forms).
+
+> UPDATE (2026-10-27, wave-6): item 4 is HALF-LANDED — the guard allowlist
+> (BOUNDED_SCRIPTS incl. target-hygiene.sh, bt?- targets, fb family,
+> bash-script classification) landed with the reconciled self-test; the
+> agent-body reword (repair-lane.md/verification-gate.md still instruct
+> raw cargo ladder steps) remains OPEN.
