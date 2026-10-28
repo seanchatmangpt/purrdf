@@ -2703,3 +2703,16 @@ reuse-after-exhaustion, fbbf/bbff split.
 - Clean: ffi_try/ffi_guard coverage, cursor pinning of the dataset Arc,
   null-array refusals, unknown-discriminant handling.
 
+### wave-30 addendum 4 — hnsw build+distance sweep: CLEAN
+
+No wrong-neighborhood defect constructible in scope: build commit is
+total-order sorted (no worker/hash order reaches the graph); exact vs
+fast tiers agree on ranking by construction (monotone partials, overflow
+checked before bounds, cross-tier divergence handled by path refusal not
+drift); VectorMatrix immutable after construction (no grow/handle
+hazard); decode bounds every untrusted count. Recorded borderline (not a
+defect): commit truncation can evict frozen upper-layer edges and strand
+nodes at layers > 0 while repair covers layer 0 only (builder.rs:201-203)
+— a declared recall-degradation mode; worth a doc note if recall SLOs are
+ever published.
+
