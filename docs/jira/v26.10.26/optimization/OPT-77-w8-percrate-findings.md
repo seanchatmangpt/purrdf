@@ -744,3 +744,20 @@ n3 printing.rs round-trip (5):
 ## wave-13
 
 - rdf-core ownership.rs: CLEAN (0 findings).
+
+## wave-13 additions
+
+- rdf-core dataset_view: stats_fingerprint is (rows<<32)^terms — a
+  remove-one/add-one swap collides, defeating the documented
+  snapshot-staleness guarantee (dataset_view.rs:1126 +
+  delta_view.rs:679); cardinality_estimate adds the base's ENTIRE
+  non-ordinary mass to every base-matching pattern (useless for
+  selective probes, delta_view.rs:732). GraphMatch membership, batch
+  resolve, and snapshot immutability all verified sound.
+- hnsw params/profile: footprint_bytes_32 omits construction/query
+  workspace heaps (the 32-bit admission can under-count, params.rs:
+  215-315); parse_parameters silently last-wins on duplicate tags
+  (profile.rs:481); profile-refusal boxing failure re-types an
+  admission rejection as Workspace/AllocationFailed (:520-530); the
+  64/32-bit admission paths share no computed bound (validate_against
+  discards the product it overflow-checked).
