@@ -2888,7 +2888,12 @@ fn classify_rejection(value: &Value) -> Option<Rejection> {
             return Some(Rejection::Pattern(pattern));
         }
         if let Some(n) = at_id.get("maxLength").and_then(Value::as_u64) {
-            return Some(Rejection::MinLength(n + 1));
+            // e8744406 lets an emitted package carry maxLength == u64::MAX;
+            // the derived minLength must refuse rather than wrap to 0.
+            let Some(derived) = n.checked_add(1) else {
+                return Some(Rejection::MaxLength(n));
+            };
+            return Some(Rejection::MinLength(derived));
         }
         if let Some(n) = at_id.get("minLength").and_then(Value::as_u64)
             && n > 0
@@ -2915,7 +2920,11 @@ fn classify_rejection(value: &Value) -> Option<Rejection> {
         return Some(Rejection::Pattern(pattern));
     }
     if let Some(n) = at_value.get("maxLength").and_then(Value::as_u64) {
-        return Some(Rejection::MinLength(n + 1));
+        // Same derived-minLength overflow refusal as the at_id arm above.
+        let Some(derived) = n.checked_add(1) else {
+            return Some(Rejection::MaxLength(n));
+        };
+        return Some(Rejection::MinLength(derived));
     }
     if let Some(n) = at_value.get("minLength").and_then(Value::as_u64)
         && n > 0

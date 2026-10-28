@@ -49,8 +49,16 @@ const RR: Scalar = Scalar([
 ]);
 
 /// An integer mod L, reduced, in radix 2^52.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub(crate) struct Scalar(pub(crate) [u64; 5]);
+
+impl core::fmt::Debug for Scalar {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // Secret-bearing: never print the limbs (mirrors SigningKey's
+        // finish_non_exhaustive hygiene in keys.rs).
+        f.debug_struct("Scalar").finish_non_exhaustive()
+    }
+}
 
 /// The 52-bit limb starting at bit `52·index` of the little-endian words.
 fn limb_at(words: &[u64], index: usize) -> u64 {

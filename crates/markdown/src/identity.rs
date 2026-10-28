@@ -143,7 +143,7 @@ pub fn section_iri(
 /// which edges were reified and the order the row named them in. A row
 /// that lifted no anchor passes an empty slice, reifies nothing, and is
 /// still exactly one node.
-// Eight fields, because the preimage has eight fields. A parameter
+// Seven fields, matching the preimage's field list term for term. A parameter
 // struct would hide behind one name the very list a producer in another
 // language has to reproduce term for term, and the list is the law
 // here: the identity formulas in

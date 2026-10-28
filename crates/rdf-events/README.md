@@ -9,7 +9,7 @@ SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
   </a>
 </p>
 
-# `purrdf-events` — Zero-Dependency RDF 1.2 Event Protocol
+# `purrdf-events` — Root-Dependency-Only RDF 1.2 Event Protocol
 
 [![crates.io](https://img.shields.io/crates/v/purrdf-events.svg)](https://crates.io/crates/purrdf-events)
 [![docs.rs](https://docs.rs/purrdf-events/badge.svg)](https://docs.rs/purrdf-events)
@@ -21,7 +21,7 @@ toolkit: the neutral event seam an RDF *source* (a parser, a GTS reader, a
 frozen-dataset replayer) uses to push a dataset into a *sink* (an IR builder,
 a serializer) without either side knowing the other's concrete types.
 
-The crate has **zero dependencies** on purpose — it is the contract that both
+The crate depends only on the zero-dependency root (`purrdf-hash`) — it is the contract that both
 the IR engine (`purrdf-core`) and the GTS container (`purrdf-gts`) depend *on*.
 Its value types (`EventTerm`, `EventQuad`, `EventTriple`) are self-contained:
 the protocol carries its own `EventTermId` term ids, never a store's
