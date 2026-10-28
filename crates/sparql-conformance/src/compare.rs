@@ -409,11 +409,37 @@ fn compare_case_solutions(
             .into());
     }
     let actual_rows: Vec<_> = actual.iter().map(|(row, _)| (*row).clone()).collect();
+    // REDUCED relaxes multiplicity only, never row order: an ordered query
+    // pins order stepwise (each prefix compare runs ordered), and its final
+    // assignment is re-verified once unordered-free — while an unordered
+    // query's per-step compares are multisets, so the full assignment is
+    // re-verified once unordered to pin the row multiset as a whole.
+    let check = |selected: &[usize]| {
+        let paired: Vec<_> = selected.iter().map(|&i| wanted[i].0.clone()).collect();
+        compare_solutions(
+            variables,
+            if ordered {
+                &actual_rows[..selected.len()]
+            } else {
+                &actual_rows
+            },
+            &ParsedSolutions {
+                variables: expected.variables.clone(),
+                rows: paired,
+            },
+            ordered,
+        )
+    };
     let mut pending = vec![Vec::<usize>::new()];
     while let Some(selected) = pending.pop() {
         let at = selected.len();
         if at == actual.len() {
-            return Ok(());
+            // Unordered: the per-step compare was a multiset and cannot pin
+            // row pairs, so the full assignment is re-verified once.
+            if ordered || check(&selected).is_ok() {
+                return Ok(());
+            }
+            continue;
         }
         for (candidate, &(row, maximum)) in wanted.iter().enumerate() {
             if selected.contains(&candidate) || actual[at].1 > maximum {
@@ -428,7 +454,9 @@ fn compare_case_solutions(
                 variables: expected.variables.clone(),
                 rows: paired,
             };
-            match compare_solutions(variables, &actual_rows[..=at], &paired, true) {
+            // An ordered query pins each chosen row pair stepwise; an
+            // unordered one defers to the completion re-check above.
+            match compare_solutions(variables, &actual_rows[..=at], &paired, ordered) {
                 Ok(()) => {
                     let mut next = selected.clone();
                     next.push(candidate);
