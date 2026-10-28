@@ -209,7 +209,7 @@ impl StopSignal for CancellationFlag {
 /// [`WallDeadline::poll`] is unreachable through this reader on native targets. The
 /// origin is a process-wide first-read instant; only differences of the returned value
 /// are ever meaningful.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn host_millis() -> f64 {
     static ORIGIN: OnceLock<std::time::Instant> = OnceLock::new();
     ORIGIN
@@ -224,7 +224,7 @@ fn host_millis() -> f64 {
 ///
 /// wasm32: the host's `Date.now()`, milliseconds since the Unix epoch. This is a **wall**
 /// clock, not a monotonic one — see [`WallDeadline`] for why that is load-bearing.
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 fn host_millis() -> f64 {
     crate::wasm_host::date_now()
 }

@@ -3,9 +3,10 @@
 
 //! Per-query non-deterministic inputs, read from the host platform: the wall clock
 //! `NOW()` returns and the entropy seed for `RAND()`/`UUID()`/`STRUUID()`. The read is
-//! written per target (a wasm build has no `SystemTime`/OS entropy syscall) but every
-//! target returns the correct live default. Query options can select these
-//! inputs explicitly before their corresponding host reads are sampled.
+//! written per target (a `wasm32-unknown-unknown` build has no `SystemTime`/OS entropy
+//! syscall; WASI and every native target do) but every target returns the correct
+//! live default. Query options can select these inputs explicitly before their
+//! corresponding host reads are sampled.
 //!
 //! These are two of the crate's three host-platform reads. The third is the governor
 //! path's deadline clock, which is confined to
@@ -21,12 +22,12 @@ use purrdf_xsd::temporal::DateTime;
 
 /// The current wall-clock instant as an `xsd:dateTime` (seconds precision), sampled
 /// once per query so all `NOW()` calls in one query agree (SPARQL 1.1 §17.4.5.1).
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub(crate) fn wall_clock_now() -> DateTime {
     purrdf_xsd::datetime_from_unix_seconds(unix_seconds(std::time::SystemTime::now()))
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn unix_seconds(time: std::time::SystemTime) -> i64 {
     use std::time::UNIX_EPOCH;
     match time.duration_since(UNIX_EPOCH) {
@@ -43,19 +44,19 @@ fn unix_seconds(time: std::time::SystemTime) -> i64 {
 }
 
 /// A fresh 64-bit entropy seed from the OS CSPRNG.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub(crate) fn entropy_seed() -> u64 {
     let mut bytes = [0u8; 8];
     getrandom::fill(&mut bytes).expect("OS entropy source is available");
     u64::from_le_bytes(bytes)
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 pub(crate) fn wall_clock_now() -> DateTime {
     purrdf_xsd::datetime_from_unix_seconds(unix_seconds_from_millis(crate::wasm_host::date_now()))
 }
 
-#[cfg(any(test, target_arch = "wasm32"))]
+#[cfg(any(test, all(target_arch = "wasm32", target_os = "unknown")))]
 // Floor establishes whole seconds; the cast preserves the existing saturating
 // i64 range law for the host's floating-point millisecond representation.
 #[allow(clippy::cast_possible_truncation)]
@@ -63,7 +64,7 @@ fn unix_seconds_from_millis(milliseconds: f64) -> i64 {
     (milliseconds / 1000.0).floor() as i64
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 pub(crate) fn entropy_seed() -> u64 {
     // Compose 64 bits from two host Math.random() draws in [0,1).
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -73,7 +74,7 @@ pub(crate) fn entropy_seed() -> u64 {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     #[test]
     fn native_clock_preserves_instants_before_the_epoch() {
         use std::time::{Duration, UNIX_EPOCH};

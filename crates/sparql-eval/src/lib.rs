@@ -145,7 +145,7 @@ pub use retained::{
 // parameters applied as text, and response-format negotiation. No I/O.
 pub mod protocol;
 pub mod remote;
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 #[allow(unsafe_code, reason = "the expansion of #[wasm_bindgen] host imports")]
 #[doc(hidden)]
 pub mod wasm_host;

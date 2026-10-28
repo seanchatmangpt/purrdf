@@ -80,14 +80,15 @@ rayon = { workspace = true }
 # and the raw table stores only dense ScratchIds.
 hashbrown = { workspace = true }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-# OS entropy for the RAND()/UUID()/STRUUID() seed on native targets. Target-gated
-# so the wasm build (make wasm) never pulls it.
+[target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dependencies]
+# OS entropy for the RAND()/UUID()/STRUUID() seed on targets with an OS (native and
+# WASI alike). Browser-only wasm32-unknown-unknown is the excluded branch.
 getrandom = { workspace = true }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-# Browser wall clock + entropy for NOW()/RAND() on wasm. The two host globals
-# are imported directly through the already-required binding crate.
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+# Browser wall clock + entropy for NOW()/RAND() on wasm32-unknown-unknown only.
+# The two host globals are imported directly through the already-required binding
+# crate.
 wasm-bindgen = { workspace = true }
 
 [dev-dependencies]
