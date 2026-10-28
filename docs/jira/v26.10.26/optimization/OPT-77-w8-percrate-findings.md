@@ -993,3 +993,18 @@ n3 printing.rs round-trip (5):
 - :344 vs :942 — governor construction timing asymmetric between
   GovernedQueryOp (view-op) and EntailedQueryOp (run): latent
   two-site drift.
+
+## wave-14 additions (gts agent_memory)
+
+- recall (:677-680) — min_confidence silently drops claims with NO
+  confidence even at threshold 0.0 ("below this threshold" excludes
+  None).
+- revise (:539-543) — superseded_by mints a fresh IRI for an
+  unstored replacement claim: the wasDerivedFrom audit link is inert
+  (the module's own comments warn about this failure shape).
+- inline_or_digest (:1039-1046) — tool args/results over 4096 bytes
+  silently replaced by a bare digest, indistinguishable from inline
+  data in graph and ToolCallRecord (quiet data loss).
+- store (:453) — claim subject is digest(text): identical-text claims
+  share one subject, conflating per-claim provenance and suppression
+  scope.
