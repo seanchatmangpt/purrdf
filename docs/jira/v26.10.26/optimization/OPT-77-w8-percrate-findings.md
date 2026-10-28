@@ -1167,3 +1167,8 @@ n3 printing.rs round-trip (5):
 - :284 — serialize CONSTRUCT path forwards **args into
   Graph.serialize: provenance_namespace/query_hash land as unexpected
   keywords (disjoint arg sets, no guard).
+
+- CONFIRMED (spec deviation, latent for common shapes): path.rs `?`
+  routed to set semantics drops bag-union duplicates; observable only
+  when P under `?` itself has multi-derivation duplicates
+  (alternatives/sequences), not for a lone-predicate `:p?`.
