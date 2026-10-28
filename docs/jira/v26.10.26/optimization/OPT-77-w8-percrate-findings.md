@@ -369,3 +369,26 @@ string.
   positions[0]/[2] bound; sound iff partition_for's known_key
   partitions on predicate+graph with unique (subject,object) — needs
   one confirming look at Arity::KEY_POSITIONS.
+
+## wave-10 semantic additions (sparql-eval joins, hnsw, xsd)
+
+- binop.rs:2202 vs :2141 — the two EXISTS primitives DISAGREE at the
+  undecided-evidence boundary (probe_evidence answers false,
+  probe_has_match answers true over the same index).
+- binop.rs:3405 — eval_minus service-partition path OVERWRITES
+  removed[position] per partition instead of OR-accumulating: a left
+  row visited by two partitions keeps only the last verdict.
+- binop.rs:121 — truncated RIGHT SERVICE arm returns empty instead of
+  joining left against rows in hand, contradicting the documented
+  truncation law (conservative, not unsound).
+- binop.rs:2375 — reserve_join_rows reserves 0 when remaining==0; the
+  subsequent push grows via untracked realloc, bypassing the
+  bounded-workspace accounting.
+- binop.rs:3468 — schema-disjoint MINUS short-circuits before the
+  evidence-tracking branch (evidence-lane inconsistency, not results).
+- datalog seminaive SUBSTANTIVE pair recorded separately above.
+- hnsw: level distribution, M/M0 boundary, repair, ef clamping — all
+  verified clean (2 benign borderline notes).
+- xsd exact tower: gcd sign, denormal rounding, cross-product
+  compare, exponent caps — all verified correct across all four risk
+  areas.
