@@ -574,3 +574,19 @@ string.
 - stream.rs:299 — a per-line UTF-8 error leaves the failing bytes
   resident with offset advanced (harmless on abort; a resume consumer
   would double-count).
+
+## wave-12 semantic additions (gts COSE_Encrypt0 receive path — 3 low-severity)
+
+- cose.rs:149-151 — parse_encrypt0_owned accepts ANY tag value (or
+  untagged) in the owned fallback while the borrowed path/encoder pin
+  tag 16 (lenient-decode asymmetry).
+- cose.rs:167-176 — decrypt0/recipient_kid resolve kid from the
+  UNPROTECTED bucket only; protected-bucket kid parses to MissingKey,
+  diverging from Sign1's either-bucket lookup.
+- cose.rs:76-81 — decrypt0 never checks the AAD-bound protected
+  header's alg == 3 (A256GCM): a peer envelope with another alg
+  decrypts fine (auth holds via AAD) but dispatch is unenforced on
+  receive while sign1.rs enforces it rigorously.
+- Sign1 signing/verify lane verified clean (sig_structure covers
+  received protected bytes verbatim; alg only from signed map;
+  Ed25519-only resolver cannot downgrade composites).
