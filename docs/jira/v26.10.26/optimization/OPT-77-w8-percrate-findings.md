@@ -1247,3 +1247,16 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   silently swallowed (.ok()? ): a malformed fragment degrades to
   "unresolvable" instead of surfacing NotUtf8/Malformed (inconsistent
   with registry.rs:810).
+
+## wave-15 additions (columnar reader rest)
+
+- reader.rs:469 vs :499 — decode_quad_rows reused for Annotations:
+  an ordering violation there is refused as "quad-like row order"
+  (annotations get no distinct context, unlike reifiers).
+- reader.rs:394-405 — langtag refusal checks only is_identity_folded,
+  never the kernel grammar: a lowercase malformed tag passes the
+  strict gate and surfaces later as generic Reconstruction instead of
+  a row-bearing terms.lang refusal.
+- reader.rs:296-305 — terminal UnresolvedTerm fallback unreachable as
+  written; cycles always reported as CyclicTriple even through a
+  datatype edge (conflated refusal reason).
