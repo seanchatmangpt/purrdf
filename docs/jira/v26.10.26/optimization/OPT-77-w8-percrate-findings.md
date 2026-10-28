@@ -1666,3 +1666,18 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   cycle.
 - Verified correct: 2019-09 Applicator incl. Unevaluated; $vocabulary
   read at the meta resource pointer; draft-07 $vocabulary ignored.
+
+## wave-18 additions (lex cbor — 5 findings)
+
+- decode.rs:713-723 — read_from reports Ok(None) for ANY Truncated at
+  offset 0: a first item with head-read but payload-missing is
+  silently classified end-of-stream (strongest finding).
+- decode.rs:189 — Slice::take reports the truncation offset as
+  bytes.len() not the read position (skews offset-based errors).
+- encode.rs:111 — Simple(24..=31) encoded via write_head (f8 18):
+  ill-formed per RFC 8949 §3.3, rejected by the crate's own decoder
+  (unforced writer/decoder contract).
+- encode.rs:140-175 — canonical() keeps duplicate map keys: emits
+  maps decode_deterministic refuses (documented but reachable).
+- decode.rs:462 — depth-cap arm precedes the indefinite refusal:
+  misdiagnosis (Depth vs Malformed), no accept change.
