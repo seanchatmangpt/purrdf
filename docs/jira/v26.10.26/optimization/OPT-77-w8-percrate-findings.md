@@ -907,3 +907,21 @@ n3 printing.rs round-trip (5):
   unguarded astroid-seed invariant (no assertion).
 - HALF-EVEN rounding verified decisive at the 0.5um shortcut;
   integral_fallback recurrence re-derived correct.
+
+## wave-13 additions (wasm async state machine)
+
+- async_query.rs:2893-2903 — deliver_governed cancels the job BEFORE
+  validating seq: a stale/unknown seq cancels a healthy job whose
+  outstanding effect is a different one.
+- operation.rs:699-737 — RawWithContext shares Raw's fallback
+  serializer: a RawWithContext job without jsonld options silently
+  degrades instead of refusing the kind.
+- async_query.rs:1616-1618 — the (Fault, _) arm hard-codes
+  StopCause::Cancelled: a deadline/stack fault surfaces to SERVICE as
+  a cancellation (mislabel).
+- :1271 — a stale seq delivery returns Stale with no fault latched
+  and the outstanding effect never answered (recovers only via the
+  abandon timer).
+- :1468-1503 — record_suspension counts Abandoned/Fault round-trips
+  as productive wait (metric plumbing).
+- Ticket transitions, expire mapping, run() latch verified coherent.
