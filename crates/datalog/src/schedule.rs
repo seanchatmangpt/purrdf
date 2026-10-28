@@ -818,7 +818,14 @@ pub fn stratify_rules<const N: usize>(
     for (r1, rule) in rules.iter().enumerate() {
         let reads = body_reads(rule);
         for (r2, other) in rules.iter().enumerate() {
-            if rule.reads_model() && other.head_atoms().next().is_some() {
+            // A rule reading the model depends on every OTHER rule with a
+            // head — not on itself: the closed self-edge carries no
+            // stratification information (run_group re-evaluates the rule
+            // against the whole model per round anyway) and `shortest_path`
+            // answers the one-node path for from == to, so leaving it in
+            // refused every model-reading program as degenerately
+            // non-stratifiable.
+            if rule.reads_model() && r1 != r2 && other.head_atoms().next().is_some() {
                 graph.depend(r1, r2, true);
             }
             for (pattern, negated) in &reads {
