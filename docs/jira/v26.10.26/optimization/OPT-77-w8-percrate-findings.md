@@ -894,3 +894,16 @@ n3 printing.rs round-trip (5):
   under a zero plateau (flag in case equality was meant to be >).
 - Rank-contribution ordering, threshold block sums, probe ordering,
   tie-break agreement, ceiling bounds all verified clean.
+
+## wave-13 additions (geodesic — PARTIAL depth, no confirmed bug)
+
+- geodesic.rs:468-471 — direct_fixed gates on longitude < 180:
+  exact-180-delta non-antipodal pairs denied the fixed fast path
+  (conservative, output correct via fallback).
+- geodesic.rs:473/:666 — a dead tier in the resume ladder when
+  maximum is in [64,112): restart at bits == maximum, one failure
+  exits PrecisionExhausted without the 112 step.
+- :1749-1775 — the antipodal bracket straddle case relies on an
+  unguarded astroid-seed invariant (no assertion).
+- HALF-EVEN rounding verified decisive at the 0.5um shortcut;
+  integral_fallback recurrence re-derived correct.
