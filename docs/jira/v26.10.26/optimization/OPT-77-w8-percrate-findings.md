@@ -1199,3 +1199,9 @@ n3 printing.rs round-trip (5):
   behavior.
 - sign1.rs:352-365 — CRIT checks label membership only; the required
   header's existence is verified later and independently.
+
+- CONFIRMED: expr.rs EBV language-tagged literal — ebv_term detects
+  language: Some(_) at :1040-1067 and returns Ok(None) before xsd
+  resolution; both plan-time and VM paths drop FILTER("x"@en) rows.
+  Confirmed against SPARQL 1.1 §17.2.2 (Jena/Virtuoso give true).
+- V2 EXISTS-disagreement verification: 429 rate-limit, not yet run.
