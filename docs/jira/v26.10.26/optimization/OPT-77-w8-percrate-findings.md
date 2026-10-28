@@ -143,3 +143,17 @@ string.
 - stack widen (lib.rs ~368-378): bytes==0 returns success before the
   EXHAUSTED check — doc precedence mismatch (cosmetic).
 - geo-kernel + envelope-probe + LUBM items: see prior append.
+
+## sql (wave-9 retry lane)
+
+- compiler.rs:2004 — memo lookup happens AFTER SHACL validation and
+  canonicalization: the "memo hit never re-runs" doc claim is false;
+  every call reparses/canonicalizes.
+- compiler.rs:1991 — the same Turtle document is parsed 3x per compile
+  (validate_ast_shacl, DatasetReader::from_turtle, canonical_graph_bytes).
+- compiler.rs:2028 — memo overflow does memo.clear() (full 256-entry
+  thrash on the 257th distinct query, not LRU).
+- ast.rs:5 — ast re-exports its core statement type FROM serializer.rs
+  (layering inversion / drift risk).
+- ~197 hardcoded graphlaw.org/sql# literals across compiler.rs + ast.rs
+  (no vocab module; extends OPT-72's class into sql's own namespace).
