@@ -189,6 +189,11 @@ def rust_sources() -> list[Path]:
         if target.is_file():
             found.append(target)
             continue
+        if not target.is_dir():
+            raise SystemExit(
+                f"check-serializer-rewinds: SCANNED path `{entry}` does not exist; "
+                "refusing to scan a silently shrunken scope"
+            )
         found.extend(
             path
             for path in sorted(target.rglob("*.rs"))

@@ -31,8 +31,12 @@
 //!   (`m.snapshot_view()`), retaining the immutable base and freezing only its delta. Each
 //!   solution term is resolved to a dataset-independent [`TermValue`] (the template
 //!   helpers do this), so the resulting quads stay valid after the snapshot is
-//!   dropped and are applied back to `m` by value. DELETE is applied before INSERT
-//!   (SPARQL §3.1.3), per solution row.
+//!   dropped and are applied back to `m` by value. Deletions and insertions are
+//!   instantiated per solution row (§3.1.3) but applied as one batch — all
+//!   deletions first, then all insertions — so WHERE cannot see its own
+//!   modifications and an inserted quad survives even when another row's DELETE
+//!   instantiates the same quad (insert wins). No W3C delete-insert case
+//!   distinguishes this from row-at-a-time application.
 //! - **`WITH` / `USING` active dataset.** `WITH <g>` scopes the `WHERE` default graph
 //!   to `g` (and is the default target for template quads). `USING` / `USING NAMED`
 //!   build a custom `WHERE` active dataset (§3.1.3): when present they replace `WITH`'s
@@ -750,7 +754,9 @@ fn delete_insert(
         insert.iter().map(|qp| resolve_quad(qp, &schema)).collect();
 
     // Collect the mutations BEFORE touching `m`, so the snapshot stays valid for the
-    // value resolution. DELETE before INSERT per row (SPARQL §3.1.3).
+    // value resolution. Per-row instantiation (§3.1.3); application is batched:
+    // every row's deletions land before any insertion, so a later row's DELETE
+    // cannot undo an earlier row's INSERT.
     let mut to_remove = Vec::new();
     let mut to_insert = Vec::new();
     // Blank-label maps are reset PER ROW (template blanks co-refer within a row, are

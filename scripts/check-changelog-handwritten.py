@@ -62,6 +62,7 @@ range from.
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -177,6 +178,14 @@ def main() -> int:
     #    a green gate.
     vanishing = vanishing_sections(text)
     if vanishing is None:
+        if os.environ.get("CHANGELOG_ALLOW_MISSING_GIT_CLIFF") != "1":
+            print(
+                "FAIL: could not run git-cliff to compare, so the section-loss "
+                "check could not run. Set CHANGELOG_ALLOW_MISSING_GIT_CLIFF=1 "
+                "to downgrade this to a warning.",
+                file=sys.stderr,
+            )
+            return 1
         print(
             "WARNING: could not run git-cliff to compare, so the section-loss "
             "check was skipped; only the prose checks below ran.",

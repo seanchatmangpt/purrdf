@@ -931,6 +931,12 @@ impl<S: RankSource> RankedCursor<S> {
     }
 
     fn pull(&mut self) -> Result<Option<crate::property_fn::AdmittedPfRow>, EvalError> {
+        // With declarations present the licence gates only the DECIDED
+        // partition: undecided rows neither consume `remaining` nor disappear
+        // because an established prefix is full — the same Slice law as
+        // modifier.rs finish_slice's scoped branch. The fast path is therefore
+        // gated on `declarations.is_none()`, and undecided rows past an
+        // exhausted licence are contract, not a leak.
         if self.declarations.is_none() && self.invocation.remaining == Some(0) {
             return Ok(None);
         }

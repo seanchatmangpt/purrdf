@@ -286,10 +286,18 @@ def main(argv: list[str]) -> int:
         return 0
     channel = pinned_channel(TOOLCHAIN_FILE.read_text(encoding="utf-8"))
     failures: list[str] = []
-    for workflow in sorted(WORKFLOW_DIR.glob("*.y*ml")):
+    workflows = sorted(WORKFLOW_DIR.glob("*.y*ml"))
+    for workflow in workflows:
         text = workflow.read_text(encoding="utf-8")
         for problem in audit(text, channel):
             failures.append(f"  {workflow.relative_to(REPO)}: {problem}")
+    if not workflows:
+        print(
+            f"FAIL: no workflows matched {WORKFLOW_DIR}/*.y*ml; nothing was "
+            "audited, so a pass here means nothing",
+            file=sys.stderr,
+        )
+        return 1
     if failures:
         print(
             f"Toolchain drift: rust-toolchain.toml pins `{channel}`, but:",

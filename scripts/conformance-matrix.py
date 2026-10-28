@@ -2011,7 +2011,7 @@ def main() -> int:
 
     # Build the native module once (in the rdflib gate); the compat suite then
     # reuses that editable install.
-    registry = full_registry(build=not args.no_build)
+    registry = full_registry(build=not (args.no_build or args.from_results))
     if args.shard:
         indexed = [
             (index, run()) for index, (shard, run) in enumerate(registry) if shard == args.shard

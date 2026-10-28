@@ -250,7 +250,13 @@ fn transform<'a, S: Admission + ?Sized>(
         authority: base.authority,
         path,
         query,
-        fragment: r.fragment,
+        // RFC 3986 §5.2.2: the reference's fragment when defined, else the
+        // base's — a fragment-less reference must not drop the base's.
+        fragment: if r.fragment.is_some() {
+            r.fragment
+        } else {
+            base.fragment
+        },
     })
 }
 

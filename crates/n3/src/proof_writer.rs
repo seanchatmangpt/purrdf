@@ -47,9 +47,12 @@ pub fn proof_to_n3(prefixes: &BTreeMap<String, String>, result: &ReasonerResult)
     );
 
     let mut proof_prefixes = prefixes.clone();
-    proof_prefixes
-        .entry("pe".to_string())
-        .or_insert_with(|| PE_NS.to_string());
+    // The proof vocabulary is written as pe:fact/pe:rule/pe:uses/pe:binding
+    // and the checker matches those IRIs against its own PE_NS constant — a
+    // caller-supplied pe: binding would silently re-point every proof term
+    // at a foreign namespace and the proof would fail its own check. The
+    // proof's pe: is always ours.
+    proof_prefixes.insert("pe".to_string(), PE_NS.to_string());
     let used = used_prefixes_for_proof(&proof_prefixes, &claims, &entries);
 
     let mut parts = Vec::<String>::new();

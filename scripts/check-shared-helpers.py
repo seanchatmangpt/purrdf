@@ -1974,6 +1974,18 @@ def main() -> int:
             print(line)
         return 1
     jobs = ledger.get("job", [])
+    if not jobs:
+        print(
+            "FAIL: helpers-ledger.toml declares zero [[job]] rows; "
+            "an empty ledger passes nothing"
+        )
+        return 1
+    if not any(job.get("enforced") for job in jobs):
+        print(
+            "FAIL: helpers-ledger.toml declares zero enforced jobs; "
+            "nothing is held by the gate"
+        )
+        return 1
     enforced = sum(1 for job in jobs if job["enforced"])
     variants = sum(len(job.get("variant", [])) for job in jobs)
     open_copies = sum(index["jobs"][job["id"]]["copies"] for job in jobs if not job["enforced"])
