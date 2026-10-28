@@ -1,7 +1,8 @@
 # Bench Wave Report
 
-Wave v26.10.26 · 2026-10-27 · Status: **REFRESH-PENDING** (runners draining;
-sections 5, 8, 9, 10, 11 refresh as receipts land).
+Wave v26.10.26 · 2026-10-27 · Status: **TERMINAL** (all FQ-01..15 rows
+terminal; register + logs re-read from disk 2026-10-27, writer lane; no
+cargo run).
 
 ## 1. Executive summary
 
@@ -10,6 +11,14 @@ pinned (grep / awk / tomllib, bijection verified both directions); one RNG
 home (getrandom absent from `crates/*/benches/`, grep rc=1) and one temp home.
 Three-phase detached runners plus 14 static lanes on a no-build box.
 
+> **TERMINAL (writer lane, 2026-10-27):** the final standing total is
+> **1181 measured / 0 failed** — the 864 subtotal plus hash-conformance 273
+> (digests 255 + hasher 18), shapes-pydantic 13, arrow 10, branchless 7,
+> duckdb 14 (all phase-4/4b rc=0, footers grep-verified). hnsw 4b
+> build/recall are rc=0 report tables with no measured footer — excluded.
+> Supersedes both the 418 and 864 snapshots below. See
+> bench-coverage-report.md section 4-T.
+>
 > SUPERSEDED (2026-10-27): the final standing totals are 864 measured
 > / 0 failed with purrdf-rdf 123 and shapes 37 — this section's 418
 > snapshot predates the late phase-3/4 receipts and the viz_layout /
@@ -73,6 +82,23 @@ Note: the "123" for purrdf-rdf in two earlier lane reports was a miscount;
 ground truth re-read from in-log footers this session is 122. The phase-1
 script rewrote `register.txt` in `"w"` mode, destroying early `rc=` rows —
 reconstructed from logs as footer-cited receipts.
+
+### 4-T. Terminal rows (writer lane, 2026-10-27 — footers grep-verified)
+
+| run | count | receipt |
+|---|---|---|
+| purrdf-hash-conformance | 273 = 255 (digests) + 18 (hasher) | `purrdf-hash-conformance.phase4.log` footers at :728/:784, rc=0 2490s |
+| purrdf-shapes `pydantic_package` | 13 | `purrdf-shapes.phase4.log`, rc=0 503s (one 2-sample row at the 30s wall ceiling — noted in-log) |
+| purrdf-arrow (4b all) | 10 | `purrdf-arrow.phase4b.all.log`, rc=0 103s |
+| purrdf-branchless (4b all) | 7 | `purrdf-branchless.phase4b.all.log`, rc=0 77s |
+| purrdf-duckdb (4b all) | 14 = 10 + 4 (two binaries) | `purrdf-duckdb.phase4b.all.log`, rc=0 652s |
+| purrdf-hnsw build + recall (4b) | excluded — no measured footer | `purrdf-hnsw.phase4b.--bench-{build,recall}.log`, rc=0; report tables only |
+
+Terminal total: 864 + 273 + 13 + 10 + 7 + 14 = **1181 measured / 0 failed**
+(spans two ladder series — the 26 geo-kernel pre-shrink batch4096 rows — and
+is not a single homogeneous run). Terminal reds: sparql-eval E0277 (4b
+deep_nesting wrapper), n3 E0063 `rules`, datalog E0063 `wall_max` (testkit
+lib), entail no-footer abort, rdf-core rc=124 3600s cap.
 
 ## 5. Timeline (reconstructed)
 

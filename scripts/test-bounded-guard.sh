@@ -94,7 +94,10 @@ MUST_FIRE=(
     "timeout -k 1 600 cargo test"
     "sh -c 'cargo test'"
     "sh -c 'cd /tmp && cargo test --release'"
-    "bash scripts/bounded-fmt.sh --check"
+    # Allowlist is not a wildcard: bare `bash <script>.sh` classifies the
+    # script itself; only BOUNDED_SCRIPTS members are admitted.
+    "bash scripts/some-random.sh"
+    "bash scripts/not-in-allowlist.sh"
     "zsh -c 'cargo build'"
     "eval 'cargo test'"
     "env cargo test"
@@ -135,6 +138,15 @@ MUST_PASS=(
     "rustfmt --edition 2024 --check crates/branchless/src/lib.rs"
     "scripts/bounded bash scripts/bounded-fmt.sh"
     "scripts/bounded bash scripts/bounded-fmt.sh --check"
+    # .sh allowlist (hook BOUNDED_SCRIPTS): bare `bash <script>.sh` classifies
+    # the script itself; these three are admitted, anything else .sh refuses.
+    "bash scripts/bounded-fmt.sh"
+    "bash scripts/bounded-fmt.sh --check"
+    "bash scripts/lane-lease.sh list"
+    "bash scripts/test-bounded-guard.sh --help"
+    # make b-<crate>/bt-<crate> lease targets are admitted fast targets.
+    "make b-purrdf-lex"
+    "make bt-purrdf-core CARGO_TEST_FILTER=owned_term_walks"
     "timeout -k 1 5 make help"
     "scripts/bounded make fmt"
     "cd /tmp && cargo fmt --check"

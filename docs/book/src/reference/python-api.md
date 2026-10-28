@@ -7,8 +7,8 @@ SPDX-License-Identifier: CC-BY-4.0
 
 Use the public `purrdf` package. Its Store, terms and query results call the same native engine as the Rust API. Import validation and entailment through `purrdf.shapes`, `purrdf.shex` and `purrdf.entail`.
 
-The [complete signature reference](python-api.md) records the canonical
-stubs for both the main package and `purrdf.geo`, including properties, overloads,
+The sections below record the API surface of both the main package and
+`purrdf.geo`, including properties, overloads,
 namespace aliases and supporting types. Read the sections below for ownership,
 configuration, result interpretation and failure behavior. Underscore types in
 the signatures describe implementation or return types; their presence does not

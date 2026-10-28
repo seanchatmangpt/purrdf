@@ -4,7 +4,14 @@
 **Why one ticket:** four mechanical items that all require CI or a build box;
 none is safe to land by hand on this machine.
 
-## 1. Cargo.lock is missing three workspace members
+## 1. Cargo.lock member entries — REFUTED 2026-10-27 (wave-5 audit)
+
+The reported gap does not exist: `purrdf` (Cargo.lock:1836),
+`helper-census` (:1063) and `wasm-link` (:3577) are present at 3.0.1
+with complete dependency lists. No CI action required. Standing note:
+any future member addition must regenerate Cargo.lock in the same PR —
+`--locked` resolution is workspace-global. Original claim kept below
+for the audit trail.
 
 Members `purrdf` (crates/purrdf), `helper-census` (crates/helper-census),
 `wasm-link` (crates/wasm-link) have no `[[package]]` entry in Cargo.lock.

@@ -255,7 +255,7 @@ fn bench_pack_index_hypothesis(c: &mut Bench) {
 
     {
         let mut build = c.benchmark_group("pack_index_build");
-        group.sample_size(10); // full pack/wavelet index build over 65k rows per iter
+        build.sample_size(10); // full pack/wavelet index build over 65k rows per iter
         build.bench_function("production_pack", |b| {
             b.iter(|| {
                 std::hint::black_box(

@@ -30,20 +30,47 @@ SPDX-License-Identifier: CC-BY-4.0
 >   (`/tmp/bench-logs/purrdf-lex.phase2.log`).
 > - `purrdf-cdt` — register rc=0, 131s, 12 measured, 0 failed
 >   (`/tmp/bench-logs/purrdf-cdt.phase2.log`).
->
-> **RED-FIXED-AWAITING-RERUN** — terminal rc=101 receipts; fixes applied on
-> disk; reruns queued (phase-4, `/tmp/run_benches_phase4.py`). No rerun has
-> happened yet — do not cite numbers for these:
->
-> - `purrdf-arrow` — rc=101 (`/tmp/bench-logs/purrdf-arrow.phase2.log`).
-> - `purrdf-duckdb` — rc=101 phase-2; GREEN in phase-4b: rc=0 652s, footers
->   14+4 measured / 0 failed (`/tmp/bench-logs/purrdf-duckdb.phase4b.all.log`;
+> - `purrdf-hash-conformance` — **TERMINAL GREEN (measured at phase-4)**:
+>   register rc=0, 2490s, footers 255+18 = 273 measured / 0 failed
+>   (`/tmp/bench-logs/purrdf-hash-conformance.phase4.log:728,:784`).
+> - `purrdf-shapes` — **TERMINAL GREEN (measured at phase-4)**: register
+>   rc=0, 503s, footer 13 measured / 0 failed
+>   (`/tmp/bench-logs/purrdf-shapes.phase4.log:134`; the phase-1b row above
+>   is superseded by this full run).
+> - `purrdf-hnsw` — **TERMINAL GREEN (measured at phase-4b)**: register
+>   rc=0 build 84s + rc=0 recall 638s
+>   (`/tmp/bench-logs/purrdf-hnsw.phase4b.--bench-build.log`,
+>   `/tmp/bench-logs/purrdf-hnsw.phase4b.--bench-recall.log`). Report-only
+>   tables (build-cost + recall/latency ladders); no measured-count footer —
+>   the earlier rc=124 partial is superseded.
+> - `purrdf-arrow` — **TERMINAL GREEN (measured at phase-4b)**: register
+>   rc=0, 103s, footer 10 measured / 0 failed
+>   (`/tmp/bench-logs/purrdf-arrow.phase4b.all.log:69`).
+> - `purrdf-branchless` — **TERMINAL GREEN (measured at phase-4b)**: register
+>   rc=0, 77s, footer 7 measured / 0 failed
+>   (`/tmp/bench-logs/purrdf-branchless.phase4b.all.log:246`).
+> - `purrdf-duckdb` — **TERMINAL GREEN (measured at phase-4b)**: register
+>   rc=0, 652s, footers 10+4 = 14 measured / 0 failed
+>   (`/tmp/bench-logs/purrdf-duckdb.phase4b.all.log:132,:145`;
 >   precondition: the `~/.frozen-duckdb/cache` prebuilt lib — without it the
 >   build falls back to a release download, OPT-65).
-> - `purrdf-sparql-eval` — rc=101 across phase-1/2/3
->   (`/tmp/bench-logs/purrdf-sparql-eval.phase3.log` et al.).
-> - `purrdf-branchless` — rc=101 (`/tmp/bench-logs/purrdf-branchless.phase2.log`).
-> - `purrdf-n3` — rc=101 (`/tmp/bench-logs/purrdf-n3.phase2.log`).
+>
+> **RED — terminal rc=101 receipts, no green rerun yet** (do not cite
+> numbers for these):
+>
+> - `purrdf-sparql-eval` — rc=101 across phase-1/2/3 and phase-4/4b
+>   (`/tmp/bench-logs/purrdf-sparql-eval.phase3.log` et al.); the phase-4b
+>   `deep_nesting` split fails at compile: rc=101 0s, E0277
+>   (`std::marker::Send` not satisfied for the `on_measurement_stack` body,
+>   `/tmp/bench-logs/purrdf-sparql-eval.phase4b.--bench-deep_nesting.log`).
+> - `purrdf-n3` — rc=101 phase-2 and phase-4
+>   (`/tmp/bench-logs/purrdf-n3.phase4.log`).
+> - `purrdf-datalog` — rc=101 phase-2 and phase-4
+>   (`/tmp/bench-logs/purrdf-datalog.phase4.log`).
+> - `purrdf-entail` — rc=101 phase-2 and phase-4; a phase-4b rerun was
+>   started and has no register row or measured-count footer yet
+>   (`/tmp/bench-logs/purrdf-entail.phase4b.all.log`, in flight at
+>   last read) — do not cite its numbers.
 >
 > **IN-FLIGHT-GREEN-SO-FAR**:
 >
@@ -57,8 +84,8 @@ SPDX-License-Identifier: CC-BY-4.0
 >   comparable to current-ladder rows — cite them with this provenance.
 >
 > **TERMINAL GREEN (footer confirmations closed 2026-10-27)** - the rc=0
-> rows only. The hnsw/core bullets below are REPORT-ONLY PARTIALS
-> (rc=124 cap): tables complete, zero measured-count standing.
+> rows only. The core bullet below is a REPORT-ONLY PARTIAL (rc=124 cap):
+> tables complete, zero measured-count standing.
 >
 > - `purrdf-toml` — register rc=0, 391s, 7 measured / 0 failed
 >   (`/tmp/bench-logs/purrdf-toml.phase2.log`).
@@ -66,9 +93,12 @@ SPDX-License-Identifier: CC-BY-4.0
 >   (`/tmp/bench-logs/purrdf-retrieval.phase3.log`).
 > - `purrdf-text` — register rc=0, 1365s, 299 measured / 0 failed (7 footers)
 >   (`/tmp/bench-logs/purrdf-text.phase3.log`).
-> - `purrdf-hnsw` — build+recall report-only tables complete under rc=124 cap
->   (`/tmp/bench-logs/purrdf-hnsw.phase4.log:91-103, :418`); **not in measured
->   totals**; the phase-4b re-run (`/tmp/run_benches_phase4b.py`) supersedes.
+> - `purrdf-hnsw` — **SUPERSEDED by the phase-4b greens above**: build
+>   rc=0 84s, recall rc=0 638s
+>   (`/tmp/bench-logs/purrdf-hnsw.phase4b.--bench-build.log`,
+>   `/tmp/bench-logs/purrdf-hnsw.phase4b.--bench-recall.log`); still
+>   report-only tables (no measured-count footer), the rc=124 partial
+>   (`/tmp/bench-logs/purrdf-hnsw.phase4.log:91-103, :418`) is closed.
 > - `purrdf-core` — **TERMINAL under rc=124** (closed 2026-10-27): 6 of 7
 >   binaries complete with footers — csv 5, dataset_state_digest 10,
 >   distance 126, intern_absoluteness 6, intern_content_id 3, ir_layout 61 =
@@ -81,7 +111,7 @@ SPDX-License-Identifier: CC-BY-4.0
 >
 > **RED-QUEUED** — no receipt, not yet queued: every crate not yet run this
 > wave (rdf-core PURREMB / pack_index_compare / mutable residual wave, xsd
-> exact-tower instruction table, entail, datalog, gts, shex, rdf-wasm, the
+> exact-tower instruction table, gts, shex, rdf-wasm, the
 > Python compat-harness table). Do not cite those numbers; `make bench` also still
 > runs 33 crates by explicit `-p`
 > list; 9 `harness = false` bench targets in 4 crates (cli 2, duckdb 2, the
@@ -1820,15 +1850,17 @@ answer any other implementation would produce.
 
 ## v26.10.26 wave: new benches
 
-> **Standing: CONVERGING (updated 2026-10-27 ~12:25).** Green receipts so far:
+> **Standing: CONVERGING (updated 2026-10-27 ~18:25).** Green receipts so far:
 > facade `pipeline_e2e`/`pipeline_alloc` — rc=0, 1338s, **44 measured / 0
 > failed** (`/tmp/bench-logs/purrdf.phase2.log`); `native_codecs` — rc=0,
 > 1903s, **123 measured / 0 failed** (`/tmp/bench-logs/purrdf-rdf.phase2.log`);
-> `shapes` phase-1b — 37 measured / 0 failed, `pydantic_package` binary cut
-> off mid-run (`/tmp/bench-logs/purrdf-shapes.log`). Every other row below is
-> still UNVERIFIED — its phase-2 run has not landed yet (runner alive;
-> register `/tmp/bench-logs/register.txt` is the receipt of record). Do not
-> cite a figure from an unrun row; no row here is a gate. Report-only.
+> `shapes` — superseded by the phase-4 terminal row (13 measured / 0 failed,
+> rc=0 503s, `/tmp/bench-logs/purrdf-shapes.phase4.log:134`); `arrow`,
+> `branchless`, `duckdb`, `hash-conformance`, `hnsw` — terminal greens per
+> the banner above. `sparql-eval` (deep_nesting E0277), `n3`, `datalog`,
+> `entail` remain red (see banner). Register `/tmp/bench-logs/register.txt`
+> is the receipt of record. Do not cite a figure from an unrun or red row;
+> no row here is a gate. Report-only.
 
 One line per suite: what it measures, and the sellable claim it backs.
 
@@ -1850,7 +1882,7 @@ One line per suite: what it measures, and the sellable claim it backs.
   full compile-turtle → five-table Parquet views → SQL → RDF triple
   projection path, per-triple throughput. Sells: SQL-in-RDF end to end is
   measured, not inferred from raw-SQL rows. STATUS: MEASURED (phase-4b
-  rc=0 652s; both duckdb binaries' footers 14+4 = 18 measured / 0 failed).
+  rc=0 652s; both duckdb binaries' footers 10+4 = 14 measured / 0 failed).
   Environment precondition: the `~/.frozen-duckdb/cache` prebuilt DuckDB
   lib (OPT-65) — a fresh machine downloads on first build.
 - **duckdb `sieve_bench` narration fix** (`crates/duckdb/benches/sieve_bench.rs`) —
@@ -1864,9 +1896,9 @@ One line per suite: what it measures, and the sellable claim it backs.
   report bytes per second over the full wire frame (payload + 128-byte header
   + 64-byte padding); the fixture asserts header round-trip and digest
   verification before anything is timed. Sells: the wire-side egress cost is
-  measured at the documented 100k-row scale. STATUS: UNVERIFIED — no measured
-  row exists yet (phase-2 compile red, FQ-09; phase-4 rerun pending); do not
-  cite numbers for this bench until its register row lands.
+  measured at the documented 100k-row scale. STATUS: MEASURED (phase-4b
+  rc=0 103s; footer 10 measured / 0 failed,
+  `/tmp/bench-logs/purrdf-arrow.phase4b.all.log:69`).
 - **columnar 100k + `Throughput` fix** (`crates/columnar/benches/codec.rs`) —
   the five-table codec write/read rows at a 100k-quad fixture (added), with
   per-quad `Throughput` so rows read as quads/s. Sells: codec cost movement
@@ -1875,12 +1907,16 @@ One line per suite: what it measures, and the sellable claim it backs.
   five groups: Eytzinger vs. binary search over 64k keys, sorting networks
   (sort8, Batcher 16) vs. `std` sort, wyhash-64, SWAR delimiter find, and
   Morton 2D encode. Sells: the constant-time kernels are timed against their
-  branchy `std` counterparts, not asserted. STATUS: UNVERIFIED - no measured row exists yet (register rc=101; phase-4b rerun queued); do not cite numbers for this bench until its register row lands.
+  branchy `std` counterparts, not asserted. STATUS: MEASURED (phase-4b rc=0
+  77s; footer 7 measured / 0 failed,
+  `/tmp/bench-logs/purrdf-branchless.phase4b.all.log:246`).
 - **n3 numeric-heavy + fixpoint** (`crates/n3/benches/reasoner.rs`) —
   numeric-literal-heavy parse rows (GB/s over digit-run input), a
   prose-heavy contrast row, fixpoint over closure iterations, plus proof and
   proof-check rows. Sells: the lexer's digit-run fast path is measured end to
-  end and the fixpoint rate is in elements/s, not wall clock. STATUS: UNVERIFIED - no measured row exists yet (register rc=101; phase-4b rerun queued); do not cite numbers for this bench until its register row lands.
+  end and the fixpoint rate is in elements/s, not wall clock. STATUS: RED —
+  terminal rc=101 receipts (phase-2 185s, phase-4 161s, no green rerun;
+  `/tmp/bench-logs/purrdf-n3.phase4.log`); do not cite numbers.
 - **lex JSON/YAML/CBOR/Unicode GB/s** (`crates/lex/benches/scan.rs`) —
   scanner rows over JSON/YAML/CBOR fixtures and Unicode normalization runs,
   each with `Throughput::Bytes` (GB/s), plus JSON escape and reader rows.
@@ -1890,8 +1926,8 @@ One line per suite: what it measures, and the sellable claim it backs.
   BLAKE3 (three sizes, backends), FNV-1a-64, splitmix64, multiset hashing,
   frame hashing, and hex encode/decode rows. Sells: the hash layer's cost per
   kernel is on the same harness as the codecs, at 64B/1KiB/1MiB sizes. STATUS:
-  UNVERIFIED - no register row exists (crate was missing from early runner
-  queues; in flight phase-4); do not cite numbers until its row lands.
+  MEASURED (phase-4 rc=0 2490s; footers 255+18 = 273 measured / 0 failed,
+  `/tmp/bench-logs/purrdf-hash-conformance.phase4.log:728,:784`).
 - **cdt `parse_render`** (`crates/cdt/benches/parse_render.rs`) — list and
   map canonical datatype literals at 128/2k/32k entries, scan and render with
   lexical-length throughput. Sells: structured-literal parse/render scales
@@ -1909,16 +1945,20 @@ One line per suite: what it measures, and the sellable claim it backs.
 - **datalog `facts_per_second` 1M** (`crates/datalog/benches/seminaive.rs`) —
   `derive_1m_facts`: ~10^6-fact EDB, ~10^6 derived facts at fixpoint,
   elements/s. Sells: the semi-naive engine's derive rate at the million-fact
-  scale the name claims, not a smaller proxy. STATUS: UNVERIFIED - no measured row exists yet (register rc=101; phase-4b rerun queued); do not cite numbers for this bench until its register row lands.
+  scale the name claims, not a smaller proxy. STATUS: RED — terminal rc=101
+  receipts (phase-2 1692s, phase-4 54s, no green rerun;
+  `/tmp/bench-logs/purrdf-datalog.phase4.log`); do not cite numbers.
 - **entail 10^4 rows** (`crates/entail/benches/chase.rs`,
   `classify.rs`, `consistency.rs`) — chase over 2,000 triples (measured at
   the 2,000-node chain before the ladder shrank; the current default chase
   chain ladder is 16/64/1,000 — the 2,000 rung OOMs solo, e88d78ea), ontology
   classification at 10,000 classes, consistency at the widened case-split
   ladder. Sells: the reasoner stays measured (report-only) at the scale
-  where saturation stops being interactive. STATUS: UNVERIFIED - register
-  rc=101 both phases (chase ladder OOMs); phase-4b rerun queued; do not
-  cite numbers until its register row lands.
+  where saturation stops being interactive. STATUS: RED — terminal rc=101
+  receipts (phase-2 1458s, phase-4 923s); a phase-4b rerun started and has
+  no register row or measured-count footer yet
+  (`/tmp/bench-logs/purrdf-entail.phase4b.all.log`, in flight at last read);
+  do not cite numbers until its green row lands.
 - **rdf-core `primitives_table` + arena**
   (`crates/rdf-core/benches/primitives_table.rs`,
   `intern_absoluteness.rs`) — ns/op rows for the SWAR delimiter, branchless
