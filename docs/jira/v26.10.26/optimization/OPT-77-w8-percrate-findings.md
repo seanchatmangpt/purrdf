@@ -639,3 +639,20 @@ n3 printing.rs round-trip (5):
   across vars and with genuine blanks named var_x (:674).
 - Term::Var prints ?name outside any @forAll scope (:197-215) — not
   re-parseable N3, quantifier lost.
+
+## wave-12 semantic additions (shapes engine/target_eval)
+
+- target_eval.rs:210-236 — narrowing() applies node-level
+  Class/HasValue/In narrowing without checking shape.path.is_none():
+  on a property shape (reachable via sh:targetWhere) those bind VALUE
+  nodes, not focus nodes — candidate set under-inclusive, violations
+  silently missed (probable real bug).
+- target_eval.rs:238-242 — narrowing offered only on direct
+  properties_in children; Reference/Node recursion misses the
+  referenced shape's property_narrowing (over-scan, not wrong
+  answers).
+- engine.rs:1201/:1231 — FocusNode dedup split between seen_foreign
+  and seen_ids: the same IRI arriving via different target kinds can
+  be validated TWICE (duplicate results).
+- sh:not implemented correctly (conforms_memoized, no double
+  negation); severity mapping verified sound.
