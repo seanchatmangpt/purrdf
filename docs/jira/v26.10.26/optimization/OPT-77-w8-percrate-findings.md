@@ -309,3 +309,23 @@ string.
   containment boundaries all verified clean; one minor diagnostic
   mislabel (cells.rs:299-302 InvalidOutputLength reports consumed
   count, not declared length).
+
+## wave-10 semantic additions (entail — RIF/named-graph silent incompleteness)
+
+- rif/eval.rs:325-327 — an empty-body RIF rule is silently dropped
+  instead of deriving its head unconditionally; non-ground heads are
+  lost without an error.
+- rif/eval.rs:190-200 — RIF seeding skips all named-graph quads; facts
+  derivable solely from named graphs are never produced and never
+  refused (silent incompleteness, not the boundary the codebase
+  otherwise insists on).
+- lib.rs:1155 — a premise whose imports are all satisfied internally is
+  misclassified unresolved (false ontology-import-unresolved report).
+- rif/eval.rs:363-371 — an interned IRI whose stored surface diverges
+  from `<iri>` is classified as a literal, making the rule unmatchable
+  (incomplete fixpoint, silently).
+- engine.rs:391-394 — named conclusions matching default_conclusions
+  skip stats.commit (tallies omit derivations) and the "same
+  conclusion" dedup does not hold for chase-minted existentials.
+- Termination verified sound: Datalog-bounded lanes + weak-acyclicity
+  TerminationCertificate; cyclic collections refuse as MalformedList.
