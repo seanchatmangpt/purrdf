@@ -855,3 +855,26 @@ n3 printing.rs round-trip (5):
   node-type membership derives from statements absent from the
   projected model (documented intent, but couples scoping layers).
 - Sink emission order (cypher/GraphML/CSV) verified clean.
+
+## wave-13 additions (cli sink, sparql-eval expr)
+
+- cli sink.rs:356 — the Native arm's DownstreamClosed returns
+  Ok(empty LossLedger), discarding the serializer's partial drop
+  counts; the results lane (:312-314) surfaces nothing — the two
+  lanes disagree on --loss-ledger after EPIPE. Pack-arm
+  DownstreamClosed reports success without distinguishing wrote vs
+  wrote-nothing.
+- cli sink/query: ASK-to-CSV/TSV refused only at runtime after the
+  query executed (late failure, not wrong answer).
+- sparql-eval expr.rs:1044-1067 — EBV forces a type error for ANY
+  language-tagged literal, but per SPARQL §17.2.2 (RDF 1.1+) it is
+  xsd:string-typed: FILTER("x"@en) should be true (non-empty), not
+  row-dropping. CONFIRMED logic bug.
+- expr.rs:1134 — xsd_integer_of_admitted maps out-of-i128-range
+  integers to None (treated as type error): SUBSTR("abc", 10^30)
+  errors instead of the XPath empty-string result.
+- expr.rs:7059 — saturating_add on the substring window can
+  under-count the window width near i128::MIN (hedged, boundary
+  only).
+- Three-valued logic, XPath substring window, NaN compare,
+  lang_matches all verified correct.
