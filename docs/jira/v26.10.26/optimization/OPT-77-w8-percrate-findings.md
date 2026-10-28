@@ -1647,3 +1647,22 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   ProjectionTerm construction (validate_inner enforces lowercase),
   never silently reclassified; both comparison sides are
   canonicalized-lowercase by invariant.
+
+## wave-18 additions (jsonschema metaschema/dialect — 5 findings)
+
+- registry.rs:362 — non-boolean $vocabulary values coerced to
+  required=true instead of refusing the meta-schema.
+- dialect.rs:88-119 — vocabulary required=false honored only for
+  format; applicator/unevaluated/validation still activate (union at
+  :360-373).
+- registry.rs:329 — Draft07 short-circuit: a recognized-dialect
+  $schema uses default_vocabularies() even when a custom meta-schema
+  with its own $vocabulary is registered at that URI (never read).
+- registry.rs:637-641 — UnsupportedDialect stores the raw $schema
+  (with fragment) while metaschema stores the bare form; '#' stripping
+  ad hoc in three places (no canonical normalizer).
+- meta_set.rs:100-107 — non-string $schema treated as absent (scanned
+  as 2020-12); cyclic $schema chains report against pending[0] not the
+  cycle.
+- Verified correct: 2019-09 Applicator incl. Unevaluated; $vocabulary
+  read at the meta resource pointer; draft-07 $vocabulary ignored.
