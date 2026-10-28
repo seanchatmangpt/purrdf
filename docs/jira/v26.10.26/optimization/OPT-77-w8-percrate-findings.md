@@ -2914,3 +2914,18 @@ loop, single-slot backtracking monotone, set bookkeeping consistent.
 - REFUTED: glob "**/" overmatch (executor trace: boundary-only retry +
   end-of-tokens-needs-end-of-input gives exactly the SPEC contract).
 
+### wave-33 addendum
+
+- FIXED: sparql-results (3 fixes, 5 files) — bnode envelope decode in both
+  readers (total decode; foreign labels verbatim), LanguageDatatype
+  writer refusals in both literal writers, DuplicateVariable refusal
+  before any emission in the SRJ writer. The xml.rs duplicate-vars
+  exposure is flagged (SRX is positional; left alone per the lane's
+  scoping note).
+- wasm apply-verify lane surfaced a plan deviation the apply corrected:
+  decode_governor_args actually takes max_scratch_bytes (banked diff
+  omitted it) — applied to the real text.
+- AGENTS.md/RUST_GUIDELINES drift findings filed (job table 65/107 rows,
+  pub(crate) div-ceil citation, lint-block levels, nextest
+  recommendation).
+
