@@ -464,3 +464,24 @@ string.
   shape, not source order.
 - walk.rs:54-68 — NodeRef::at_path walks all children per step (no
   early exit): cost-contract drift, not correctness.
+
+## wave-11 semantic additions (rdf-core dataset, branchless oracles)
+
+- dataset.rs:1505-1556 — a caller-supplied QuadProbePlan disagreeing
+  with the pattern's bound axes hits expect/unreachable! (public API
+  panic instead of a typed stale-plan refusal).
+- dataset.rs:583-593/:1521 — graph-axis key `index as u32 + 1` has no
+  overflow guard (u32::MAX wraps to 0, colliding with the default
+  graph in permutation indices).
+- dataset.rs:2107-2141 — cardinality estimate ignores pattern.g beyond
+  existence (documented conservative, planner-only).
+- segmented build.rs:819-836 vs format.rs:424-480 — the inline-fit
+  budget constant is duplicated across two files (drift-prone block
+  invariant).
+- branchless-vs-oracle divergences (static): byte_lane_in_range with
+  MSB-set hi (Rust 0 vs oracle nonzero, swar.rs:28 vs oracle.py:133);
+  sort_small_by_key len>8 falls back to sort_unstable (ties can
+  reorder vs the stable-oracle model, sort_small.rs:215);
+  lower_bound_eytzinger oracle ignores sizes (untestable n/n+1 trap,
+  eytzinger.rs:182); jaccard f32 double-rounding parity leans on the
+  53>=2*24+2 theorem (bitset.rs:187).
