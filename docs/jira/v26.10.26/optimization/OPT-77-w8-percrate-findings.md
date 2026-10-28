@@ -196,3 +196,9 @@ string.
   133k-LOC sample; dead_code/deprecated ~0.008/kLOC. The marker-class
   audit surface is saturated; further waves should be semantic/logic
   reviews, not another 20-lane marker sweep.
+
+- benches final lane: BENCHMARKS.md inventory omits 11 bench files
+  (cli x2, json x3, jsonschema, deflate, ed25519, markdown, slice,
+  gts/rfc3339); gts/authoring.rs:265 declares Throughput::Elements(1)
+  on a multi-frame loop (meaningless rate); sql has no benches at all.
+  All sample_size values >=10 (compliant).
