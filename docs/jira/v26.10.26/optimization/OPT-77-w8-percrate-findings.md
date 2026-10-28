@@ -1510,3 +1510,5 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   search_rows_work for the same query by capability flag.
 - lib.rs:845-849 — greedy_descent nodes not marked visited before the
   beam; correctness holds only via the memo (ties to finding 1).
+
+- rdf-wasm term.rs: CLEAN (post-order fold consistent, merge-mode scope reset uniform, JS conversion surface is String-only by design).
