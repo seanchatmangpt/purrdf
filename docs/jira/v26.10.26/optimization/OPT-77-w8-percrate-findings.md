@@ -1512,3 +1512,26 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   beam; correctness holds only via the memo (ties to finding 1).
 
 - rdf-wasm term.rs: CLEAN (post-order fold consistent, merge-mode scope reset uniform, JS conversion surface is String-only by design).
+
+## wave-17 additions (text ranking internals, cli project/lift)
+
+- ranking.rs:654 — the normalization<=ZERO guard fires even when
+  field.weight==0: a zero-weight field can spuriously error a term
+  whose contribution would be exactly 0.
+- ranking.rs:770 — inverse_document_frequency accepts frequency==0/
+  documents==0 (prepare_query issues IDF=ln2 and a positive bound for
+  an empty corpus; bound and corpus validity disagree).
+- ranking.rs:636 — the remaining-carriers check degenerates to the
+  already-validated corpus bound for exactly the sparse-field case it
+  was written for.
+- ranking.rs:583 — the frequency_sum>total guard is a loose union
+  bound; per-field population lets one field's df ride on another's
+  token mass (weaker than documented).
+- cli projection.rs:93 — project's carrier output bypasses
+  refuse_transport_target: `--output out.ustar.gz` writes
+  uncompressed USTAR under a gzip name (same file-lies class W13
+  caught in convert).
+- projection.rs:66 — a bad --assets -/--config - combination is
+  diagnosed only after read_config consumed the caller's stdin bytes.
+- ledger.rs:28 — lift's merged ledger uses bare fs::write: clobbers
+  an existing ledger unconditionally, no refuse-existing policy.
