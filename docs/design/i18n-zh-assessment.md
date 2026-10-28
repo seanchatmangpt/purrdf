@@ -810,3 +810,7 @@ this audience's entry point.
 10. **Runtime-string temptation.** Once the book is Chinese, the first request
     will be Chinese error messages. Saying no for 0.14.0 — and saying why, in
     the Chinese introduction — is part of the plan.
+
+> UPDATE (2026-10-27): the `__init__.pyi` stub was removed repo-wide
+> (cf0151c1, operator directive). The word-count figures above that cite
+> the stub are historical; the stub's surface no longer exists.

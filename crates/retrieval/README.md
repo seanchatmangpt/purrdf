@@ -120,7 +120,7 @@ only the reading moves.
 Every number in that answer is a function of what the producers said about
 themselves, so what a producer owes is written down in one place:
 [`PRODUCER-CONTRACT.md`](PRODUCER-CONTRACT.md), rendered in the API docs as the
-`producer_contract` module. Fifteen obligations — memory bounded by the depth
+`producer_contract` module. Sixteen obligations — memory bounded by the depth
 rather than by the corpus, filters applied during selection and expressing
 eligibility rather than relevance, scoring statistics drawn from the index's
 declared scope, duplicate fan-in collapsed inside the producer, cardinality
