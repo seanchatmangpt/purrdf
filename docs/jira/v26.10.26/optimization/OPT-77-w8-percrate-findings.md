@@ -1415,3 +1415,18 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   LossLedger entry, contradicting write's documented lossless
   contract (:515/:559 vs :24-33).
 - Dictionary i32::MAX cap vs i64 ids (W12 finding, cross-confirmed).
+
+## wave-16 additions (csvw terms.rs loss accounting — 4 findings)
+
+- :1104-1115 — REIFIER/ANNOTATION_DROPPED recorded unconditionally
+  even when GRAPH_UNSELECTED already covered the row (double-count;
+  the quad path continues to avoid exactly this).
+- :1057-1086 — quad loss classification ORs across overlapping
+  tables (first representation wins): mapped-but-incompatible in A +
+  unmapped in B misattributes OBJECT_UNREPRESENTABLE.
+- :1091-1102 — non_empty_graphs includes quads whose content was
+  dropped: a fully-lost graph never gets EMPTY_GRAPH_DROPPED
+  (structural loss understated).
+- :996-1004 — One-cardinality integrity check runs on the FILTERED
+  representable list: a 2-object violation with 1 representable
+  buries the second instead of surfacing the violation.
