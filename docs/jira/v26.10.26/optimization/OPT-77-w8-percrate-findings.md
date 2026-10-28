@@ -1373,3 +1373,5 @@ n3 reasoner.rs (backward chaining — SERIOUS):
 - built-stack alignment, Clone/Drop/PartialEq verified sound.
 
 - sparql-eval solution.rs merge internals: CLEAN (compatible, union/intersection, shared_columns, in-place permutation all verified; witness.rs/service_endpoints.rs merge fns also clean).
+
+- ed25519 lib.rs/keys.rs public verify paths: CLEAN (check order, negated-argument composition, clamping, canonical-borrow tests all verified).
