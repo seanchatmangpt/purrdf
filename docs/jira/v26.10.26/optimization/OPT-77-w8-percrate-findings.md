@@ -3145,3 +3145,12 @@ direction).
 - signing lane (sign_with kid: &str) deliberately untouched — a
   signature's kid is a different surface (wave-28 decision).
 
+### wave-38 addendum
+
+- LANDED: conformance trio items 1-2 — query_is_top_level_ordered takes
+  the case's base (query_eval_is_ordered_with_base; the base-less probe
+  kept for callers without a base), and rs:ResultSet expectations honor
+  the query's ORDER BY (ordered || indexed). All three PASS-silencing
+  seams of the trio are now closed. One syntax slip during application
+  (nested fn) caught by rustfmt check and repaired before commit.
+
