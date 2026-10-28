@@ -1,7 +1,7 @@
 #!/bin/bash
 # fb-ladder.sh — the tiered feedback-loop SLA ladder.
 #
-#   T1 static     : rustfmt --check + fast Python gates   (bounded, <100ms each)
+#   T1 static     : toolchain-pin + no-std + layers Python gates (bounded)
 #   T2 oracles    : crates/branchless/oracles pytest      (bounded, ~0.6s)
 #   T3 leaf-probe : cargo check -p purrdf-branchless      (lease outer, bounded inner)
 #
@@ -23,7 +23,7 @@ cd "$ROOT"
 
 source scripts/fb-receipt.sh
 
-LANE="fb-ladder"
+LANE="${PURRDF_FB_LANE:-fb-ladder}"
 ONLY_TIER=0
 NO_COURT=0
 while [ "$#" -gt 0 ]; do

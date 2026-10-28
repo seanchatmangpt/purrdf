@@ -91,7 +91,7 @@ if header.fits_in(frame.len() as u64) {
 - `crates/arrow/tests/arrow_header_test.rs` — layout (128 bytes, 64-byte
   alignment), round-trip, the full refusal matrix (including the overflow
   refusal), exact wire image, default-is-parseable, digest determinism.
-- `crates/arrow/benches/ipc_egress.rs` — 11 benches across 4 groups:
+- `crates/arrow/benches/ipc_egress.rs` — 10 benches across 4 groups:
   `ipc_egress_100k_rows/{encode,decode}` (BLAKE3 payload digest + frame
   assembly / header parse + digest verification, bytes per second over the
   full wire frame), `ipc_egress_reject/decode_bad_magic` (rejection path),

@@ -81,8 +81,9 @@ SPDX-License-Identifier: CC-BY-4.0
 > exact-tower instruction table, entail, datalog, gts, shex, rdf-wasm, the
 > Python compat-harness table). Do not cite those numbers; `make bench` also still
 > runs 33 crates by explicit `-p`
-> list; 8 `harness = false` bench targets in 4 crates (cli 2, duckdb 2, the
-> `purrdf` facade 2, retrieval 2) are not in it.
+> list; 9 `harness = false` bench targets in 4 crates (cli 2, duckdb 2, the
+> `purrdf` facade 3 — `multimodal_on_demand_read` joined post-doc;
+> retrieval 2) are not in it.
 >
 > The scale-corpus density tables are deterministic byte counts of the profile,
 > not timed claims, and stand as written.

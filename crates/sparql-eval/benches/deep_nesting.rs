@@ -77,7 +77,7 @@ const PROBE_CEILING: usize = 20_000;
 const MEASUREMENT_STACK: usize = 256 * 1024 * 1024;
 
 /// Run `body` on a thread with a [`MEASUREMENT_STACK`] stack, propagating panics.
-fn on_measurement_stack<R>(body: impl FnOnce() -> R + Send) -> R {
+fn on_measurement_stack<R: Send>(body: impl FnOnce() -> R + Send) -> R {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(MEASUREMENT_STACK)

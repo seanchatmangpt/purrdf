@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 """Shim-court tests for run_benches_fast.py (stdlib unittest, no mocks).
 
 Real collaborators: real fake bench binaries (/bin/sh scripts) executed by

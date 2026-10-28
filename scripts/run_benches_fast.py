@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 """Fast two-phase bench orchestrator (stdlib-only).
 
 Splits `cargo bench` into compile (Mode A) and measure (Mode B):

@@ -44,7 +44,12 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BENCH_MAIN = re.compile(r"^\s*(?:purrdf_testkit::)?bench_main!\s*\(", re.MULTILINE)
-BENCH_RECIPE = re.compile(r"^bench:[^\n]*\n((?:\t[^\n]*\n)+)", re.MULTILINE)
+# Recipe lines may be preceded by comment lines (e.g. the crate-count
+# notes above the `bench:` -p list); skip `#` lines when matching.
+BENCH_RECIPE = re.compile(
+    r"^bench:[^\n]*\n(?:#[^\n]*\n)*((?:\t[^\n]*\n)+)",
+    re.MULTILINE,
+)
 
 
 def bench_crates(makefile: Path) -> list[str]:

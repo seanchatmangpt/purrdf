@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 """fb-court — the feedback-SLA regression court.
 
 Owns scripts/fb-receipts.jsonl: one JSONL receipt per ladder run, appended on

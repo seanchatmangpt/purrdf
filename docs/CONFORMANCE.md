@@ -85,7 +85,7 @@ exceptions and shadow imports; their totals do not refresh the broad-suite rows.
 
 The `Budget` column is the ledger ratchet's committed ceiling (see
 [Ledger discipline](#ledger-discipline)); the live `XFail/Skip` must equal it.
-Five rows count harness test functions rather than fixtures. Four do so because
+Six rows count harness test functions rather than fixtures. Four do so because
 each test fans out over its vectors internally: `IRI (RFC 3987 / RFC 3986
 resolution)`, `RDFC-1.0 canonicalization`, `RDF 1.2 canonicalization profile`,
 and `ShEx syntax + ShExC/ShExJ round-trip`. Their fixture-level totals live in
@@ -94,7 +94,8 @@ The fifth, `SPARQL embedding kNN (first-party)`, does so because it has **no
 corpus at all**: it grades a seam rather than a document format, over PURREMB
 artifacts sealed in-process and pinned literals, so the test function is the
 only per-case unit that exists and the row says so rather than inventing a
-fixture count.
+fixture count. The sixth, `HNSW approximate kNN (first-party)`, tallies the
+cargo test functions of its nine test binaries the same way.
 
 A test-function tally is used only where it is **reproducible**, and that is a
 gate rather than a preference. `GeoSPARQL 1.1 determinism corpus` was first

@@ -754,11 +754,11 @@ fn literal_json(lit: &Literal) -> String {
     let (language, datatype) = match lit.language.as_deref() {
         Some(lang) if lang.contains("--") => (
             lang,
-            "http://www.w3.org/1999/02/22-rdf-syntax-ns#dirLangString",
+            purrdf_iri::vocab::rdf::DIR_LANG_STRING,
         ),
         Some(lang) => (
             lang,
-            "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString",
+            purrdf_iri::vocab::rdf::LANG_STRING,
         ),
         None => (
             "",

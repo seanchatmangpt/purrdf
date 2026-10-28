@@ -1034,7 +1034,7 @@ capi-bundle: ## Build and audit the native C distribution, including all recipie
 	python3 scripts/build-capi-bundle.py
 
 ## fb-static: ladder tier 1 (static gates, bounded, no court).
-fb-static: ## Tier 1: rustfmt --check + fast Python static gates (no court).
+fb-static: ## Tier 1: fast Python static gates (toolchain-pin, no-std, layers; no court).
 	bash scripts/fb-ladder.sh --tier 1 --no-court
 
 ## fb-oracles: ladder tier 2 (Chicago oracles, no court).

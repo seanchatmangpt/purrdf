@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 """Out-of-band no_std / alloc / branching auditor for crates/branchless.
 
 Lane C17. Independent of cargo: pure regex + brace-matching scan over
