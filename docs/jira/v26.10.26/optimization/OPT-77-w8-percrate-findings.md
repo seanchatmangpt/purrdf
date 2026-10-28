@@ -1059,3 +1059,24 @@ n3 printing.rs round-trip (5):
 - guard.rs:731-733 — PayloadUnavailable folded into Ok(false),
   conflating unavailable with tampered (the enum deliberately
   separates them).
+
+## wave-14 additions (n3 lexer, csvw non-terms)
+
+- n3 lexer.rs:588-601 — the PName dot-break list omits quote/angle
+  chars: `:o ."s"` absorbs the statement dot into the PName (same
+  class as the fixed digit-run bug).
+- lexer.rs:621-633 — bare prefix/base/version match case-insensitively
+  in ANY position: a term named `version` lexes as the keyword.
+- lexer.rs:565-573 — PName backslash escapes accepted without
+  validation (`:\q` silently admitted).
+- lexer.rs:585 — the `_: :` colon split requires len > 2: Blank(":")
+  minted instead of splitting.
+- csvw metadata.rs:50 — table-to-manifest binding by exact string
+  equality, no IRI normalization (valid pairings rejected).
+- table.rs:369-379 — languages_compatible matches any prefix without
+  subtag boundary ("en" matches "enx").
+- table.rs:400-407/:metadata.rs:375 — rowTitles resolved over virtual
+  columns and validated without the name_explicit check primaryKey
+  gets.
+- metadata.rs:1162-1164 — a table declaring `"dialect": null` gets
+  the default instead of inheriting the group's.
