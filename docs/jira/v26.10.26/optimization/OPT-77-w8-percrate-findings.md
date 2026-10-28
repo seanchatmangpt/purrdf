@@ -1273,3 +1273,17 @@ n3 reasoner.rs (backward chaining — SERIOUS):
 - engine.rs:63-68 — sort_focus_nodes reads rayon::current_num_threads
   >1 inside the worker pool: "serial" resolution still forks a nested
   parallel sort (oversubscription).
+
+## wave-15 additions (cli shapes_tools)
+
+- :320-340 — run_srl_check never refuses shared stdin over --import
+  pairs (the run path does): rules --check with two '-' imports
+  double-reads stdin; the second sees empty and reports a bogus
+  syntax error, contradicting check_srl's own read-as-run contract.
+- :392-399 — unresolved-import special case keyed on MESSAGE STRING
+  matching; every other SrlError::Import misattributes the failing
+  document to the root --srl path.
+- :203/:243-245 — shapes-graph diagnostics printed only AFTER the
+  full inference output is written: a refusable shapes graph still
+  commits its inference graph (ordering inversion vs the module-doc
+  contract).
