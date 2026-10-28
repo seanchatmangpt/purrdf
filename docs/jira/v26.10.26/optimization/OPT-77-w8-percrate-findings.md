@@ -243,3 +243,17 @@ string.
   marker and abandons the open segment without finish_into_result.
 - is_header_item (:1471) classifies any map with "gts" and no "t" as
   a header — mid-segment damage can silently fork the prev chain.
+
+## wave-10 semantic additions (rdf-core mutable.rs)
+
+- OPT-50 base index matches only top-level TermRef::Blank (:626-641):
+  blanks nested inside base quoted triple terms are skipped, while the
+  delta path recurses — completeness gap vs the pre-OPT-50 full scan.
+- holds_rows (:1313-1318) probes base first and delta only on miss,
+  but graph_rows is keyed by MutTermId — a delta graph resolving to a
+  base term answers from the base key's missing entry (false despite
+  live rows); withdraw_graph_declaration's RememberEmpty gate trusts it.
+- holds_rows doc claims base-declaration answering; code returns false
+  on missing graph_rows — masked only by both callers' pre-checks.
+- withdraw_graph_declaration Implicit branch (:1304-1306) drops a slot
+  while rows remain, contradicting its own doc.
