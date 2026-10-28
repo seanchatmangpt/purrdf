@@ -722,6 +722,18 @@ impl<'a, 'm> Scanner<'a, 'm> {
         if self.starts_with("^^") {
             self.position += 2;
             let datatype = self.parse_iriref()?;
+            // RDF 1.1: rdf:langString / rdf:dirLangString are the datatypes OF
+            // language-tagged literals — a plain typed literal carrying them
+            // violates CdtLiteral's own invariant (language.is_some() iff the
+            // datatype is one of these) and is a term no conforming
+            // serializer may emit.
+            if datatype == RDF_LANG_STRING || datatype == RDF_DIR_LANG_STRING {
+                return Err(ReadError::Lexical(CdtError::Unexpected {
+                    offset: self.position,
+                    expected: "a datatype other than rdf:langString/rdf:dirLangString on a \
+                               non-language-tagged literal",
+                }));
+            }
             return Ok(CdtLiteral {
                 lexical,
                 datatype,

@@ -358,6 +358,11 @@ fn run_with_transforms(
             "the --canonical N-Quads output",
             options,
         )?;
+        // The canonical lane never runs `resolve_target`, so without this the
+        // output-side name policy (a `.gz`-style transport name or a `--to
+        // gts` read-only target) is bypassed and `write_out` happily writes
+        // plain N-Quads under a name that lies about its bytes.
+        format::refuse_transport_target(output, "the --canonical N-Quads output")?;
         None
     } else {
         let target = format::resolve_target(options.to, output, "the --to target")?;
