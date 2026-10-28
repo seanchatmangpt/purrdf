@@ -298,3 +298,14 @@ string.
 - min/max vacuity encodings asymmetric (:5847 vs :5841) — cosmetic,
   no wrong output; pattern conjunction verified order-independent and
   correct.
+
+## wave-10 semantic additions (columnar, geo-kernel)
+
+- columnar writer.rs:326-337 — dictionary cap i32::MAX while ids are
+  i64: the i64::try_from error arm is dead and datasets with
+  2^31..2^63 terms are refused though representable; build_terms_table
+  re-does the conversion with an unchecked `index as i64`.
+- geo-kernel cells: hilbert_path key layout, warp arithmetic, and
+  containment boundaries all verified clean; one minor diagnostic
+  mislabel (cells.rs:299-302 InvalidOutputLength reports consumed
+  count, not declared length).
