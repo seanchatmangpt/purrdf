@@ -1454,3 +1454,5 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   documented ("anything else under Exact") and no silent pass exists;
   residual is a diagnosability nit (misrouted reassociated payload
   gets a misleading error class).
+
+- gts blob drop: REFUTED — the Ok(_) arms are dead defensive branches; a non-bytes payload under a chain is unreachable (payload returns only Value::Bytes in both regimes; the Err path is fully instrumented).
