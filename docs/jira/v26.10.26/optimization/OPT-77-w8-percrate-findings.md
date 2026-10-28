@@ -3211,3 +3211,14 @@ d209aa39 (all pushed to origin).
   datalog maintained restored_lo gap, csvw required-semantics change,
   -0 rendering, Cargo.lock member gap.
 
+### post-receipt addition (last-corner sweep landed late)
+
+- FIXED: text dictionary.rs — longest-first selection sorted ascending
+  before the merge walk (selection order vs assumed-ordinal: non-
+  overlapping matches silently dropped whenever a later row in an
+  earlier-iterated domain was longer).
+- FILED: sparql-conformance community.rs acquire_manifests refuses
+  legitimate diamond mf:include DAGs (duplicate-check fires on second
+  visit; the documented contract refuses only cycles) — needs a
+  cycle-vs-diamond distinction (in-progress vs completed set).
+
