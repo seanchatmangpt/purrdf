@@ -257,3 +257,29 @@ string.
   on missing graph_rows — masked only by both callers' pre-checks.
 - withdraw_graph_declaration Implicit branch (:1304-1306) drops a slot
   while rows remain, contradicting its own doc.
+
+## wave-10 semantic additions (text + sql compiler — HIGH-CONFIDENCE LOGIC BUGS)
+
+- text analysis.rs:654-666 — unspaced-script fallback shatters ADJACENT
+  Latin too ("abc漢字def" → a b c 漢 字 d e f instead of abc + per-cluster
+  CJK + def); the per-cluster split must scope to unspaced runs only.
+- text ranking.rs:624-638 — field-population-absent fallback mixes
+  corpus.documents (N) with field-only token totals: length
+  normalization divides by the wrong average and matches NEITHER
+  declared fingerprint string.
+- text analysis.rs:1223 — letter_sides probes skip combining marks but
+  not removed controls/ZWJ; soft-hyphen-adjacent periods split
+  inconsistently with the documented letter-period rule.
+- sql compiler.rs:2420/:2430 — blank-node key `_:_{label}_{scope}` is
+  an ambiguous concatenation (label "a" scope "12" == label "a_1"
+  scope "2"); distinct nodes collapse.
+- sql compiler.rs:2462-2479 — is_object built only from `_:`-prefixed
+  objects: a nested statement referenced via a real IRI is not
+  excluded and the smallest-subject tie-break can root at a nested
+  sub-select; the tie-break also orders on scope-varying synthetic
+  keys, defeating claimed determinism.
+- sql compiler.rs:3301-3390 — inline_select never emits the parsed
+  stmt.order_by: an inlined `ORDER BY x LIMIT 1` silently becomes
+  unordered `LIMIT 1` (nondeterministic row).
+- BM25F formula itself verified against the paper (no defect); IRI
+  resolution verified clean (zero logic bugs).
