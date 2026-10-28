@@ -2680,3 +2680,26 @@ reuse-after-exhaustion, fbbf/bbff split.
 - simd.md re-anchoring: 2 rows name nonexistent functions; ~105 anchors
   sampled 10/13 stale — needs one re-anchoring pass.
 
+### wave-30 addendum 3 — capi FFI findings (W30 L6)
+
+- FIXED: ASK null out_boolean refused (both arms — was Ok + kind set +
+  answer dropped, caller read uninit); query_entry clears *out_kind =
+  KIND_NONE before fallible work (stale-kind cleanup hazard closed).
+- FILED (design-level, need their own lanes):
+  (1) query.rs:204 set_division_policy is a plain non-atomic write racing
+  concurrent readers of the same field on a handle documented Send+Sync —
+  UB per the documented thread-safety table; fix needs an
+  AtomicU8/Mutex-backed policy or an explicit exclusivity contract
+  surfaced in the header docs + a runtime guard.
+  (2) term.rs:453-462: caller-supplied view.term_id hits
+  TermId::from_index(...).expect (panic -> PurrdfStatus::Panic on caller
+  input) and no arena-range check precedes to_owned_term; fix = range
+  validation -> InvalidArgument.
+  (3) serialize.rs: a reentrant on_chunk callback can free the dataset
+  mid-serialization (plain UAF, no unwind); fix needs a reentrancy guard
+  or a documented-and-enforced borrow contract.
+  (4) out_buffer unwritten on error in query_json*/xpath_regex entries
+  (same stale-state class, different carrier).
+- Clean: ffi_try/ffi_guard coverage, cursor pinning of the dataset Arc,
+  null-array refusals, unknown-discriminant handling.
+
