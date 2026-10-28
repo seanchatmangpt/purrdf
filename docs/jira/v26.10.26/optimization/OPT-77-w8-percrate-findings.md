@@ -2635,3 +2635,26 @@ deletion, csvw/gts/alloc-probe test writers.
 text analysis, rdflib-shadow, OPT-70 generated coverage, csvw/gts/alloc
 test writers, COSE/hnsw/duckdb/agent_memory application.
 
+### wave-30 addendum — knn cursor findings (W29 L12)
+
+- CORRECTNESS: scoped cursor ignores the row licence (`remaining`) for
+  UNDECIDED rows — the ceiling decrement/skip applies only to
+  !is_undecided() rows (invocation.rs:934, :951-960), so a scoped Search
+  whose scope decisions are undecided emits all N candidates while the
+  unscoped cursor on the identical call emits the licensed 1. The licence
+  is not an upper bound whenever a constraint is undecided. No
+  undecided-x-ceiling test exists (knn/tests.rs grep empty).
+- COST: scoped open performs the full-space scan + membership distance
+  even when remaining == Some(0) (invocation.rs:303-344) — breaking the
+  documented/plaintest "zero ceiling does no work at all" invariant
+  (tests.rs:1214); observations record a scan for a call that should do
+  none.
+- COST: rows materialized + workspace-charged BEFORE the bound-position
+  filter and licence check (invocation.rs:941) — bounded workspaces pay
+  for rows the licence discards.
+- MEASUREMENT: scoped take_work reports only the candidates count; the
+  N per-candidate scope.decide/into_evidence calls contribute nothing
+  (invocation.rs:348-382) — billed work diverges from actual.
+Clean: select_best heap + -0.0 fold, guard, ceiling-withheld rule, cursor
+reuse-after-exhaustion, fbbf/bbff split.
+
