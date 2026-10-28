@@ -2850,3 +2850,23 @@ markdown (6), rdf-wasm (4), duckdb B19, agent_memory, COSE kid,
 bounded-tier gate-parity extension, simd.md re-anchoring, xsd -0
 candidate (needs F&O §19.1.1 verification).
 
+### wave-32 addendum
+
+- FIXED: n3 printing (3 defects — prefix-collector now delegates to the
+  renderer's shorthand condition; sanitize_blank percent-encodes
+  instead of a lossy/colliding '_'; empty formula renders {} which
+  reparses to Formula([]) instead of `true`).
+- Banked final diffs (verified verbatim, ready to apply): sparql-results
+  (MalformedResult::LanguageDatatype + DuplicateVariable variants;
+  bnode envelope decode in both readers; writer refusals in json+xml),
+  markdown (6 diffs incl. the CRLF-aware line-end table + oracle
+  rework), rdf-wasm (canon-arrow from_name guard; coded_error with
+  OPTIONS_CODE for the sync governor refusals; presentation-record
+  throw; the Weak-registry AsyncJob Drop design with the Rc re-entrancy
+  analysis), shapes ask-prebinding (Invocation decision: keep
+  without_parameters unless the law validates parameters — test will
+  say), alloc-probe/golden prune APPLIED.
+- COMMIT AUDIT: last 25 commits zero subject-mismatches (wave-21's
+  concern does not reproduce); two minor diff-undocumented items
+  disclosed.
+
