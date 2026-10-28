@@ -1767,3 +1767,5 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   differing derivation not the used one (:327-334); RuleNumbering
   (label,line) collision (:536-560); unsubstituted Vars in emitted
   bindings (:463-507).
+
+- validate xpath_regex.rs: CLEAN (RESOURCES table matches Resource::index order exactly; profile parsing/limits sound).
