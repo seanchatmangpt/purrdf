@@ -1468,3 +1468,18 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   only by debug_assert_eq! (release builds ship a mismatched
   archive_bytes on future writer drift); all other checks
   validate-before-commit.
+
+## wave-17 additions (entail classify — incomplete-taxonomy edges)
+
+- classify.rs:236-238/:351 — representative() scans only 0..=i and
+  derive assumes rep partitions equivalence classes: with Unknown
+  pairs in the matrix the closure isn't transitively closed, so
+  rep(k)=j while rep(j)=i — class k's reduction edges vs i's class
+  silently dropped from direct.
+- classify.rs:111-115 — bases left Saturated even for Unknown pairs:
+  claims() cites a saturation decision never made (misreports the
+  deciding basis).
+- classify.rs:355-364 — transitive reduction via strictly_below
+  treats Unknown as not-below: on an incomplete matrix an i⊑j edge
+  can be emitted "direct" despite a derived path; Certified::direct
+  gates on session completeness, not matrix-wide absence of Unknown.
