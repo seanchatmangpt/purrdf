@@ -2856,3 +2856,20 @@ consistency.
 Clean: linkml slot planner, the CURIE contract/expand symmetry in both
 Namespaces and the linkml importer/projection pair.
 
+### wave-33 — glob `**/` finding REFUTED by executor trace
+
+The lane claimed `**/` overmatches ("a/b" matches pattern "**/"). Traced
+execute.rs:70-138: the Directories retry only advances AT '/' boundaries
+and re-enters the token loop at the retry token; from the advanced
+position, end-of-tokens requires ch.is_none(). "**/" vs "a/b": boundary
+at 2 ("a/"), ch='b' vs end-of-tokens -> accepted=false, star is None,
+directories retry scans from 2 and finds no further boundary ->
+report(false). "**/" vs "a/" and "a/b/" -> boundary lands at end ->
+report(true). Exactly the SPEC.md:22-25 contract (zero or more complete
+slash-terminated components). The missing Token::Separator after
+Directories is compensated by the retry loop re-entering Directories at
+the boundary. No change.
+
+Clean per the lane: compile explosion bounded, max_work ticked on every
+loop, single-slot backtracking monotone, set bookkeeping consistent.
+
