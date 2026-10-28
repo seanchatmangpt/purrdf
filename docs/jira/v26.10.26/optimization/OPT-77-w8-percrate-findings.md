@@ -2940,3 +2940,48 @@ consolidation invariants hold. Two asymptotic notes recorded (use-stamp
 saturation; scheduled_contract_hash over-invalidation — the safe
 direction).
 
+---
+
+## wave-34 status (2026-10-28)
+
+### Fixed (in-tree, UNVERIFIED)
+
+- markdown (6, all applied): lone-CR line endings (LINE_END table +
+  CRLF-aware scan + oracle), bounded row indent (after_indent), header
+  tracking replacing index counting (blank-line swallow + late-delimiter
+  defects), paired-edge movement stripping, decode continues-edge text
+  requirement.
+
+### Verdicts
+
+- FIXED-ITEMS RECHECK: all 8 wave-21..33 fixes spot-checked PRESENT at
+  their sites, no regressions (slice refusal, graph_axis_key, severity_of,
+  ContradictoryDelta, n3 dot-lookahead, gts pub.digest, canonical
+  transport refusal, iri fragment inheritance).
+- xsd -0 candidate RESOLVED: KEEP "-0" — F&O 2.0+ canonical mapping
+  renders negative zero as "-0" (Saxon changelog documents the XPath 1.0
+  "0" -> 2.0 "-0" change); current behavior correct. Suggested: add a
+  vector pinning fn:string(xs:double("-0")) -> "-0" (no corpus covers it).
+- datalog cache/stop/admission/maintenance: CLEAN (6 candidates refuted
+  in source).
+- evidence core laws: CLEAN (combine lattices, id interning, tier
+  accounting hold; two low-severity API-hygiene notes filed: witness_stop
+  ignores the finish boundary, InvalidUndecided one-sided).
+- sparql-eval workspace machinery: 3 minor accounting findings (ghost-
+  arena growth escapes admission, WorkspaceCharge::drop children leak on
+  shrink failure — masked by failed latch, interned-schema cap-clear
+  under-reports retained bytes).
+- shapes srl (2, real): source-rule reifier label s-x{n}_rule bypasses
+  the mint-prefix collision guarantee (a base label in that family makes
+  provenance merge onto an unrelated node; g-x{e}_focus same class at
+  rules.rs:1643); Declared-schedule same-order run-once group has no
+  dependency check and orders by rendered id string, not rule-node order
+  (doc/code mismatch + order-decides-result).
+- cli describe/premise (3): --iri silently matches nothing when the doc
+  rebinds @base (subject_base is retrieval-blind); premise_iri same
+  blind spot -> false refusal; --import .gts drops the envelope loss
+  ledger.
+- json record (5), json_schema (4), bench args (3), rif_xml (5),
+  AGENTS.md drift (4) — filed in wave-32/33 addenda.
+- COMMIT AUDIT: 25 commits, zero subject-mismatches.
+
