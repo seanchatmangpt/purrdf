@@ -608,3 +608,34 @@ string.
   targeting reads the MUTATED snapshot correctly; additions-before-
   removals settlement matches contract; one lossy error path at :402
   drops row context).
+
+## wave-12 semantic additions (jsonschema validate, n3 printing)
+
+jsonschema validate.rs (5):
+- :1686-1689 — ref-chain counter resets on instance-address change: an
+  alternating-address ref loop never trips MAX_REF_CHAIN (unbounded
+  unless the exact (target,address) repeat saves it).
+- :448/:1674 — cycle detection on raw pointer identity: temporaries
+  (Instance::Name Rc) freed+reallocated at the same address give ABA
+  — false ReferenceCycle errors AND missed real cycles.
+- :159 vs :1134/:1138 — AnyOf absorbs all outcomes before the
+  early-exit; correctness rests on a fragile !track coupling, not an
+  explicit invariant.
+- :1447-1458 — a regex resource error in PatternProperties stops() but
+  the loop keeps applying remaining patterns (errored pattern treated
+  as no-match before the error surfaces).
+- :1568-1598 — failed UnevaluatedItems marks ALL items (including
+  never-attempted) evaluated: a sibling unevaluatedItems can wrongly
+  skip them.
+
+n3 printing.rs round-trip (5):
+- sanitize_blank (:569-579) merges distinct blanks ("a:b"/"a-b"/"a b"
+  -> _:a_b) — identity loss on reparse.
+- numeric_shorthand (:412-421) accepts "5." and "5 " as decimal/
+  integer — prints bare, fails to reparse.
+- @prefix name printed verbatim with no PN_PREFIX validation (:78/:86/
+  :145) — ':' or non-ASCII emits unparseable output.
+- rdf12_json maps Term::Var to "var_{sanitized}" blanks, colliding
+  across vars and with genuine blanks named var_x (:674).
+- Term::Var prints ?name outside any @forAll scope (:197-215) — not
+  re-parseable N3, quantifier lost.
