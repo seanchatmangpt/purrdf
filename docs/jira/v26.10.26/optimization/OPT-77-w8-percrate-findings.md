@@ -1866,3 +1866,16 @@ n3 reasoner.rs (backward chaining — SERIOUS):
 - :4136-4138/:4281-4300 — settled_search_evidence re-conjoins the
   relation declaration on EVERY pull instead of once at settle
   (evidence growth per row read).
+
+## wave-20 additions (B2 sql bench full receipt)
+
+- sql benches complete: compile_query.rs with sql_compile_cold/{64,240}
+  (fresh WHERE literal per iteration, memo provably misses) +
+  sql_compile_memo_hit/{64,240} (same doc, measures canonicalization+
+  BLAKE3+lookup residual); Throughput::Bytes; sample_size(20);
+  deterministic fixture derived from the sql_golden test.
+- API gap disclosed: query-execute benches belong in the crate owning
+  the DuckDB handle (purrdf-duckdb), not purrdf-sql — execution has no
+  standalone surface in purrdf-sql.
+- Makefile bug disclosed: `make b-sparql-eval` (without purrdf-
+  prefix) targets a nonexistent package (exit 101) — pre-existing.
