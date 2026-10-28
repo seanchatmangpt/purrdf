@@ -1375,3 +1375,16 @@ n3 reasoner.rs (backward chaining — SERIOUS):
 - sparql-eval solution.rs merge internals: CLEAN (compatible, union/intersection, shared_columns, in-place permutation all verified; witness.rs/service_endpoints.rs merge fns also clean).
 
 - ed25519 lib.rs/keys.rs public verify paths: CLEAN (check order, negated-argument composition, clamping, canonical-borrow tests all verified).
+
+## wave-16 additions (cli format.rs, ed25519)
+
+- cli format.rs:124 — after stripping a transport suffix the payload
+  stem has no extension: the user gets "no file extension" instead of
+  "this is a compressed stream; pass --from" (misattributed cause).
+- format.rs:171 — resolve_target orders the transport refusal before
+  resolve: an explicit --to cannot suppress the refusal the way --from
+  can on the input side (precedence asymmetry).
+- format.rs:284 — Pack/Gts hard-coded consumes_base=false may refuse
+  --base as inert when import_gts_events actually resolves against it
+  (needs canonical-lane confirmation).
+- ed25519 lib.rs/keys.rs public verify paths: CLEAN.
