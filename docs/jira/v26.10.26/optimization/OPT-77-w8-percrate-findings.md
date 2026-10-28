@@ -1152,3 +1152,5 @@ n3 printing.rs round-trip (5):
 - eval.rs:357-372 (recorded W10; now traced to literal fallback) and
   body-variable name-identity reliance (engine-level term identity
   unverified).
+
+- rdf-core sink.rs: CLEAN (drain invariant held at every boundary; Tee all-or-nothing is documented contract).
