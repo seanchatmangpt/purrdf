@@ -132,6 +132,15 @@ ONE_SIDED_BY_DESIGN: dict[str, str] = {
         "targets. `make simd-asm` is the local entry point; only its `--self-test` arm "
         "runs in `make check`"
     ),
+    "scripts/check-leaf-compile.sh": (
+        "a leaf cargo compile probe, so it needs the toolchain and a warm target dir; "
+        "CI-only by design (this machine's 5-second law bars local cargo)"
+    ),
+    "scripts/check-no-std.py": (
+        "resolves the no_std feature graph through cargo metadata, so it needs the "
+        "toolchain; CI-only by design (the local --fast pre-check in `make check` "
+        "covers the declared-dependency half)"
+    ),
 }
 
 
@@ -140,7 +149,7 @@ ONE_SIDED_BY_DESIGN: dict[str, str] = {
 # refused an ADDITION. It grew from four to six inside this change, and a stale "Four" in
 # both the changelog and the PR body is the proof that nothing noticed. Growth is now a
 # deliberate, visible edit to this number.
-ONE_SIDED_COUNT = 7
+ONE_SIDED_COUNT = 9
 
 
 def stale_exemptions(local: set[str], reachable: set[str]) -> list[str]:
@@ -261,6 +270,69 @@ GATE_BY_NAME = re.compile(
 # count from 40 to 38.
 GATE_BY_ARGUMENT = re.compile(r"\s--(?:offline-)?self-test\b")
 
+# THE TIERED RECEIPT LADDER, PINNED. `bounded-gates.yml` wraps each gate in
+# `bash scripts/bounded-tier.sh <tier> <stage> <sla_s> <sla_ms> <command>`. Left
+# alone, the wrapper hides the gate it runs: the identity scan sees the tier
+# arguments as noise and the gate only by luck of the inner interpreter match,
+# while the SLA — the thing the ladder exists to enforce — is checked by
+# nobody. So the ladder is unwrapped (the inner command becomes the identity)
+# and every call line is checked against this table: stage, tier, both SLA
+# spellings and the command, all four, whitespace-normalised. A drifted SLA is
+# a silent relaxation of the 5-second law; the table is how it cannot drift
+# quietly.
+BOUNDED_TIERS: dict[str, tuple[int, int, int, str]] = {
+    "check-toolchain-pin": (1, 5, 5000, "python3 scripts/check-toolchain-pin.py"),
+    "check-no-std": (1, 5, 5000, "python3 scripts/check-no-std.py"),
+    "check-layers": (1, 5, 5000, "python3 scripts/check-layers.py"),
+    "check-serializer-rewinds": (1, 5, 5000, "python3 scripts/check-serializer-rewinds.py"),
+    "python-oracles": (2, 5, 5000,
+                       "bash -c 'cd crates/branchless/oracles && python3 -m pytest -q'"),
+    "bounded-guard-corpus": (3, 10, 10000, "bash scripts/test-bounded-guard.sh"),
+    "leaf-compile-probe": (3, 5, 5000, "bash scripts/check-leaf-compile.sh"),
+}
+# Same shrink-or-show rule as ONE_SIDED_COUNT: growth is a visible edit here.
+BOUNDED_TIER_COUNT = 7
+BOUNDED_TIER = re.compile(
+    r"\bbash\s+scripts/bounded-tier\.sh\s+(\d+)\s+([\w-]+)\s+(\d+)\s+(\d+)\s+([^\n]*)"
+)
+
+
+def unwrap_bounded_tier(text: str) -> str:
+    """Each ladder line replaced by the bare command it bounds."""
+    return BOUNDED_TIER.sub(lambda m: m.group(5).strip(), text)
+
+
+def bounded_tier_problems(workflow_texts: dict[str, str]) -> list[str]:
+    """Every ladder call line that disagrees with BOUNDED_TIERS, and every stage gone quiet."""
+    problems: list[str] = []
+    seen: set[str] = set()
+    for name, text in sorted(workflow_texts.items()):
+        for tier, stage, sla_s, sla_ms, command in BOUNDED_TIER.findall(
+            strip_yaml_comments(_uncomment(text, ("#",)))
+        ):
+            seen.add(stage)
+            want = BOUNDED_TIERS.get(stage)
+            line = " ".join(
+                f"bash scripts/bounded-tier.sh {tier} {stage} {sla_s} {sla_ms} {command}".split()
+            )
+            if want is None:
+                problems.append(f"`{line}` ({name}) is not a stage in BOUNDED_TIERS — add it "
+                                "there first, visibly, or do not run it")
+            elif want != (int(tier), int(sla_s), int(sla_ms), " ".join(command.split())):
+                problems.append(f"`{line}` ({name}) disagrees with BOUNDED_TIERS "
+                                f"{(stage, *want)} — an SLA that drifted is a law relaxed")
+    problems.extend(
+        f"BOUNDED_TIERS stage `{stage}` runs in no workflow — a tier that no longer "
+        "runs must be deleted from the table, not left as a receipt nobody checks"
+        for stage in sorted(set(BOUNDED_TIERS) - seen)
+    )
+    if len(BOUNDED_TIERS) != BOUNDED_TIER_COUNT:
+        problems.append(
+            f"BOUNDED_TIERS holds {len(BOUNDED_TIERS)} stages and BOUNDED_TIER_COUNT says "
+            f"{BOUNDED_TIER_COUNT}; add or remove the stage and edit the count in the same change"
+        )
+    return problems
+
 
 def _normalise(program: str, rest: str) -> str:
     """One invocation as `program args`, whitespace-collapsed.
@@ -361,7 +433,9 @@ def invocations(text: str) -> set[str]:
     # INLINE COMMENTS TOO, as `make_targets` already does. `_uncomment` removed only
     # whole-line comments, so a trailing `# ... python3 scripts/check-x.py` was read as a
     # running gate.
-    prepared = _drop_prose(_join_continuations(strip_yaml_comments(_uncomment(text, ("#",)))))
+    prepared = _drop_prose(_join_continuations(strip_yaml_comments(_uncomment(
+        unwrap_bounded_tier(text), ("#",)
+    ))))
     return {_normalise(m.group(1), m.group(2)) for m in INVOCATION.finditer(prepared)} | {
         _normalise("helper-census", m.group(1) + m.group(2))
         for m in HELPER_POLICY_INVOCATION.finditer(prepared)
@@ -503,7 +577,9 @@ def self_test() -> int:
     # Direction 1: a gate in `make check` that no workflow runs.
     invented = "\tpython3 scripts/check-invented-local-only.py\n"
     mutated = real_makefile.replace("\ncheck: ", "\ncheck: ", 1)
-    marker = "\tcargo run -q --locked -p helper-census -- --no-features\n"
+    # The Makefile prefixes recipe lines with $(BOUNDED); anchor on the
+    # command tail so the marker survives wrapper changes.
+    marker = "cargo run -q --locked -p helper-census -- --no-features\n"
     if marker not in mutated:
         print("SELF-TEST FAIL: the anchor line for the mutation is not in the Makefile")
         return 1
@@ -718,9 +794,10 @@ def self_test() -> int:
 
     # A gate present in BOTH but with different arguments is a divergence too:
     # `--self-test` and the bare run are different rules.
+    # Anchor on the command tail: the recipe line carries a $(BOUNDED) prefix.
     argument_drift = real_makefile.replace(
-        "\tcargo run -q --locked -p helper-census -- --no-features\n",
-        "\tcargo run -q --locked -p helper-census -- --no-features --self-test\n",
+        "cargo run -q --locked -p helper-census -- --no-features\n",
+        "cargo run -q --locked -p helper-census -- --no-features --self-test\n",
         1,
     )
     found = divergence(argument_drift, real_workflows)
@@ -795,6 +872,7 @@ def main() -> int:
     workflow_texts = _workflow_texts()
     problems = divergence(makefile_text, workflow_texts)
     problems.extend(consumer_gate_problems(makefile_text, workflow_texts))
+    problems.extend(bounded_tier_problems(workflow_texts))
     if problems:
         sys.exit(
             "FAIL: `make check` and the CI workflows do not run the same gates:\n  "
