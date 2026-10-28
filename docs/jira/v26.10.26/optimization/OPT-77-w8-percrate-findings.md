@@ -1430,3 +1430,16 @@ n3 reasoner.rs (backward chaining — SERIOUS):
 - :996-1004 — One-cardinality integrity check runs on the FILTERED
   representable list: a 2-object violation with 1 representable
   buries the second instead of surfacing the violation.
+
+## wave-17 verification verdicts
+
+- shapes ask blast radius: CONFIRMED (the ? on decide propagates out
+  of claimants with no per-shape catch; kills the whole focus-node
+  dispatch and subsequent nodes).
+- shapes profile failure-drop: CONFIRMED (final arm returns Err
+  unchanged, discarding the captured failure; governor exhaustion
+  itself is checked earlier — the drop hits other concurrent runtime
+  failures).
+- update insert_data bnode prefix: CONFIRMED (literal None at :553;
+  mutable_mint_prefix resolves it to ""; insert_data doesn't even
+  receive cfg; tests set the option but never exercise this path).
