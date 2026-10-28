@@ -1456,3 +1456,15 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   gets a misleading error class).
 
 - gts blob drop: REFUTED — the Ok(_) arms are dead defensive branches; a non-bytes payload under a chain is unreachable (payload returns only Value::Bytes in both regimes; the Err path is fully instrumented).
+
+## wave-17 additions (capi serialize, gts composite recipient, csvw package)
+
+- capi serialize.rs: 3 latent items (callback refusal code only in
+  message text; let _ = flush() swallows a future real flush;
+  partial-bytes-on-abort contract gap). No confirmed bug.
+- gts composite recipient/key resolution: CLEAN (fail-closed header
+  path; no downgrade).
+- csvw package.rs:316 — to_ustar byte-accounting invariant enforced
+  only by debug_assert_eq! (release builds ship a mismatched
+  archive_bytes on future writer drift); all other checks
+  validate-before-commit.
