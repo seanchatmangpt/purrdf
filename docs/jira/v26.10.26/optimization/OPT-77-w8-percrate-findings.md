@@ -520,3 +520,11 @@ string.
 - claims.rs:87 — section identity digests raw heading bytes including
   CRLF's \r: a CRLF doc and its LF twin mint different section IRIs
   despite the documented same-structure guarantee.
+
+## wave-11 clean lanes
+
+- ed25519 point/scalar: CLEAN (decompression ordering, Montgomery
+  split soundness re-derived, comb completeness proven, no
+  malleability gap) — security-critical surface verified.
+- cdt ops/functions: clean (2 invariant-maintenance observations
+  recorded earlier).
