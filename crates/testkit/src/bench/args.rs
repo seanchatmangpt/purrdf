@@ -199,9 +199,9 @@ impl Arguments {
                         ))
                     })?;
                     if seconds == 0 {
-                        return Err(ArgumentError(
-                            format!("option `--wall-max`: `{seconds}` is not longer than zero"),
-                        ));
+                        return Err(ArgumentError(format!(
+                            "option `--wall-max`: `{seconds}` is not longer than zero"
+                        )));
                     }
                     parsed.wall_max = Duration::from_secs(seconds).min(MAX_BENCH_WALL);
                 }

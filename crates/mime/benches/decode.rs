@@ -115,9 +115,12 @@ fn part_with_encoding(document: &Document<'_>, encoding: &str) -> usize {
 
 /// The parse and both transfer decoders over the one seeded message.
 fn bench_decode(c: &mut Bench) {
-    let profile =
-        Profile::new("bench", Vocabulary::standard().expect("shipped vocabulary"), Limits::unbounded())
-            .expect("bench profile builds");
+    let profile = Profile::new(
+        "bench",
+        Vocabulary::standard().expect("shipped vocabulary"),
+        Limits::unbounded(),
+    )
+    .expect("bench profile builds");
     let text = message();
     let document = analyze(
         SourceDocument {

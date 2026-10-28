@@ -306,7 +306,11 @@ fn fixpoint(c: &mut Bench) {
     // n3_parse rows, before this group printed).
     group.sample_size(20);
     let large = std::env::var("N3_FIXPOINT_LARGE").is_ok_and(|v| v == "1");
-    for n in if large { [64_usize, 256] } else { [64_usize, 128] } {
+    for n in if large {
+        [64_usize, 256]
+    } else {
+        [64_usize, 128]
+    } {
         let chain = chain_program(n);
         let peer = peer_program(n);
         // Analytic closure sizes, computed without running the reasoner: a

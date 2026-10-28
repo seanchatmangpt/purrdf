@@ -13,9 +13,9 @@
 //! deterministic xorshift64 streams at const seeds — no RNG dependency, no
 //! clock — so every document is replayable byte-for-byte from its seed alone.
 
-use purrdf_toml::{Profile, SourceDocument, analyze, decode_document, project};
 use purrdf_testkit::bench::{Bench, BenchmarkId, Throughput, bench_group, bench_main, black_box};
 use purrdf_testkit::rng::xorshift64_next;
+use purrdf_toml::{Profile, SourceDocument, analyze, decode_document, project};
 
 /// Table counts exercised: small enough to stay cache-resident, large enough
 /// that per-row admission and the flat node arena dominate per-call overhead.
@@ -36,7 +36,11 @@ fn push_row(text: &mut String, key: &str, draw: u64) {
     text.push_str(" = ");
     match draw % 5 {
         0 => text.push_str(&((draw >> 8) % 1_000_000).to_string()),
-        1 => text.push_str(if (draw >> 8) % 2 == 0 { "true" } else { "false" }),
+        1 => text.push_str(if (draw >> 8) % 2 == 0 {
+            "true"
+        } else {
+            "false"
+        }),
         2 => {
             text.push('"');
             for _ in 0..(3 + (draw >> 8) % 12) {

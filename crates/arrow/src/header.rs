@@ -70,12 +70,11 @@ impl ArrowEgressHeader {
     pub const SCHEMA_VERSION: u16 = 0x0002;
     /// Byte offset of the payload region.
     pub const PAYLOAD_OFFSET: u32 = 128;
-///
-/// A `SCHEMA_VERSION` bump is a BREAKING change — historical streams fail
-/// closed on the new reader and new streams fail on old readers — so it
-/// must ship in a semver major release of this crate (and therefore the
-/// workspace); minor and patch releases keep `SCHEMA_VERSION` unchanged.
-
+    ///
+    /// A `SCHEMA_VERSION` bump is a BREAKING change — historical streams fail
+    /// closed on the new reader and new streams fail on old readers — so it
+    /// must ship in a semver major release of this crate (and therefore the
+    /// workspace); minor and patch releases keep `SCHEMA_VERSION` unchanged.
 
     /// Flags bit0: payload contains null values.
     /// Advisory only: `from_bytes` mask-checks flags but never cross-checks

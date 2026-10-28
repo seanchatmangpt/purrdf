@@ -719,12 +719,9 @@ impl OperationInput<'_> {
                     &geo,
                 )?;
                 let bytes = run.serialize(|| match (&jsonld, format.as_deref()) {
-                    (Some(options), Some(format)) => serialize_configured_graph(
-                        result,
-                        format,
-                        options,
-                    )
-                    .map(String::into_bytes),
+                    (Some(options), Some(format)) => {
+                        serialize_configured_graph(result, format, options).map(String::into_bytes)
+                    }
                     _ => serialize_query_result(
                         &result,
                         format.as_deref(),
@@ -1208,7 +1205,9 @@ mod tests {
         };
         match outcome {
             JobOutcome::Query(result) => in_result(result),
-            JobOutcome::Raw(text) => std::str::from_utf8(&text).is_ok_and(|text| text.contains(THIRD)),
+            JobOutcome::Raw(text) => {
+                std::str::from_utf8(&text).is_ok_and(|text| text.contains(THIRD))
+            }
             JobOutcome::Governed(governed) => in_outcome(governed),
             JobOutcome::Entailment(entailment) => matches!(
                 entailment.as_ref(),

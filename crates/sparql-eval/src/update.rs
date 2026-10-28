@@ -466,15 +466,13 @@ fn apply_operation(
 ) -> Result<(), UpdateAbort> {
     check_stop(cfg.governors)?;
     match op {
-        GraphUpdateOperation::InsertData { data } => {
-            insert_data(
-                data,
-                m,
-                bnode_counter,
-                cfg.options.bnode_mint_prefix,
-                cfg.governors,
-            )
-        }
+        GraphUpdateOperation::InsertData { data } => insert_data(
+            data,
+            m,
+            bnode_counter,
+            cfg.options.bnode_mint_prefix,
+            cfg.governors,
+        ),
         GraphUpdateOperation::DeleteData { data } => {
             delete_data(data, m, bnode_counter, cfg.governors)
         }

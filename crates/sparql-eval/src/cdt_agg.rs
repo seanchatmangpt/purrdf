@@ -267,11 +267,7 @@ impl FoldAccumulator {
             // failure: propagate it typed instead of laundering it into the empty
             // literal. Only the genuinely-empty group yields the empty "[]"/"{}".
             purrdf_cdt::CdtOutcome::Error(error) if non_empty => Err(
-                crate::NativeDiagnostic::error(
-                    crate::NativeDiagnosticKind::Data,
-                    error,
-                    workspace,
-                ),
+                crate::NativeDiagnostic::error(crate::NativeDiagnosticKind::Data, error, workspace),
             ),
             purrdf_cdt::CdtOutcome::Error(_) => crate::cdt_fn::composite_literal_admitted(
                 &if map {

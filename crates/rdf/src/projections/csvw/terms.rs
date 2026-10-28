@@ -969,6 +969,13 @@ impl<'a> TermsProjector<'a> {
                 let mut cells = Vec::with_capacity(declaration.columns.len() + 1);
                 cells.push(identity_cell(subject, &declaration.identity));
                 for column in &declaration.columns {
+                    // Cardinality is a property of the SOURCE cell, not of
+                    // what survived the value-mode filter: a raw-2 cell whose
+                    // second value filters out is still ambiguous, and
+                    // `predicate_cell` would pick `.first()` arbitrarily.
+                    // `required` keeps the surviving check — it cares about
+                    // usable output, not source noise.
+                    let raw_count = predicates.get(&column.predicate).map_or(0, BTreeSet::len);
                     let objects =
                         predicates
                             .get(&column.predicate)
@@ -994,13 +1001,10 @@ impl<'a> TermsProjector<'a> {
                             declaration.name, column.name
                         )));
                     }
-                    if matches!(column.cardinality, CsvwTermsCardinality::One) && objects.len() > 1
-                    {
+                    if matches!(column.cardinality, CsvwTermsCardinality::One) && raw_count > 1 {
                         return Err(ProjectionError::integrity(format!(
-                            "CSVW terms table `{}` single-valued column `{}` has {} values for `{subject}`",
-                            declaration.name,
-                            column.name,
-                            objects.len()
+                            "CSVW terms table `{}` single-valued column `{}` has {raw_count} raw values for `{subject}`",
+                            declaration.name, column.name,
                         )));
                     }
                     value_count = value_count
@@ -1865,11 +1869,15 @@ mod tests {
             &format!("{VOCAB}ParentB"),
             None,
         );
-        push_iri_quad(
+        // Not an IRI under the parents column's Iri value mode: this is what
+        // keeps a LOSS_CSVW_TERMS_OBJECT_UNREPRESENTABLE entry in the shared
+        // fixture's ledger without giving the single-valued `label` column a
+        // second raw value (which would now fail the raw-count check).
+        push_literal_quad(
             &mut builder,
             &class,
-            LABEL,
-            &format!("{VOCAB}not-a-literal"),
+            PARENT,
+            RdfLiteral::simple("not an IRI"),
             None,
         );
         push_iri_quad(

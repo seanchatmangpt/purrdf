@@ -2066,11 +2066,7 @@ impl Parser {
                     ));
                 }
             };
-            if self
-                .scopes
-                .iter()
-                .any(|s| s.bindings.contains_key(&iri))
-            {
+            if self.scopes.iter().any(|s| s.bindings.contains_key(&iri)) {
                 return Err(EyeronError::at(
                     "IRI is already quantified in this graph",
                     name.offset,

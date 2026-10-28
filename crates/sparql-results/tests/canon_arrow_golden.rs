@@ -208,7 +208,11 @@ fn the_two_by_two_frame_pins_the_slab_bytes() {
 
     // First slab, column `s`: the term-kind bytes and the offset table.
     let slab = off::PAYLOAD_REGION;
-    assert_eq!(&frame[slab..slab + 2], &[0x00, 0x01], "s kinds: IRI, BLANK_NODE");
+    assert_eq!(
+        &frame[slab..slab + 2],
+        &[0x00, 0x01],
+        "s kinds: IRI, BLANK_NODE"
+    );
     assert_eq!(&frame[slab + 2..slab + 14], &offsets(&[0, 26, 30])[..]);
     assert_eq!(
         &frame[slab + 14..slab + 44],
@@ -250,12 +254,7 @@ fn the_two_by_two_frame_pins_the_slab_bytes() {
     assert_eq!(header.columnar_digest, *columnar.finalize().as_bytes());
 
     let mut triples = blake3::Hasher::new();
-    for token in [
-        "<http://example.org/alice>",
-        "_:b0",
-        "\"Alice\"",
-        "\"Bob\"",
-    ] {
+    for token in ["<http://example.org/alice>", "_:b0", "\"Alice\"", "\"Bob\""] {
         triples.update(token.as_bytes());
         triples.update(&[0]);
     }

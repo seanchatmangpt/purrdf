@@ -33,9 +33,7 @@
 // three byte facts on the ArrayBuffer it receives.
 
 use purrdf_arrow::ArrowEgressHeader;
-use purrdf_sparql_results::{
-    ResultProvenance, SparqlResult, SparqlResultsFormat, serialize,
-};
+use purrdf_sparql_results::{ResultProvenance, SparqlResult, SparqlResultsFormat, serialize};
 
 /// The wire magic every canon-arrow frame starts with (`GLAWARRW`).
 const MAGIC: &[u8; 8] = b"GLAWARRW";
@@ -75,13 +73,12 @@ fn canon_arrow_frame_opens_with_glawarrw_and_header_fits_in() {
     let header_bytes: [u8; 128] = frame[0..128]
         .try_into()
         .expect("frame is at least one header long");
-    let header = ArrowEgressHeader::from_bytes(&header_bytes)
-        .expect("the frame's own header validates");
+    let header =
+        ArrowEgressHeader::from_bytes(&header_bytes).expect("the frame's own header validates");
 
     // 3. `fits_in` accepts exactly the frame the header describes.
     assert_eq!(
-        header.total_byte_len,
-        CANON_EMPTY_FRAME_LEN,
+        header.total_byte_len, CANON_EMPTY_FRAME_LEN,
         "ASK emits the fixed canon-empty frame: 128-byte header + 64-byte padding"
     );
     assert!(
@@ -121,8 +118,7 @@ fn ask_result_emits_the_192_byte_canon_empty_frame() {
     let header_bytes: [u8; 128] = frame[0..128]
         .try_into()
         .expect("128 of 192 bytes is exactly one header");
-    let header =
-        ArrowEgressHeader::from_bytes(&header_bytes).expect("ASK header round-trips");
+    let header = ArrowEgressHeader::from_bytes(&header_bytes).expect("ASK header round-trips");
     assert!(header.fits_in(frame.len() as u64));
     assert_eq!(
         header.triples_digest,

@@ -542,7 +542,10 @@ pub(crate) fn search_layer_admitted<A: Arithmetic>(
         // discovered node and `current` (itself discovered) is never strictly worse than
         // their maximum — the beam exits by exhausting `candidates`, which is exactly
         // the full reachable expansion the smaller-than-`ef` component requires.
-        if results.peek().is_some_and(|worst| results.len() >= ef && current > *worst) {
+        if results
+            .peek()
+            .is_some_and(|worst| results.len() >= ef && current > *worst)
+        {
             break;
         }
         // The unvisited neighbours, scored as one batch, then admitted in adjacency

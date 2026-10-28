@@ -14,10 +14,10 @@ pub use proof_error::ProofError;
 use purrdf_hash::Domain;
 use purrdf_hash::blake3::RecordHasher;
 use purrdf_hash::hex::Lower;
-use purrdf_lex::json_escape::{JsonEscapes, push_body};
 use purrdf_lex::cbor::Value;
 use purrdf_lex::cbor::head;
 use purrdf_lex::json::{self, Object, Value as Json};
+use purrdf_lex::json_escape::{JsonEscapes, push_body};
 
 use crate::reader::{as_i128, as_idx};
 use crate::wire::{MAGIC, VERSION, content_id, header_id, iter_items, map_get, unwrap_header};

@@ -193,7 +193,9 @@ where
                         self.phase = Phase::Ready;
                     } else if *had_facts {
                         self.delta = Delta {
-                            lo: self.restored_lo.map_or(self.round_lo, |lo| lo.min(self.round_lo)),
+                            lo: self
+                                .restored_lo
+                                .map_or(self.round_lo, |lo| lo.min(self.round_lo)),
                             hi: state.rel.row_slots(),
                         };
                         self.phase = Phase::Ready;

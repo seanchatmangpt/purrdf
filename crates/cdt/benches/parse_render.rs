@@ -35,7 +35,11 @@ const MAP_SEED: u64 = 0x6364_745F_6D61_7030;
 fn push_element(text: &mut String, draw: u64) {
     match draw % 8 {
         0..=4 => text.push_str(&((draw >> 8) % 1_000_000).to_string()),
-        5 => text.push_str(if (draw >> 8) % 2 == 0 { "true" } else { "false" }),
+        5 => text.push_str(if (draw >> 8) % 2 == 0 {
+            "true"
+        } else {
+            "false"
+        }),
         6 => text.push_str("null"),
         _ => {
             text.push('"');

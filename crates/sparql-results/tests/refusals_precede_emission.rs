@@ -194,7 +194,8 @@ fn srx_refuses_a_graph_and_spares_the_kinds_it_defines() {
 /// shares its frame, and the malformed term's neighbour is the same nested
 /// triple with a predicate that does spell.
 #[test]
-fn canon_arrow_emits_the_canon_empty_frame_and_refuses_only_a_malformed_term_before_the_first_byte() {
+fn canon_arrow_emits_the_canon_empty_frame_and_refuses_only_a_malformed_term_before_the_first_byte()
+{
     use purrdf_sparql_results::{SparqlResultsFormat, serialize_into};
 
     let provenance = ResultProvenance::default();

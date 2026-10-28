@@ -521,10 +521,29 @@ impl Reader<'_> {
                 // internal subset (constraint "PEs in Internal Subset").
                 return Err(XmlError::new(XmlErrorKind::ParameterEntity, start));
             }
-            let semi = rest[amp..]
+            // A char reference is at most `&#x10FFFF;` — ten bytes including
+            // `&` and `;` — so the scan for its `;` is bounded to that
+            // window; a `;` farther away belongs to nothing, and failing at
+            // the markup beats scanning the rest of the literal.
+            let char_ref = rest[amp + 1..].starts_with('#');
+            let window_end = if char_ref {
+                (amp + 10).min(rest.len())
+            } else {
+                rest.len()
+            };
+            let semi = rest[amp..window_end]
                 .find(';')
                 .map(|s| amp + s)
-                .ok_or_else(|| XmlError::new(XmlErrorKind::Expected("`;`"), start))?;
+                .ok_or_else(|| {
+                    XmlError::new(
+                        if char_ref {
+                            XmlErrorKind::InvalidCharRef
+                        } else {
+                            XmlErrorKind::Expected("`;`")
+                        },
+                        start,
+                    )
+                })?;
             let body = &rest[amp + 1..semi];
             if let Some(digits) = body.strip_prefix('#') {
                 let c = decode_char_ref(digits.as_bytes())

@@ -544,7 +544,16 @@ fn main_status(trials: impl IntoIterator<Item = Trial>) -> u8 {
                 && arguments.exact
                 && !arguments.filters.is_empty() =>
         {
-            Some(arguments.filters.len())
+            // Duplicated `--exact` names select one case, so they must be
+            // required once: counting duplicates made a passing suite exit
+            // 101 under PURRDF_TEST_REQUIRE_EXACT=1.
+            Some(
+                arguments
+                    .filters
+                    .iter()
+                    .collect::<std::collections::HashSet<_>>()
+                    .len(),
+            )
         }
         Some("1") => {
             platform::print_error(

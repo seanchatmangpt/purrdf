@@ -146,8 +146,7 @@ fn stage_parquet_views(turtle: &str, dir: &Path) {
         .to_parquet(Compression::Uncompressed)
         .expect("serialize five-table parquet");
     for (table, bytes) in columnar_write.files.iter() {
-        std::fs::write(dir.join(table.file_name()), bytes)
-            .expect("write parquet file");
+        std::fs::write(dir.join(table.file_name()), bytes).expect("write parquet file");
     }
 }
 

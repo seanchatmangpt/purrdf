@@ -13,7 +13,7 @@
 //! the same seed produces byte-identical fixtures on every host, so numbers
 //! are comparable across runs).
 
-use purrdf_branchless::{eytzinger, hash, packing, sort16, sort_small, swar};
+use purrdf_branchless::{eytzinger, hash, packing, sort_small, sort16, swar};
 use purrdf_hash::mix::lcg64_next;
 use purrdf_testkit::bench::{Bench, Throughput, bench_group, bench_main, black_box};
 
@@ -62,12 +62,7 @@ fn csv_fixture() -> Vec<u8> {
 fn coords_fixture() -> Vec<(u32, u32)> {
     let mut rng = FixtureRng::new(0xDE5EED_0003);
     (0..1_000_000)
-        .map(|_| {
-            (
-                (rng.next_u64() >> 33) as u32,
-                (rng.next_u64() >> 33) as u32,
-            )
-        })
+        .map(|_| ((rng.next_u64() >> 33) as u32, (rng.next_u64() >> 33) as u32))
         .collect()
 }
 

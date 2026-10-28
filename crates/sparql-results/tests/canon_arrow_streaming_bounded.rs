@@ -119,8 +119,7 @@ fn canon_arrow_streaming_holds_only_one_batch() {
         &ArrowEgressHeader::MAGIC,
         "the frame must open with the canon-arrow magic"
     );
-    let header_bytes: [u8; ArrowEgressHeader::SIZE] = output
-        [0..ArrowEgressHeader::SIZE]
+    let header_bytes: [u8; ArrowEgressHeader::SIZE] = output[0..ArrowEgressHeader::SIZE]
         .try_into()
         .expect("the output carries at least one full 128-byte header");
     let header = ArrowEgressHeader::from_bytes(&header_bytes)

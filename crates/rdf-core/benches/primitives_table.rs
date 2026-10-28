@@ -31,8 +31,7 @@
 
 use purrdf_core::csv::backend;
 use purrdf_core::primitives::{
-    bitset_intersect_u64, clamped_scaling_u64, sort_quad_lanes_branchless,
-    swar_find_delimiter_u64,
+    bitset_intersect_u64, clamped_scaling_u64, sort_quad_lanes_branchless, swar_find_delimiter_u64,
 };
 use purrdf_hash::mix::{LCG64_MMIX_INCREMENT, lcg64_next};
 use purrdf_testkit::bench::{Bench, Throughput, bench_group, bench_main, black_box};
@@ -59,7 +58,11 @@ fn fill_alphabet(dst: &mut [u8], mut state: u64, alphabet: &[u8]) {
 /// exit) — the worst case both kernels must survive.
 fn haystack() -> Vec<u8> {
     let mut data = vec![b'x'; HAYSTACK_LEN];
-    fill_alphabet(&mut data, 0x00C5_F1E1_D5CA_2026, b"abcdefghijklmnopqrstuvwxyz0123456789");
+    fill_alphabet(
+        &mut data,
+        0x00C5_F1E1_D5CA_2026,
+        b"abcdefghijklmnopqrstuvwxyz0123456789",
+    );
     data
 }
 
@@ -73,7 +76,14 @@ fn bench_primitives(c: &mut Bench) {
         .map(|_| lcg64_next(&mut state, LCG64_MMIX_INCREMENT))
         .collect();
     let lane_quads: Vec<[u64; 4]> = (0..1024)
-        .map(|i| [words[i * 4], words[i * 4 + 1], words[i * 4 + 2], words[i * 4 + 3]])
+        .map(|i| {
+            [
+                words[i * 4],
+                words[i * 4 + 1],
+                words[i * 4 + 2],
+                words[i * 4 + 3],
+            ]
+        })
         .collect();
 
     let mut group = c.benchmark_group("primitives_kernel");

@@ -55,9 +55,9 @@
 
 use std::cell::Cell;
 
-use purrdf_core::ir::{GlobalDictionary, TermValue};
 use purrdf_core::RdfDatasetBuilder;
-use purrdf_testkit::bench::{bench_group, bench_main, black_box, BatchSize, Bench, Throughput};
+use purrdf_core::ir::{GlobalDictionary, TermValue};
+use purrdf_testkit::bench::{BatchSize, Bench, Throughput, bench_group, bench_main, black_box};
 
 /// Number of intern calls per measured iteration.
 const N: u32 = 10_000;

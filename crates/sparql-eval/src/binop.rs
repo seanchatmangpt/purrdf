@@ -4229,8 +4229,8 @@ mod tests {
         use crate::evidence_exec::{QueryEvidence, RowEvidence};
         use crate::scratch::SolutionTerm;
         use purrdf_core::TermId;
-        use purrdf_core::evidence::{EvidenceRecord, Frame, InformationMap, SearchCompleteness};
         use purrdf_core::evidence::ReasonDescription;
+        use purrdf_core::evidence::{EvidenceRecord, Frame, InformationMap, SearchCompleteness};
         use purrdf_lex::allocation::{Memory, Resident};
 
         let t = |i: u32| {
@@ -4271,16 +4271,13 @@ mod tests {
 
         // Attach the records to rows; a non-virtual record forces the tracked
         // owner so `evidence()` observes the real per-row state.
-        let undecided_row = crate::solution::RetainedRow::from_resident(purrdf_core::smallvec![
-            t(2)
-        ])
-        .with_evidence(undecided, &workspace)
-        .expect("attach undecided evidence");
-        let decided_row = crate::solution::RetainedRow::from_resident(purrdf_core::smallvec![
-            t(1)
-        ])
-        .with_evidence(decided.clone(), &workspace)
-        .expect("attach decided evidence");
+        let undecided_row =
+            crate::solution::RetainedRow::from_resident(purrdf_core::smallvec![t(2)])
+                .with_evidence(undecided, &workspace)
+                .expect("attach undecided evidence");
+        let decided_row = crate::solution::RetainedRow::from_resident(purrdf_core::smallvec![t(1)])
+            .with_evidence(decided.clone(), &workspace)
+            .expect("attach decided evidence");
 
         // Inner over schema [x]: x=1 (decided), x=2 (undecided). Shared = {x}.
         let shared = vec![(0usize, 0usize)];

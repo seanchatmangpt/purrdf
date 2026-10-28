@@ -149,8 +149,8 @@ fn bench_ipc_egress_header_flags(c: &mut Bench) {
         group.bench_function(id, |bencher| {
             bencher.iter(|| {
                 let wire = header.to_bytes();
-                let parsed = ArrowEgressHeader::from_bytes(&wire)
-                    .expect("the flagged header parses");
+                let parsed =
+                    ArrowEgressHeader::from_bytes(&wire).expect("the flagged header parses");
                 std::hint::black_box(parsed)
             });
         });
@@ -250,8 +250,8 @@ fn bench_ipc_egress_size_sweep(c: &mut Bench) {
                             .expect("a frame carries a 128-byte header"),
                     )
                     .expect("the sweep frame parses");
-                    let payload_region = &frame[ArrowEgressHeader::PAYLOAD_OFFSET as usize..]
-                        [..payload_len];
+                    let payload_region =
+                        &frame[ArrowEgressHeader::PAYLOAD_OFFSET as usize..][..payload_len];
                     let verified =
                         blake3::hash(payload_region).as_bytes() == &header.columnar_digest;
                     std::hint::black_box((header, verified))

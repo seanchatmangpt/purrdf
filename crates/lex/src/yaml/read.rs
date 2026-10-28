@@ -730,8 +730,7 @@ impl Parser<'_> {
         while !self.blank_at(self.pos)
             && !is_flow_indicator(self.peek())
             && !(self.peek() == Some(b':')
-                && (self.blank_at(self.pos + 1)
-                    || is_flow_indicator(self.peek_at(self.pos + 1))))
+                && (self.blank_at(self.pos + 1) || is_flow_indicator(self.peek_at(self.pos + 1))))
         {
             self.pos += self.text[self.pos..]
                 .chars()

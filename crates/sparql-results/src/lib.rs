@@ -119,7 +119,13 @@ impl purrdf_hash::error::StructuredError for SparqlResultsFormat {
 impl SparqlResultsFormat {
     /// Every format, in the order a server prefers them when a client accepts all:
     /// JSON first, the default.
-    pub const ALL: [Self; 5] = [Self::Json, Self::Xml, Self::Csv, Self::Tsv, Self::CanonArrow];
+    pub const ALL: [Self; 5] = [
+        Self::Json,
+        Self::Xml,
+        Self::Csv,
+        Self::Tsv,
+        Self::CanonArrow,
+    ];
 
     /// Every format's spellings, in [`Self::ALL`] (declaration) order: its short
     /// token, the internet media type the W3C SPARQL 1.1 Query Results format

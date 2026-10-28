@@ -48,8 +48,8 @@ mod fixture;
 use std::hint::black_box;
 use std::sync::Arc;
 
-use purrdf::sparql::{NativeSparqlEngine, QueryOptions};
 use purrdf::parse_dataset;
+use purrdf::sparql::{NativeSparqlEngine, QueryOptions};
 use purrdf_alloc_probe::{
     CountingAllocator, WholeProcessWindow, report_peak, resident_kib as rss_kb,
 };

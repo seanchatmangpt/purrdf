@@ -14,8 +14,8 @@ use std::hint::black_box;
 
 use purrdf_hash::Backend as _;
 use purrdf_hash::backend::{Crc32Backend, HexBackend, Sha1Backend};
-use purrdf_hash::frame::{frame_be_labelled, frame_le};
 use purrdf_hash::fnv::fnv1a64;
+use purrdf_hash::frame::{frame_be_labelled, frame_le};
 use purrdf_hash::hex::{
     Lower, decode, decode_32, decode_32_canonical, decode_canonical, encode, encode_into,
     encode_to_slice, encode_upper_to_slice,
@@ -255,9 +255,7 @@ fn kernels(c: &mut Bench) {
     let mut generator = purrdf_hash::mix::GOLDEN_GAMMA;
     group.throughput(Throughput::Elements(4096));
     group.bench_function("next/4096", |b| {
-        b.iter(|| {
-            (0..4096).fold(0u64, |sum, _| sum ^ splitmix64_next(&mut generator))
-        });
+        b.iter(|| (0..4096).fold(0u64, |sum, _| sum ^ splitmix64_next(&mut generator)));
     });
     group.bench_function("step/4096", |b| {
         b.iter(|| {
@@ -287,32 +285,38 @@ fn kernels(c: &mut Bench) {
     let parts: Vec<Multiset256> = members
         .chunks(MEMBERS / PARTS)
         .map(|chunk| {
-            chunk.iter().fold(Multiset256::default(), |mut set, member| {
-                set.insert(*member)
-                    .expect("32768 members cannot overflow a u128 population");
-                set
-            })
+            chunk
+                .iter()
+                .fold(Multiset256::default(), |mut set, member| {
+                    set.insert(*member)
+                        .expect("32768 members cannot overflow a u128 population");
+                    set
+                })
         })
         .collect();
     group.throughput(Throughput::Elements(members.len() as u64));
     group.bench_function("insert/32768", |b| {
         b.iter(|| {
-            members.iter().fold(Multiset256::default(), |mut set, member| {
-                set.insert(*member)
-                    .expect("32768 members cannot overflow a u128 population");
-                set
-            })
+            members
+                .iter()
+                .fold(Multiset256::default(), |mut set, member| {
+                    set.insert(*member)
+                        .expect("32768 members cannot overflow a u128 population");
+                    set
+                })
         });
     });
     group.throughput(Throughput::Elements(PARTS as u64));
     group.bench_function("combine/256", |b| {
         b.iter(|| {
-            parts.iter().fold(Multiset256::default(), |mut total, part| {
-                total
-                    .combine(*part)
-                    .expect("32768 members cannot overflow a u128 population");
-                total
-            })
+            parts
+                .iter()
+                .fold(Multiset256::default(), |mut total, part| {
+                    total
+                        .combine(*part)
+                        .expect("32768 members cannot overflow a u128 population");
+                    total
+                })
         });
     });
     group.finish();

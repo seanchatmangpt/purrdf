@@ -148,8 +148,7 @@ fn bench_pattern_validate(c: &mut Bench) {
         distinct_report.all_conformant(),
         "distinct_patterns fixture must conform for every node"
     );
-    let scale_valid_report =
-        validate(&scale_valid.schema, &scale_valid.data, &scale_valid.map);
+    let scale_valid_report = validate(&scale_valid.schema, &scale_valid.data, &scale_valid.map);
     assert!(
         scale_valid_report.all_conformant(),
         "scale_valid fixture must conform for every node"
@@ -242,7 +241,11 @@ fn bench_pattern_validate(c: &mut Bench) {
 
 fn bench_native_pattern_validate(c: &mut Bench) {
     let cases = [
-        ("shared_valid", shared_fixture(r"^W-[0-9]+$", NODE_COUNT), true),
+        (
+            "shared_valid",
+            shared_fixture(r"^W-[0-9]+$", NODE_COUNT),
+            true,
+        ),
         ("shared_invalid", shared_fixture("[a", NODE_COUNT), false),
         (
             "distinct_patterns",

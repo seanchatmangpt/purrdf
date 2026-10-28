@@ -676,7 +676,10 @@ impl Memory {
             .filter(|claim| options.include_suppressed || !claim.suppressed)
             .filter(|claim| match options.min_confidence {
                 None => true,
-                Some(min) => claim.confidence.is_some_and(|got| got >= min),
+                // An un-annotated claim carries no confidence to compare, so
+                // it passes any threshold — a floor filters LOW confidence,
+                // not MISSING confidence.
+                Some(min) => claim.confidence.is_none_or(|got| got >= min),
             })
             .collect();
         let tokens: FastSet<String> = options

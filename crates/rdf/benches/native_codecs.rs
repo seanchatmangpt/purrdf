@@ -200,7 +200,11 @@ fn nquads_fixture_numeric_heavy(rows: usize) -> String {
         let typed = idx % NUMERIC_TYPING_DEN < NUMERIC_TYPING_NUM;
         let object = if typed {
             match idx % NUMERIC_DATATYPES.len() {
-                0 => format!("\"{}\"^^<{}>", rng.next_u64() % 1_000_000_000, NUMERIC_DATATYPES[0]),
+                0 => format!(
+                    "\"{}\"^^<{}>",
+                    rng.next_u64() % 1_000_000_000,
+                    NUMERIC_DATATYPES[0]
+                ),
                 1 => format!(
                     "\"{}.{}\"^^<{}>",
                     rng.next_u64() % 1_000_000,
@@ -311,13 +315,21 @@ fn bench_parse_formats(c: &mut Bench) {
             "application/n-triples",
             SerializeGraph::DefaultGraph,
         ),
-        ("trig_2k_numeric", "application/trig", SerializeGraph::Dataset),
+        (
+            "trig_2k_numeric",
+            "application/trig",
+            SerializeGraph::Dataset,
+        ),
         (
             "rdfxml_2k_numeric",
             "application/rdf+xml",
             SerializeGraph::DefaultGraph,
         ),
-        ("trix_2k_numeric", "application/trix", SerializeGraph::Dataset),
+        (
+            "trix_2k_numeric",
+            "application/trix",
+            SerializeGraph::Dataset,
+        ),
         (
             "hextuples_2k_numeric",
             "application/x-hextuples",
@@ -333,8 +345,8 @@ fn bench_parse_formats(c: &mut Bench) {
         group.throughput(Throughput::Bytes(document.len() as u64));
         group.bench_function(name, |bencher| {
             bencher.iter(|| {
-                let parsed = parse_dataset(black_box(document.as_slice()), media_type, None)
-                    .expect("parse");
+                let parsed =
+                    parse_dataset(black_box(document.as_slice()), media_type, None).expect("parse");
                 black_box(parsed);
             });
         });
@@ -348,8 +360,7 @@ fn bench_serialize_nquads(c: &mut Bench) {
     let dirty = nquads_fixture_escape_heavy(ROWS);
     let dirty_ds = parse_dataset(dirty.as_bytes(), "application/n-quads", None).expect("parse");
     let numeric = nquads_fixture_numeric_heavy(ROWS);
-    let numeric_ds =
-        parse_dataset(numeric.as_bytes(), "application/n-quads", None).expect("parse");
+    let numeric_ds = parse_dataset(numeric.as_bytes(), "application/n-quads", None).expect("parse");
 
     // One untimed serialization per document measures the byte count each row's
     // `Throughput::Bytes` reports. The serializers are deterministic, so this is
@@ -419,7 +430,11 @@ fn bench_serialize_nquads(c: &mut Bench) {
     for (name, dataset, bytes) in [
         ("nquads_2k_streamed", &clean_ds, clean_bytes),
         ("nquads_2k_escape_heavy_streamed", &dirty_ds, dirty_bytes),
-        ("nquads_2k_numeric_heavy_streamed", &numeric_ds, numeric_bytes),
+        (
+            "nquads_2k_numeric_heavy_streamed",
+            &numeric_ds,
+            numeric_bytes,
+        ),
     ] {
         group.throughput(Throughput::Bytes(bytes));
         group.bench_function(name, |bencher| {
@@ -510,9 +525,8 @@ fn bench_jsonld_configured(c: &mut Bench) {
         compile.finish();
     }
 
-    let context = Arc::new(
-        CompiledJsonLdContext::from_prefixes(CONTEXT_PREFIXES).expect("compile context"),
-    );
+    let context =
+        Arc::new(CompiledJsonLdContext::from_prefixes(CONTEXT_PREFIXES).expect("compile context"));
     let caller = JsonLdSerializeOptions::compiled(context);
     let derived = JsonLdSerializeOptions::derived();
     let mut group = c.benchmark_group("jsonld_configured");

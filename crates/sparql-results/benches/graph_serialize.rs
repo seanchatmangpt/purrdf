@@ -137,13 +137,8 @@ fn bench_results_serialize(c: &mut Bench) {
     // Group-level `Throughput::Elements` would be misleading here — the formats
     // move wildly different byte volumes per row, so elements/second makes the
     // canon-arrow number look inflated relative to the bytes it actually moves.
-    let canon = serialize(
-        &result,
-        SparqlResultsFormat::CanonArrow,
-        &provenance,
-        None,
-    )
-    .expect("canon-arrow sanity pass");
+    let canon = serialize(&result, SparqlResultsFormat::CanonArrow, &provenance, None)
+        .expect("canon-arrow sanity pass");
     assert!(
         canon.bytes.len() > SELECT_ROWS * 8,
         "canon-arrow output is implausibly small ({} bytes for {SELECT_ROWS} rows)",
@@ -365,13 +360,8 @@ fn bench_graph_serialize(c: &mut Bench) {
     // over all three result shapes (OPT-17 §2), so a CONSTRUCT graph must emit a
     // real framed document — if the arm ever collapses to the empty-v1 stub or
     // starts refusing, this fails loudly instead of benchmarking a no-op.
-    let canon = serialize(
-        &result,
-        SparqlResultsFormat::CanonArrow,
-        &provenance,
-        None,
-    )
-    .expect("canon-arrow graph sanity pass");
+    let canon = serialize(&result, SparqlResultsFormat::CanonArrow, &provenance, None)
+        .expect("canon-arrow graph sanity pass");
     assert!(
         canon.bytes.len() > 128 + 64 && canon.bytes.len() > ROWS,
         "canon-arrow graph output is implausibly small ({} bytes for {ROWS} quads)",

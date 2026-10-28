@@ -655,10 +655,8 @@ fn bench_reader_decryption(c: &mut Bench) {
     let mut key = [0u8; 32];
     let mut lcg_state = 0x9E37_79B9_7F4A_7C15_u64;
     for word in key.chunks_exact_mut(8) {
-        let w = purrdf_hash::mix::lcg64_next(
-            &mut lcg_state,
-            purrdf_hash::mix::LCG64_MMIX_INCREMENT,
-        );
+        let w =
+            purrdf_hash::mix::lcg64_next(&mut lcg_state, purrdf_hash::mix::LCG64_MMIX_INCREMENT);
         word.copy_from_slice(&w.to_le_bytes());
     }
     let resolve = |kid: &str| (kid == "reader-benchmark").then_some(key);

@@ -2412,11 +2412,10 @@ pub(crate) fn serialize_query_result(
     query: &str,
 ) -> Result<Vec<u8>, String> {
     match result {
-        SparqlResult::Graph(graph) => serialize_graph_result(
-            graph,
-            format.unwrap_or_else(|| default_graph_format(graph)),
-        )
-        .map(String::into_bytes),
+        SparqlResult::Graph(graph) => {
+            serialize_graph_result(graph, format.unwrap_or_else(|| default_graph_format(graph)))
+                .map(String::into_bytes)
+        }
         SparqlResult::Solutions { .. } | SparqlResult::Boolean(_) => {
             let results_format = match format {
                 None => SparqlResultsFormat::Json,

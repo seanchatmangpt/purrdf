@@ -387,9 +387,7 @@ fn emit_into(result: &SparqlResult, out: &mut TextSink<'_>) -> Result<(), Error>
     match result {
         SparqlResult::Solutions {
             variables, rows, ..
-        } if !rows.is_empty() && !variables.is_empty() => {
-            emit_solutions(variables, rows, out)
-        }
+        } if !rows.is_empty() && !variables.is_empty() => emit_solutions(variables, rows, out),
         SparqlResult::Solutions { .. } | SparqlResult::Boolean(_) | SparqlResult::Graph(_) => {
             out.push_bytes(&canon_empty_frame());
             Ok(())
@@ -683,16 +681,12 @@ mod tests {
         let bad = TermValue::Triple {
             s: purrdf_core::TermBox::new(TermValue::Iri("http://example.org/s".to_string())),
             p: purrdf_core::TermBox::new(TermValue::Triple {
-                s: purrdf_core::TermBox::new(TermValue::Iri(
-                    "http://example.org/is".to_string(),
-                )),
+                s: purrdf_core::TermBox::new(TermValue::Iri("http://example.org/is".to_string())),
                 p: purrdf_core::TermBox::new(TermValue::Blank {
                     label: "bp".to_string(),
                     scope: purrdf_core::BlankScope(0),
                 }),
-                o: purrdf_core::TermBox::new(TermValue::Iri(
-                    "http://example.org/io".to_string(),
-                )),
+                o: purrdf_core::TermBox::new(TermValue::Iri("http://example.org/io".to_string())),
             }),
             o: purrdf_core::TermBox::new(TermValue::Iri("http://example.org/o".to_string())),
         };
@@ -706,16 +700,12 @@ mod tests {
         let bad = TermValue::Triple {
             s: purrdf_core::TermBox::new(TermValue::Iri("http://example.org/s".to_string())),
             p: purrdf_core::TermBox::new(TermValue::Triple {
-                s: purrdf_core::TermBox::new(TermValue::Iri(
-                    "http://example.org/is".to_string(),
-                )),
+                s: purrdf_core::TermBox::new(TermValue::Iri("http://example.org/is".to_string())),
                 p: purrdf_core::TermBox::new(TermValue::Blank {
                     label: "bp".to_string(),
                     scope: purrdf_core::BlankScope(0),
                 }),
-                o: purrdf_core::TermBox::new(TermValue::Iri(
-                    "http://example.org/io".to_string(),
-                )),
+                o: purrdf_core::TermBox::new(TermValue::Iri("http://example.org/io".to_string())),
             }),
             o: purrdf_core::TermBox::new(TermValue::Iri("http://example.org/o".to_string())),
         };

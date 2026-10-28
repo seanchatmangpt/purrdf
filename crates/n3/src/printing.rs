@@ -752,14 +752,8 @@ fn blank_node_json(value: &str) -> String {
 
 fn literal_json(lit: &Literal) -> String {
     let (language, datatype) = match lit.language.as_deref() {
-        Some(lang) if lang.contains("--") => (
-            lang,
-            purrdf_iri::vocab::rdf::DIR_LANG_STRING,
-        ),
-        Some(lang) => (
-            lang,
-            purrdf_iri::vocab::rdf::LANG_STRING,
-        ),
+        Some(lang) if lang.contains("--") => (lang, purrdf_iri::vocab::rdf::DIR_LANG_STRING),
+        Some(lang) => (lang, purrdf_iri::vocab::rdf::LANG_STRING),
         None => (
             "",
             lit.datatype

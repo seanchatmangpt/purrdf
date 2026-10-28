@@ -519,7 +519,10 @@ impl Bench {
     /// between samples, never preempts a running one.
     #[must_use]
     pub fn wall_max(mut self, duration: Duration) -> Self {
-        assert!(!duration.is_zero(), "the wall-clock ceiling must be longer than zero");
+        assert!(
+            !duration.is_zero(),
+            "the wall-clock ceiling must be longer than zero"
+        );
         self.config.wall_max = MAX_BENCH_WALL.min(duration);
         self
     }
@@ -1000,7 +1003,7 @@ fn sample(config: Config, routine: &mut dyn FnMut(&mut Bencher)) -> Sampled {
         // Below the minimum sample size the estimate is not worth reporting,
         // so the first `MIN_SAMPLE_SIZE` samples always run unless the budget
         // is already spent (and at least one sample always runs).
-        if (samples.len() >= MIN_SAMPLE_SIZE && per_sample_seconds > remaining)
+        if (samples.len() >= sample_count.min(MIN_SAMPLE_SIZE) && per_sample_seconds > remaining)
             || (sampling.seconds() >= budget_seconds && !samples.is_empty())
         {
             warning = Some(format!(
@@ -1010,7 +1013,8 @@ fn sample(config: Config, routine: &mut dyn FnMut(&mut Bencher)) -> Sampled {
             ));
             break;
         }
-        samples.push(time_iterations(routine, iterations_per_sample) / iterations_per_sample as f64);
+        samples
+            .push(time_iterations(routine, iterations_per_sample) / iterations_per_sample as f64);
     }
     Sampled {
         samples,
