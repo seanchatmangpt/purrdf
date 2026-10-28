@@ -327,10 +327,18 @@ unsafe fn store_result(
                 *out_graph = into_handle(PurrdfDataset::new(graph));
             }
             SparqlResult::Boolean(value) => {
-                *out_kind = KIND_BOOLEAN;
-                if !out_boolean.is_null() {
-                    *out_boolean = u8::from(value);
+                // The Solutions/Graph arms refuse a null carrier; the Boolean
+                // arm must too, or the call returns Ok with the answer
+                // silently dropped and a caller dispatching on kind reads
+                // uninitialized memory.
+                if out_boolean.is_null() {
+                    return Err(PurrdfError::new(
+                        PurrdfStatus::NullPointer,
+                        "out_boolean is null for an ASK result",
+                    ));
                 }
+                *out_kind = KIND_BOOLEAN;
+                *out_boolean = u8::from(value);
             }
         }
         Ok(())
@@ -516,6 +524,11 @@ unsafe fn query_entry(
             ));
         }
         let regex = decode_regex_profile(regex_profile)?;
+        // Clear the kind discriminator up front: on any error below, a caller
+        // keying cleanup on `*out_kind` must read KIND_NONE, not a stale value
+        // from a previous call (the governed entries already clear this state
+        // via clear_result_outputs; the plain entries own it here).
+        *out_kind = KIND_NONE;
         match run_query(dataset, query, base_iri, regex, geo)? {
             SparqlResult::Solutions {
                 variables, rows, ..
@@ -540,10 +553,18 @@ unsafe fn query_entry(
                 *out_graph = into_handle(PurrdfDataset::new(graph));
             }
             SparqlResult::Boolean(value) => {
-                *out_kind = KIND_BOOLEAN;
-                if !out_boolean.is_null() {
-                    *out_boolean = u8::from(value);
+                // The Solutions/Graph arms refuse a null carrier; the Boolean
+                // arm must too, or the call returns Ok with the answer
+                // silently dropped and a caller dispatching on kind reads
+                // uninitialized memory.
+                if out_boolean.is_null() {
+                    return Err(PurrdfError::new(
+                        PurrdfStatus::NullPointer,
+                        "out_boolean is null for an ASK result",
+                    ));
                 }
+                *out_kind = KIND_BOOLEAN;
+                *out_boolean = u8::from(value);
             }
         }
         Ok(PurrdfStatus::Ok)
