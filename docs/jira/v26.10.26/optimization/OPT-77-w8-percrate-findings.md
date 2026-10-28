@@ -1098,3 +1098,22 @@ n3 printing.rs round-trip (5):
   anchor resolution is silently lossy (compiles as plain Ref, ~:498);
   min/maxContains ignored under non-Validation vocabulary while the
   standalone arm still validates them (inconsistent paths).
+
+## wave-14 additions (shapes product, triple.rs)
+
+- shapes product/mod.rs:970-971 — the writer certifies declared
+  functions against HostBindings::empty() while restore-time install
+  (certified.rs:218-224) assembles over the REAL host table: a host
+  shadowing a graph-declared function passes the writer check and
+  silently changes semantics at restore.
+- product/mod.rs:926-934 — to_product_with_implementation_identity
+  hardcodes EMPTY registries while binding a non-empty identity:
+  rows 7-9 refuse at restore under the real host (silent footgun).
+- certified.rs:222/:179-194 — install unconditionally replaces
+  shapes.aggregates and the rebuild seam runs no identity check: a
+  rebuilt product executes under whatever the restoring host wired.
+- rdf-core triple.rs:412-415 — reifiers_for_pattern binary-searches
+  reifiers assuming sorted-by-id rows; the sort lives only at
+  builder.rs:3080, unasserted (one upstream reorder = silent missed
+  rows). read.rs:505-511 — cardinality estimate takes size_hint on a
+  FILTERED iterator (over-count when both ends bound).
