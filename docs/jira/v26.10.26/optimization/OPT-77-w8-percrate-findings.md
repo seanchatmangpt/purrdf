@@ -2799,3 +2799,19 @@ memory/COSE application lanes.
   zero-window readers (final code), markdown/MIME/TOML 6, rdf-wasm 4,
   n3 printing 4.
 
+### wave-31 addendum 3
+
+- FIXED: rdflib-shadow 4 parity defects (ClosedNamespace class-level
+  member registry overwritten by a sibling constructor; Namespace.term
+  coerced non-str names to "" minting the namespace IRI as a term;
+  ill-formed xsd:boolean lexical mapped to False instead of declined;
+  Graph.serialize ignored `encoding`). All py_compile-verified; wasm
+  scope A (pointer lifetimes/cancellation) CLEAN.
+- FILED: markdown 6 findings (lone-CR documents read as one line;
+  blank-line row-index reset swallows a malformed row in silence;
+  unbounded table-row indent admits indented-code bytes as citations;
+  movement name-stripping mis-pairs unbalanced delimiters; decode
+  admits a continues edge naming a non-piece node; mid-table delimiter
+  rows erase defect classification) — markdown.rs:106-125/:201-221/
+  :365/:545-549 + decode.rs:259-274.
+
