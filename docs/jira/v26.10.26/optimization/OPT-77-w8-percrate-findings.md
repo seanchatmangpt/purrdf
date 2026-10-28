@@ -329,3 +329,22 @@ string.
   conclusion" dedup does not hold for chase-minted existentials.
 - Termination verified sound: Datalog-bounded lanes + weak-acyclicity
   TerminationCertificate; cyclic collections refuse as MalformedList.
+
+## wave-10 semantic additions (validate regime — 4 minor, core chain sound)
+
+- parse_dl_certificate (:4555) hard-codes stopped:false and never
+  parses a stop marker: cancelled vs cap-exhausted indistinguishable
+  at the text boundary.
+- service_knobs (:412-431) conflates Python/PythonText knob names for
+  conclusion services while materialize_knobs distinguishes them —
+  possible nonexistent-knob error names (UNVERIFIED against the
+  binding crate).
+- parse_regime_vectors (:1437) resets a body on a repeated directive
+  while the sibling parser accumulates — malformed artifacts parse
+  differently per reader.
+- check_dl_proof_from_source (:4853) admits module-extraction
+  certificates by starts_with(banner) — prefix-forgery passes the
+  gate; only verify_prepared's receipt refusal remains.
+- Core check chain verified sound (round-trip compare, storage
+  cross-check, service×host exhaustive, negative-verdict coverage,
+  consumer-side recomputation).
