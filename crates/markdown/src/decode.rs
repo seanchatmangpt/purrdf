@@ -262,6 +262,7 @@ pub fn decode_document(
                     let it = nodes
                         .get(piece.as_str())
                         .filter(|p| mine(p))
+                        .filter(|p| p.text.is_some())
                         .filter(|p| p.byte_start.is_some() && p.byte_end.is_some())
                         .ok_or_else(|| DecodeError::UnknownContinuedPiece {
                             subject: (*subject).to_owned(),

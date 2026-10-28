@@ -86,7 +86,7 @@ struct Walker {
     title: Option<String>,
     /// How many table rows have run without a break since the last
     /// line that was not one: row 0 of a table is its header.
-    table_row_index: usize,
+    table_header_is_previous: bool,
 }
 
 /// Byte ranges of each line, excluding the terminating newline.
@@ -116,7 +116,12 @@ fn lines(text: &str) -> Vec<(usize, usize)> {
     while let Some(offset) = find_line_feed(&bytes[start..]) {
         let end = start + offset;
         out.push((start, end));
-        start = end + 1;
+        start = end
+            + if bytes[end] == b'\r' && bytes.get(end + 1) == Some(&b'\n') {
+                2 // a CRLF pair is one ending
+            } else {
+                1
+            };
     }
     if start < text.len() {
         out.push((start, text.len()));
@@ -125,14 +130,18 @@ fn lines(text: &str) -> Vec<(usize, usize)> {
 }
 
 /// The line feed, as a byte class table: the one byte a line ends at.
-const LINE_FEED_TABLE: [u8; 256] = {
+/// The bytes a line can end at, as a byte class table: the U+000A of an LF
+/// ending and the U+000D of a CR ending — the CR a CRLF pair opens included,
+/// so one scan finds where any ending begins.
+const LINE_END_TABLE: [u8; 256] = {
     let mut table = [0_u8; 256];
     table[b'\n' as usize] = 1;
+    table[b'\r' as usize] = 1;
     table
 };
 
-const LINE_FEED: ByteClass<{ byte_run_count(&LINE_FEED_TABLE) }> =
-    ByteClass::from_table(LINE_FEED_TABLE);
+const LINE_END: ByteClass<{ byte_run_count(&LINE_END_TABLE) }> =
+    ByteClass::from_table(LINE_END_TABLE);
 
 /// The offset of the first line feed of `bytes`, or `None`.
 ///
@@ -144,7 +153,7 @@ const LINE_FEED: ByteClass<{ byte_run_count(&LINE_FEED_TABLE) }> =
 /// `purrdf-core`, its one dependency.
 #[inline(never)]
 fn find_line_feed(bytes: &[u8]) -> Option<usize> {
-    LINE_FEED.find_first(bytes)
+    LINE_END.find_first(bytes)
 }
 
 /// The per-byte line split [`lines`] replaced, kept verbatim as the oracle.
@@ -156,11 +165,25 @@ fn lines_reference(text: &str) -> Vec<(usize, usize)> {
     } else {
         0
     };
-    for (i, b) in text.bytes().enumerate() {
-        if b == b'\n' {
-            out.push((start, i));
-            start = i + 1;
+    let bytes = text.as_bytes();
+    let mut i = start;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\n' => {
+                out.push((start, i));
+                start = i + 1;
+            }
+            b'\r' => {
+                out.push((start, i));
+                start = if bytes.get(i + 1) == Some(&b'\n') {
+                    i + 2
+                } else {
+                    i + 1
+                };
+            }
+            _ => {}
         }
+        i += 1;
     }
     if start < text.len() {
         out.push((start, text.len()));
@@ -200,7 +223,7 @@ impl Walker {
         let line = &text[start..end];
         if !trim_leading(without_line_ending(line)).starts_with('|') {
             // A table ended, so the next one starts its rows afresh.
-            self.table_row_index = 0;
+            self.table_header_is_previous = false;
         }
         if let Some((level, heading)) = atx_heading(line) {
             self.close_unit();
@@ -339,15 +362,14 @@ impl Walker {
     /// nothing is exactly the failure a silent parser hides.
     ///
     /// A subsection of the concordance starts its own table, so its
-    /// header line is the row at index 0 of that table: the run of table
-    /// rows is counted from the last line that was not one, and a
-    /// heading is not one.
+    /// header line is the first row of that table: a row is frame only
+    /// when the line before it was not a row — a blank line among
+    /// them — or when it is the `|---|` delimiter itself.
     fn table_row(&mut self, line: &str, start: usize, end: usize) {
         if !self.in_concordance() {
             return;
         }
-        let index = self.table_row_index;
-        self.table_row_index += 1;
+        let header_is_previous = self.table_header_is_previous;
         let cells = cells(line);
         if cells.len() >= CONCORDANCE_CELLS
             && let Some((first, last)) = verse_range(&cells[0])
@@ -362,7 +384,11 @@ impl Walker {
             });
             return;
         }
-        if index == 0 || is_delimiter_row(&cells) {
+        // The frame is the header row itself, or the delimiter line that
+        // immediately follows it. A delimiter-like row at any later point —
+        // and a malformed row arriving where a header should be after a
+        // blank line broke the run — is a defect, not a frame.
+        if header_is_previous || is_delimiter_row(&cells) {
             return;
         }
         let defect = if cells.len() < CONCORDANCE_CELLS {
@@ -542,10 +568,9 @@ fn movement(line: &str) -> Option<String> {
         return None;
     }
     let name = line_body(rest);
-    let name = name
-        .strip_prefix('*')
-        .and_then(|n| n.strip_suffix('*'))
-        .or_else(|| name.strip_prefix('_').and_then(|n| n.strip_suffix('_')))
+    let name = ['*', '_']
+        .into_iter()
+        .find_map(|mark| name.strip_prefix(mark).and_then(|n| n.strip_suffix(mark)))
         .unwrap_or(name);
     Some(trim_edges(name).to_owned())
 }
