@@ -1154,3 +1154,16 @@ n3 printing.rs round-trip (5):
   unverified).
 
 - rdf-core sink.rs: CLEAN (drain invariant held at every boundary; Tee all-or-nothing is documented contract).
+
+## wave-15 additions (compat rdflib query.py)
+
+- :223 — Result.bindings includes None for unbound vars; RDFLib OMITS
+  them (parity property silently differs for OPTIONAL/UNION).
+- :171 — ResultRow.__getattr__: projected variables named get/asdict/
+  labels/n3/serialize are unreachable via row.<name> (tuple methods
+  win attribute lookup).
+- :111-114 — _read_result_source does a single read(): a short-read
+  stream truncates the results document (no loop to EOF).
+- :284 — serialize CONSTRUCT path forwards **args into
+  Graph.serialize: provenance_namespace/query_hash land as unexpected
+  keywords (disjoint arg sets, no guard).
