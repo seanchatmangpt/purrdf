@@ -1584,3 +1584,15 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   O(results×rules) position scan (:742-744).
 
 - columnar langtag gap: CONFIRMED (is_identity_folded only; "en-" passes; surfaces as generic Reconstruction, not row-bearing terms.lang — is_well_formed exists but is never called in columnar).
+
+- cdt DISTINCT divergence: REFUTED — DISTINCT dedups the full
+  (first,second) tuple; an exact repeat can never displace the
+  last-wins winner. Key equalities coincide (CdtKey is term identity;
+  RDF 1.1 simple-literal ≡ xsd:string already identified).
+- hnsw admitted cache divergence: REFUTED — admitted(workspace) ≡
+  default() on the unbounded branch (charge on None is a no-op);
+  divergence only via bounded capability, i.e., exactly storage
+  backing.
+- canon Graph-scope probe: refutation CONFIRMED by second opinion
+  (rows pre-filtered q.g == Some(graph); annotation/reifier loops
+  carry the same filter).
