@@ -3154,3 +3154,60 @@ direction).
   seams of the trio are now closed. One syntax slip during application
   (nested fn) caught by rustfmt check and repaired before commit.
 
+---
+
+## FINAL SESSION RECEIPT (2026-10-28, waves 21-39)
+
+### Subject
+PurRDF workspace, /Users/sac/purrdf, main — session span 3f1ee650..
+d209aa39 (all pushed to origin).
+
+### Landed (all static-verified; compile truth is CI-owned)
+~66 fixes across the workspace. Highlights by class:
+- CORRECTNESS: slice closure refusal; graph-axis key wrap guard; datalog
+  stratify_rules self-edge + integrate rollback; shapes severity/
+  report-reader/ambient-tier/ask-prebinding fixes; REDUCED-cardinality
+  order + the ordered-probe base + rs:ResultSet order (the conformance
+  PASS-silencing trio); COSE kid opaque bstr; gts reader pub.digest
+  verification + snapshot overflow; gts_write clamp/ambiguity refusals;
+  hextuples language sentinel; RDF/XML datatype-vs-lang filed; markdown
+  6; shex root-cycle absorption; sql statement_kind/foreign_class/
+  RdfTerm preservation; csvw raw cardinality; text delta 3; validate
+  SARIF 3; capi out_boolean/out_kind; wasm 4+JobInner::drop; duckdb B19
+  complete; agent_memory EmptySuccessor; cli canonical/transport/
+  division/glob/pack/ledger-filed; envelope-probe negative clamp;
+  testkit harness/bench/alloc-probe contracts; iri fragment/curie;
+  percent/shex root-cycle; e507864-era csvw/toml/xml/cbor repairs.
+- DOC TRUTH: sales-benchmarks (receipts-audited), simd.md re-anchored
+  (104 anchors), AGENTS.md job-table reword, OPT ticket corrections.
+- GATES: bounded-tier.sh single-sourcing; gate-parity BOUNDED_TIERS
+  extension (found 2 real one-sided gates + 2 vacuous self-test anchors,
+  both repaired); gate floors fail-closed (changelog/rewinds/toolchain/
+  helpers); cli help list 16->20.
+- BENCHES/TESTS: sql compile bench; yaml/capi/slice/dataset/markdown/
+  text-delta test additions; golden_bytes regen fn.
+
+### Verification ladder
+- Local: static checks (fmt PASS, layers --fast OK, brand-casing
+  repaired, brand gate, cliff-gate live-flip verified, gate-parity
+  self-test rc=0, python -m py_compile on the shim).
+- CI: BLOCKED by the machine-local [patch] paths in root Cargo.toml —
+  THE one open blocker; removal needs a cargo box for Cargo.lock
+  regeneration. Every landed fix is UNVERIFIED-by-compile until then.
+
+### Standing (owner: operator)
+- [patch] removal on a cargo box; golden_bytes digest regen same box;
+  OPT-73 clippy pass same box; zh-Hans po toolchain run; 2 /tmp leases
+  (rm approval); release version decision (tree 3.0.1 vs 26.10.28 name).
+- Banked plans needing application: COSE protected-bucket lookup;
+  conformance-kit closure code; conformance trio? all landed. simd
+  residual 1-row spot; duckdb tests for the new counters.
+
+### Standing vocabulary
+- ALIVE: static gates above with rc receipts.
+- UNVERIFIED: every applied Rust/TS edit (compile is CI-owned).
+- REFUTED this session: glob **/, CURIE absolute-first, knn licence
+  bypass, xsd leap-second refusal, sql memo thrash, text coverage-bit,
+  datalog maintained restored_lo gap, csvw required-semantics change,
+  -0 rendering, Cargo.lock member gap.
+
