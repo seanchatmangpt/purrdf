@@ -283,3 +283,18 @@ string.
   unordered `LIMIT 1` (nondeterministic row).
 - BM25F formula itself verified against the paper (no defect); IRI
   resolution verified clean (zero logic bugs).
+
+## wave-10 semantic additions (shapes json_schema)
+
+- violated_by (:6308-6311) treats a pattern COMPILE failure as
+  satisfied: rdf:nil/true/false and sh:in integer members silently
+  escape an uncompilable pattern, while sibling sites report loudly
+  via ctx.pattern_error (:1331, :3998, :4063) — silent constraint
+  loss, inconsistent refusal semantics.
+- min_length > max_length admitted silently (:5530/:5839-5850): the
+  emitted schema is vacuous (rejects every string) with no
+  comment/ctx diagnostic, unlike the module's non-statable-constraint
+  convention.
+- min/max vacuity encodings asymmetric (:5847 vs :5841) — cosmetic,
+  no wrong output; pattern conjunction verified order-independent and
+  correct.
