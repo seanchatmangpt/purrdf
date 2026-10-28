@@ -204,10 +204,20 @@ pub(crate) fn run(args: &GlobRdfArgs) -> Result<(), CliError> {
         } else {
             None
         };
-        let message = detail.map_or_else(
-            || format!("glob RDF input object {}: expected one distinct object selection, found {count}", args.input_subject),
-            |detail| format!("glob RDF input object {detail}: {detail} under {}", args.input_predicate),
-        );
+        let message = match detail {
+            Some("unresolvable subject") => format!(
+                "glob RDF input object: unresolvable subject {}",
+                args.input_subject
+            ),
+            Some("unresolvable predicate") => format!(
+                "glob RDF input object: unresolvable predicate {}",
+                args.input_predicate
+            ),
+            _ => format!(
+                "glob RDF input object {} {} (unresolvable subject/predicate): expected one distinct object selection, found {count}",
+                args.input_subject, args.input_predicate
+            ),
+        };
         return Err(selection_message(
             input,
             &args.input_subject,

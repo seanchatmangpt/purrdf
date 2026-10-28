@@ -53,8 +53,11 @@ struct Terms {
     interner: Interner,
     /// The store surface of each id, by id.
     surfaces: Vec<String>,
-    /// The id of each store surface.
-    by_surface: FastMap<String, u32>,
+    /// Every id each store surface was interned under. A surface is NOT unique to
+    /// an id: a simple literal and its explicit `xsd:string` twin are distinct
+    /// `TermValue`s that canonical N-Quads spells identically, so the reverse map
+    /// must hold every reading — see [`Terms::ids_of_surface`].
+    by_surface: FastMap<String, Vec<u32>>,
 }
 
 impl Terms {
@@ -63,7 +66,7 @@ impl Terms {
         let id = self.interner.intern(value);
         if id as usize >= self.surfaces.len() {
             let surface = surface_of(self.interner.value(id));
-            self.by_surface.insert(surface.clone(), id);
+            self.by_surface.entry(surface.clone()).or_default().push(id);
             self.surfaces.push(surface);
         }
         id

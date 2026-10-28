@@ -1012,8 +1012,9 @@ pub(crate) fn xsd_of(value: &TermValue) -> Option<XsdValue> {
 
 /// The effective boolean value a constant `literal` evaluates to (`None` = type error)
 /// — [`ebv_term`]'s answer for it, reached without a dataset, for the prepare-time
-/// planner (`crate::property_fn_plan`'s `requires`). A language-tagged string has
-/// none; every other literal has its XSD value's.
+/// planner (`crate::property_fn_plan`'s `requires`). A language-tagged string is an
+/// `xsd:string` literal (SPARQL 1.1 §17.2.2), so its EBV is `lexical form` ≠ "";
+/// every other literal has its XSD value's.
 #[cfg(test)]
 pub(crate) fn constant_ebv(literal: &purrdf_sparql_algebra::Literal) -> Option<bool> {
     constant_ebv_admitted(literal, &crate::WorkspaceCapability::default())
@@ -1026,7 +1027,7 @@ pub(crate) fn constant_ebv_admitted(
     workspace: &crate::WorkspaceCapability,
 ) -> Result<Option<bool>, EvalError> {
     if literal.language().is_some() {
-        return Ok(None);
+        return Ok(Some(!literal.value().is_empty()));
     }
     let Some(datatype) = XsdDatatype::from_iri(literal.datatype().as_str()) else {
         return Ok(None);
