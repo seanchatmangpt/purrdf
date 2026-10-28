@@ -1287,3 +1287,12 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   full inference output is written: a refusable shapes graph still
   commits its inference graph (ordering inversion vs the module-doc
   contract).
+
+## wave-16 verification verdicts
+
+- n3 memoized negation: SPLIT — stack sharing CONFIRMED (unsound
+  notIncludes under recursion stands); memoization REFUTED (the
+  cycle-cut return exits before the cache insert; poisoned empties
+  are never stored).
+- capi rowcursor stale reads: CONFIRMED (next() never clears current
+  on exhaustion; the only guard fires pre-first-_next).
