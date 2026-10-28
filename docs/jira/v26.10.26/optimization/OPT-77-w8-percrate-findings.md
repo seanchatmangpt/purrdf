@@ -546,3 +546,17 @@ string.
 - index.rs:921-951 — phrase_row_bound keys positions without the
   graph coordinate: cross-graph position coincidences inflate the
   bound (possibly intended per the comment, but a bag-of-rows bound).
+
+## wave-12 semantic additions (governor kernel — rdf-core/src/governor.rs)
+
+- ResourceVector::saturating_add_assign (:254) saturates at u64::MAX
+  which IS the unbounded sentinel: an exhausted meter is laundered
+  into "nothing spent" in GovernorEvidence::consumed.
+- copy_insert (:842) .expect on checked_add — a crash path in a
+  function whose contract is returning TryReserveError.
+- SilencedEvidenceBuilder::insertion_bytes (:772) uses a max-estimate
+  capacity while copy_insert's amortized growth can exceed it —
+  admission-by-estimate, not proof.
+- Empty-ledger-to-first-insert cost model inconsistent with
+  admitted's actual allocation (slight over-charge case).
+- Precedence-rank blocking and boundedness tests verified correct.
