@@ -941,3 +941,11 @@ n3 printing.rs round-trip (5):
 - report.rs:2210-2217 — collides_with_minted accepts leading-zero
   indices (r01 == r1): spurious mint prefix, benign.
 - Severity lanes verified clean.
+
+## wave-14 additions
+
+- cli glob_rdf.rs:188-193 — count counts QUADS not distinct objects:
+  a repeated triple spuriously fails the exactly-one check. Also:
+  count==0 error conflates "no match" with "term not in dataset";
+  the g.is_none() default-graph assumption is unverified against
+  loader behavior.
