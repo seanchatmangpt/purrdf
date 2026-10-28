@@ -202,13 +202,24 @@ fn run<W: Write + ?Sized>(mut jobs: Vec<Job<'_>>, out: &mut W, canonical: bool) 
                 jobs.extend(items.iter().rev().map(Job::Value));
             }
             Value::Map(entries) => {
-                head::write_head(out, MAP, entries.len() as u64)?;
                 if canonical {
-                    for (key, value) in sorted_entries(entries, &[])?.into_iter().rev() {
+                    // Dedup before the head write: the MAP count must match
+                    // the entries actually emitted (decode_deterministic
+                    // refuses repeated keys).
+                    let sorted = sorted_entries(entries, &[])?;
+                    head::write_head(out, MAP, sorted.len() as u64)?;
+                    for (key, value) in sorted.into_iter().rev() {
                         jobs.push(Job::Value(value));
                         jobs.push(Job::Encoded(key));
                     }
                 } else {
+                    head::write_head(out, MAP, entries.len() as u64)?;
+                    for (key, value) in entries.iter().rev() {
+                        jobs.push(Job::Value(value));
+                        jobs.push(Job::Value(key));
+                    }
+                }
+            }
                     for (key, value) in entries.iter().rev() {
                         jobs.push(Job::Value(value));
                         jobs.push(Job::Value(key));
