@@ -27,6 +27,19 @@ pub enum MalformedResult {
         /// Original header count.
         variables: usize,
     },
+    /// A literal carries a language tag AND a datatype other than
+    /// `xsd:string`.
+    LanguageDatatype {
+        /// Original datatype IRI.
+        datatype: String,
+    },
+    /// The projected variable header names one variable more than once.
+    DuplicateVariable {
+        /// Original 0-based column of the repeated spelling.
+        index: usize,
+        /// Original repeated variable name.
+        name: String,
+    },
 }
 
 impl purrdf_hash::error::StructuredError for MalformedResult {
@@ -34,6 +47,8 @@ impl purrdf_hash::error::StructuredError for MalformedResult {
         Predicate { term, cause } => "results-predicate" { "term" => Term(term), "cause" => Cause(cause) },
         RowWidth { bindings, variables } => "results-row-width" { "bindings" => Unsigned(*bindings as u128), "variables" => Unsigned(*variables as u128) },
         MissingHeader { column, variables } => "results-missing-header" { "column" => Unsigned(*column as u128), "variables" => Unsigned(*variables as u128) },
+        LanguageDatatype { datatype } => "results-language-datatype" { "datatype" => Text(datatype) },
+        DuplicateVariable { index, name } => "results-duplicate-variable" { "index" => Unsigned(*index as u128), "name" => Text(name) },
     }
 }
 
@@ -54,6 +69,14 @@ impl core::fmt::Display for MalformedResult {
             Self::MissingHeader { column, variables } => write!(
                 f,
                 "binding column {column} has no variable header (row has {variables} vars)"
+            ),
+            Self::LanguageDatatype { datatype } => write!(
+                f,
+                "language literal also names datatype {datatype} (only xsd:string is permitted)"
+            ),
+            Self::DuplicateVariable { index, name } => write!(
+                f,
+                "projected variable header names {name} twice (column {index})"
             ),
         }
     }

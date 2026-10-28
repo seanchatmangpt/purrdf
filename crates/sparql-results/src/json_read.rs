@@ -47,6 +47,7 @@ use std::borrow::Cow;
 use std::ops::Range;
 
 use purrdf_core::TermBox;
+use purrdf_core::blank_label::{LabelAlphabet, decode_blank_label_with_memory};
 use purrdf_core::{BlankScope, RdfTextDirection, TermValue};
 use purrdf_lex::json::{self, Event, Kind, Limits, Reader, Value};
 
@@ -981,10 +982,21 @@ impl BindingFields<'_> {
         };
         let result = (|| match kind.as_ref() {
             "uri" => Ok(TermValue::Iri(binding_text(self.value.take(), memory)?)),
-            "bnode" => Ok(TermValue::Blank {
-                label: binding_text(self.value.take(), memory)?,
-                scope: BlankScope::DEFAULT,
-            }),
+            "bnode" => {
+                // A bnode value is the writer's encoded blank-label token;
+                // unwrap the envelope back into (label, scope). The decode is
+                // total — tokens outside the envelope grammar stay verbatim
+                // at BlankScope::DEFAULT.
+                let token = binding_text(self.value.take(), memory)?;
+                let (label, scope) =
+                    decode_blank_label_with_memory(&token, LabelAlphabet::BlankNodeLabel, memory)
+                        .map_err(Error::Storage)?;
+                let label = match label {
+                    Cow::Borrowed(borrowed) => owned_text(Cow::Borrowed(borrowed), memory)?,
+                    Cow::Owned(owned) => owned,
+                };
+                Ok(TermValue::Blank { label, scope })
+            }
             "literal" | "typed-literal" => {
                 let lexical_form = binding_text(self.value.take(), memory)?;
                 let language = Member::text(self.language.take());

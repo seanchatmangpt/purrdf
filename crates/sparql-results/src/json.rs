@@ -155,6 +155,19 @@ fn write_base_body<W: TextOut + ?Sized>(result: &SparqlResult, out: &mut W) -> R
         SparqlResult::Solutions {
             variables, rows, ..
         } => {
+            // A repeated header name is a structural violation: refuse
+            // before any byte is emitted, instead of writing a document
+            // whose bindings cannot be unambiguously keyed.
+            for (i, var) in variables.iter().enumerate() {
+                if variables[..i].contains(var) {
+                    return Err(Error::MalformedTerm(
+                        crate::MalformedResult::DuplicateVariable {
+                            index: i,
+                            name: var.clone(),
+                        },
+                    ));
+                }
+            }
             out.push_str("{\"head\":{\"vars\":[");
             for (i, var) in variables.iter().enumerate() {
                 if i > 0 {
@@ -399,6 +412,15 @@ fn json_binding<W: TextOut + ?Sized>(value: &TermValue, out: &mut W) -> Result<(
                 out.push_str("{\"type\":\"literal\",\"value\":");
                 json_string(lexical_form, out);
                 if let Some(language) = language {
+                    // SRJ has no spelling for a language literal that also
+                    // carries a datatype; refuse rather than drop it.
+                    if datatype != XSD_STRING {
+                        return Err(Error::MalformedTerm(
+                            crate::MalformedResult::LanguageDatatype {
+                                datatype: datatype.clone(),
+                            },
+                        ));
+                    }
                     out.push_str(",\"xml:lang\":");
                     json_string(language, out);
                 } else if datatype != XSD_STRING {

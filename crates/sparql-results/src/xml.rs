@@ -317,6 +317,15 @@ fn write_term<W: TextOut + ?Sized>(value: &TermValue, out: &mut W) -> Result<(),
             } => {
                 out.push_str("<literal");
                 if let Some(language) = language {
+                    // SRX has no spelling for a language literal that also
+                    // carries a datatype; refuse rather than drop it.
+                    if datatype != XSD_STRING {
+                        return Err(Error::MalformedTerm(
+                            crate::MalformedResult::LanguageDatatype {
+                                datatype: datatype.clone(),
+                            },
+                        ));
+                    }
                     out.push_str(" xml:lang=\"");
                     xml_escape_attr(language, out)?;
                     out.push('"');

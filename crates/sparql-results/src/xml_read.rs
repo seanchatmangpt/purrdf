@@ -21,6 +21,7 @@
 //! (or in no namespace, as some producers write them).
 
 use purrdf_core::TermBox;
+use purrdf_core::blank_label::{LabelAlphabet, decode_blank_label};
 use purrdf_core::terminals;
 use purrdf_core::{BlankScope, RdfTextDirection, TermValue};
 use purrdf_lex::xml::{Document, Node, XML_NAMESPACE};
@@ -334,10 +335,16 @@ fn decode_leaf(elem: Node<'_, '_>) -> Result<Option<TermValue>, Error> {
     }
     Ok(Some(match name.name() {
         "uri" => TermValue::Iri(text(elem)),
-        "bnode" => TermValue::Blank {
-            label: text(elem),
-            scope: BlankScope::DEFAULT,
-        },
+        "bnode" => {
+            // Same envelope unwrapping as json_read: decode_blank_label is
+            // total, so foreign bnode ids read verbatim.
+            let token = text(elem);
+            let (label, scope) = decode_blank_label(&token, LabelAlphabet::BlankNodeLabel);
+            TermValue::Blank {
+                label: label.into_owned(),
+                scope,
+            }
+        }
         "literal" => {
             let language = elem.attribute((XML_NAMESPACE, "lang")).map(str::to_owned);
             // A tag arriving in a DOCUMENT is parsed input, held to the same
