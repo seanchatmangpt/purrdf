@@ -163,18 +163,21 @@ close path; "no unowned red remains" stands as of 13:08 PDT.
 
 | FQ-ID | crate | defect | fix | state |
 |---|---|---|---|---|
-| FQ-01 | sparql-eval | E0599 FastMap::new (solution.rs:1965) | FastMap::default() | **APPLIED** |
+| FQ-01 | sparql-eval | E0599 FastMap::new (solution.rs:1965) | FastMap::default() | **RESOLVED** (phase-3 compiled clean post-fix, proving the edit) |
 | FQ-02 | geo-kernel | RESOLVED: register rc=0 2220s, 109 measured / 0 failed (phase-3 log; measured-at 2026-10-27, serial phase-3, pre-shrink ladder batch256-4096; 26 rows at batch4096 are not comparable to current 1024-capped ladders - capacity probe via GEO_TRANSFORMS_LARGE_BATCH=1 / GEO_GEODESIC_LARGE_BATCH=1) |
-| FQ-03 | hnsw | PARTIAL-RESOLVED: phase-3 rc=101 2237s (SIGKILL during build), phase-4 rc=124 3600s with content-complete report tables (build cost + 72 recall rows); phase-4b split re-run queued |
+| FQ-03 | hnsw | **RESOLVED-REPORT** (terminal): 4b build rc=0 84s + recall rc=0 638s, full tables on disk, no measured footer — excluded from totals. History: phase-3 rc=101 2237s SIGKILL (OOM-solo, FQ-14), phase-4 rc=124 3600s cap |
 | FQ-04 | retrieval | RESOLVED: register rc=0 455s, 18 measured / 0 failed (phase-3 log) |
 | FQ-05 | text | RESOLVED: register rc=0 1365s, 299 measured / 0 failed across 7 footers (phase-3 log) |
-| FQ-06 | shapes | pydantic_package cut off mid-run | phase-4 --bench pydantic_package | ASSIGNED |
-| FQ-07 | hash-conformance | in yaml matrix, absent from queues | phase-4 lane | ASSIGNED |
-| FQ-08 | sparql-eval | phase-4 deep_nesting rc=101 51s was a COMPILE break, not the stack overflow: purrdf-sparql-results lib failed — 50 errors in `canon_arrow.rs` (47x E0753 stray `///` in the `//!` block, 2x E0499, 1x E0277); wrapper never exercised | `canon_arrow.rs` fix landed 612bba89 | FIXED, phase-4b rerun post-612bba89 queued |
-| FQ-09 | arrow | E0614 ..*header, ipc_egress.rs:98 | applied | FIX APPLIED, rerun pending |
-| FQ-10 | duckdb | E0599 dir.path(), sql_rdf_e2e.rs | applied | FIX APPLIED, rerun pending |
-| FQ-11 | n3 | SIGKILL at 185s, 2 green rows first | phase-4 solo rerun, jobs=2 | memory pressure |
-| FQ-12 | branchless | 8 lib-test compile errors | repair-lane fix applied | APPLIED-UNCOMPILED |
+| FQ-06 | shapes pydantic_package | cut off mid-run (phase-1) | phase-4 `--bench pydantic_package` | **RESOLVED** — rc=0 503s, 13 measured / 0 failed |
+| FQ-07 | hash-conformance | in yaml matrix, absent from queues | phase-4 lane | **RESOLVED** — rc=0 2490s, 273 measured / 0 failed (digests 255 + hasher 18) |
+| FQ-08 | sparql-eval | canon_arrow.rs 50-error compile break (47x E0753, 2x E0499, 1x E0277); fix landed 612bba89 | 4b rerun | **STILL-RED (terminal)** — 4b deep_nesting rc=101 0s, NEW error: E0277 Send bound on `on_measurement_stack` in the bench wrapper; wrapper needs a new owner |
+| FQ-09 | arrow | E0614 ..*header, ipc_egress.rs:98 | applied | **RESOLVED** — 4b rc=0 103s, 10 measured / 0 failed |
+| FQ-10 | duckdb | E0599 bench-helper `&Path` params (fix direction corrected in the fix-queue audit) | applied | **RESOLVED** — 4b rc=0 652s, 14 measured / 0 failed |
+| FQ-11 | n3 | SIGKILL at 185s, 2 green rows first | phase-4 solo rerun, jobs=2 | **STILL-RED (terminal)** — phase-4 rc=101 161s: E0063 missing `rules` in lib test compile |
+| FQ-12 | branchless | 8 lib-test compile errors (+3 residual E0308, FQ-13) | repair-lane fixes applied | **RESOLVED** — 4b rc=0 77s, 7 measured / 0 failed |
+| FQ-13 | branchless | residual 3x E0308 (sort16.rs:483, swar.rs:970/1002) | applied | **RESOLVED** — same 4b green run as FQ-12 |
+| FQ-14 | hnsw + entail OOM-solo | hnsw scales capped via env; entail ladder 10_000 -> 2_000 | applied | **PARTIAL-RESOLVED (terminal)** — hnsw green-report (FQ-03); entail 4b log has NO `benchmarks measured` footer (abort before footer) — still red |
+| FQ-15 | NPM-ECOSYSTEM.md banner scope (editorial) | whole-file warning + scoped citation | **APPLIED** (banner exists, 2026-10-27; receipt-cited) |
 
 ### 7.0 OPT-17 wiring-wave progress (2026-10-27, added post-freeze; not an FQ row — no red to own)
 
@@ -236,6 +239,14 @@ corpus.
 
 ## 9. In-flight
 
+> **TERMINAL (writer lane): nothing is in flight.** Phase-3 greens landed
+> (geo-kernel 109/0, retrieval 18/0, text 299/0); the phase-4/4b queue is
+> drained — greens: hash-conformance 273/0, shapes-pydantic 13/0, arrow
+> 10/0, branchless 7/0, duckdb 14/0; reds: sparql-eval E0277 (wrapper),
+> n3 E0063, datalog E0063 (testkit lib), entail no-footer abort, rdf-core
+> rc=124 3600s cap. Remaining UNVERIFIED classes only (section 10).
+
+Historical snapshot (superseded):
 - Phase-3 runner (pid 81055): geo-kernel in flight (post-Cargo.lock fix);
   hnsw, retrieval, text queued behind it (FQ-02..05).
 - Phase-2 reds awaiting phase-4: duckdb (FQ-10), arrow (FQ-09), branchless
