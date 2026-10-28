@@ -1853,3 +1853,16 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   bench (committed with the cbor syntax fix).
 
 - shapes product host-shadowing: REFUTED — install runs verify_declared_functions against the assembled registry; cross-kind IRI collisions hard-fail in UserFunctionRegistry; declared-population fingerprint mismatch refused under UnsupportedCapability. Both restore seams covered (B7).
+
+## wave-20 additions (sparql-eval property_fn_eval — 3 findings, deepens the W12 lane divergence)
+
+- property_fn_eval.rs:4170-4178 — scoped-read LIMIT arm: undecided rows
+  skip the full-check AND the increment — decided rows continue-pull
+  forever while undecided keep passing; a scoped cursor can exceed the
+  query LIMIT and never ends as is_full contracts.
+- :1836-1857 + engine.rs:2237-2249 — FilterContext::context never
+  applies options.division (materialised lane does): the same FILTER
+  with division gives different answers on-demand vs materialised.
+- :4136-4138/:4281-4300 — settled_search_evidence re-conjoins the
+  relation declaration on EVERY pull instead of once at settle
+  (evidence growth per row read).
