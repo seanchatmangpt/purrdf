@@ -374,7 +374,15 @@ def _coerce_value(lexical: str, datatype: URIRef | None, language: str | None) -
     if dt in _XSD_STRINGLIKE:
         return lexical
     if dt == _XSD_BOOLEAN:
-        return lexical.strip() in ("true", "1")
+        stripped = lexical.strip()
+        if stripped in ("true", "1"):
+            return True
+        if stripped in ("false", "0"):
+            return False
+        # An ill-formed boolean lexical is not False: rdflib's
+        # _castLexicalToPython declines it (None), and the caller falls back
+        # to the lexical string — mapping it to False skewed .eq() parity.
+        return None
     if dt in _XSD_INTEGERS:
         try:
             return int(lexical)

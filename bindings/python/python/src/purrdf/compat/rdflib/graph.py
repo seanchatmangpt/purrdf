@@ -1065,6 +1065,8 @@ class Graph:
     ) -> str | bytes | None:
         """Serialize the graph; return ``str``/``bytes`` or write to ``destination``."""
         out = self._dump_bytes(format, **kwargs)
+        if encoding is not None:
+            out = out.decode("utf-8").encode(encoding)
         if destination is None:
             return out if encoding is not None else out.decode("utf-8")
         writer = getattr(destination, "write", None)

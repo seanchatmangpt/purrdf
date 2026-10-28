@@ -34,8 +34,12 @@ class Namespace(str):
         return str.__new__(cls, value)
 
     def term(self, name: str) -> URIRef:
-        """Return ``URIRef(base + name)``."""
-        return URIRef(str(self) + (name if isinstance(name, str) else ""))
+        """Return ``URIRef(base + name)``; a non-string name is a TypeError
+        (rdflib parity) — coercing it to "" silently minted the namespace
+        IRI itself as a term."""
+        if not isinstance(name, str):
+            raise TypeError(f"namespace term name must be str, got {type(name).__name__}")
+        return URIRef(str(self) + name)
 
     # `title` is a real ``str`` method, so normal attribute lookup would shadow the
     # vocabulary term (e.g. ``DCTERMS.title``). Override it to a URIRef, exactly as
@@ -198,14 +202,16 @@ class DefinedNamespace(metaclass=DefinedNamespaceMeta):
 class ClosedNamespace(Namespace):
     """A namespace whose members are a closed list; unknown terms raise."""
 
-    __slots__ = ()
-    # Keyed off the base-IRI string because ``str.__slots__`` forbids instance dicts.
-    _registry: dict[str, dict[str, URIRef]] = {}
+    __slots__ = ("_members",)
+    # Members live on the INSTANCE: two ClosedNamespace objects sharing a base
+    # IRI but declaring different term sets must not overwrite each other (the
+    # class-level registry did exactly that — constructing the second silently
+    # redefined the first's membership).
 
     def __new__(cls, uri: str, terms: list[str]) -> ClosedNamespace:
         """Construct with a fixed set of member ``terms``."""
         rt: ClosedNamespace = str.__new__(cls, uri)
-        ClosedNamespace._registry[str(rt)] = {t: URIRef(str(rt) + t) for t in terms}
+        rt._members = {t: URIRef(str(rt) + t) for t in terms}
         return rt
 
     @property
@@ -215,7 +221,7 @@ class ClosedNamespace(Namespace):
 
     def term(self, name: str) -> URIRef:
         """Return the member ``name`` or raise ``KeyError`` if not a member."""
-        uri = ClosedNamespace._registry.get(str(self), {}).get(name)
+        uri = self._members.get(name)
         if uri is None:
             raise KeyError(f"term '{name}' not in namespace '{self}'")
         return uri
