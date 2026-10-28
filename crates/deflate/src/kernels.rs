@@ -113,7 +113,7 @@ pub fn common_prefix_len(a: &[u8], b: &[u8]) -> usize {
     // The bytes after the last whole word are the end of one more word ending
     // at `len`, overlapping the one before it: the bytes it shares with the
     // words before it are equal, so its first difference is the first
-    // difference. A key shorter than sixteen bytes takes the eight-byte form.
+    // difference. A key of eight to fifteen bytes takes the eight-byte form; shorter than eight falls through to the byte loop below.
     if len >= 16 {
         let last = len - 16;
         let word = |s: &[u8]| u128::from_le_bytes(*s[last..].first_chunk().expect("sixteen bytes"));
