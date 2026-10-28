@@ -511,7 +511,7 @@ impl Compiler<'_> {
                     // no anchor at all.
                     let anchor = match resolved.split_once('#') {
                         None => None,
-                        Some((base, fragment))
+                        Some((_, fragment))
                             if fragment.is_empty() || fragment.starts_with('/') =>
                         {
                             None
