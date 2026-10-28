@@ -132,16 +132,32 @@ pub(crate) fn eval_target_ask_view<
     dataset: &D,
     ask: &str,
     focus: &Term,
+    substitutions: &[(String, Term)],
 ) -> Result<bool, crate::error::ShapesError> {
-    let subs = [Prebinding {
+    // The NAME borrows, as in `eval_target_with_invocation_view`: a target's
+    // variable names are text out of the shapes graph, already allocated there.
+    let mut subs = Vec::with_capacity(substitutions.len() + 1);
+    subs.push(Prebinding {
         variable: "this",
         value: focus.to_term_value(),
-    }];
+    });
+    subs.extend(substitutions.iter().map(|(name, term)| Prebinding {
+        variable: name.as_str(),
+        value: term.to_term_value(),
+    }));
     run_ask_with_shacl_prebinding_view(
         dataset,
         ask,
         &subs,
-        crate::query_law::Invocation::without_parameters(crate::profile::QueryPurpose::AskTarget),
+        // The bindings ARE the vetted pre-binding list: `target_invocation`
+        // equality-checked these exact values against the source occurrence at
+        // preparation time, and admission needs their names to apply the
+        // pre-binding restrictions (`prebinding::admit` reads
+        // `invocation.parameters.names()`).
+        crate::query_law::Invocation::with_bindings(
+            crate::profile::QueryPurpose::AskTarget,
+            substitutions,
+        ),
     )
 }
 

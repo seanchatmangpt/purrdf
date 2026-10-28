@@ -431,7 +431,12 @@ impl PreparedTargets {
                     }
                 }
                 Target::Node(term) => prepared.insert_explicit(data.core_view(), term.clone()),
-                Target::Sparql { select, ask, .. } => {
+                Target::Sparql {
+                    select,
+                    ask,
+                    substitutions,
+                    ..
+                } => {
                     let candidates = source_sparql_target(data, &shape.id, index, target)?;
                     match ask {
                         // SHACL-AF §3.1: the SELECT's results are what a whole validation
@@ -441,6 +446,7 @@ impl PreparedTargets {
                             let mut selected = AskTarget {
                                 ask: ask.clone(),
                                 select: select.clone(),
+                                substitutions: substitutions.clone(),
                                 shape: shape.id.clone(),
                                 selected_ids: IdSet::default(),
                                 selected_foreign: FastSet::default(),
@@ -642,6 +648,9 @@ impl PreparedTargets {
 pub(crate) struct AskTarget {
     /// The ASK query, run with `$this` pre-bound to the candidate.
     ask: String,
+    /// The target type's parameter values, pre-bound beside `$this` exactly
+    /// as the SELECT pre-binds them (SHACL-AF §3.1 / `sh:SPARQLTargetType`).
+    substitutions: Vec<(String, Term)>,
     /// The SELECT query, which the refusal names beside the ASK.
     select: String,
     /// The shape declaring the target.
@@ -664,7 +673,7 @@ impl AskTarget {
     /// [`ShapesError::SparqlTargetDisagreement`] when the ASK and the SELECT answer two
     /// ways for `focus`.
     fn decide(&self, data: &ShaclData, focus: &FocusNode) -> Result<bool, ShapesError> {
-        let asked = target_ask(data, &self.ask, focus)?;
+        let asked = target_ask(data, &self.ask, focus, &self.substitutions)?;
         let selected = match focus {
             FocusNode::Interned(id) => self.selected_ids.contains(id),
             FocusNode::Foreign(term) => self.selected_foreign.contains(term),
@@ -691,9 +700,14 @@ impl AskTarget {
 /// # Errors
 ///
 /// When the ASK fails to evaluate — an unanswerable target is not an empty one.
-fn target_ask(data: &ShaclData, ask: &str, focus: &FocusNode) -> Result<bool, ShapesError> {
+fn target_ask(
+    data: &ShaclData,
+    ask: &str,
+    focus: &FocusNode,
+    substitutions: &[(String, Term)],
+) -> Result<bool, ShapesError> {
     let term = focus.to_term(data.core_view());
-    crate::sparql::eval_target_ask_view(data.sparql_view(), ask, &term)
+    crate::sparql::eval_target_ask_view(data.sparql_view(), ask, &term, substitutions)
         .map_err(|error| error.context("sh:target SPARQLTarget sh:ask failed: "))
 }
 
