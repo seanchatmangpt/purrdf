@@ -663,3 +663,20 @@ n3 printing.rs round-trip (5):
   duplicate-member release all verified; 2 benign delayed-observer
   observations).
 - shapes validate/shacl.rs (delegation boundary): clean.
+
+## wave-12 semantic additions (columnar schema, xsd numeric)
+
+- columnar schema.rs: no format-version marker anywhere (schema
+  evolution fails silently; only golden digests pin it); positional
+  column-order contract enforced by hand-indexing, no debug assert
+  ties TableData.columns to TableSchema.columns (reordering compiles
+  and corrupts); utf8=>ByteArray invariant test-only, not enforced in
+  constructors; Table Ord/Hash order vs ALL dependency order
+  coincides only implicitly.
+- xsd numeric.rs:963 — parse_float accepts out-of-f32-range finite
+  lexicals ("1e40"): Rust parser silently yields +INF, but XSD 1.1
+  puts them outside xs:float's lexical space (invalid literal
+  accepted).
+- xsd numeric: promotion hierarchy (single-rounding fast paths),
+  NaN compare/cast handling, and cast facet checking all verified
+  conformant.
