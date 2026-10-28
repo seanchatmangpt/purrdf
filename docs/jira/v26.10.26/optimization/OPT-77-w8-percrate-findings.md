@@ -1535,3 +1535,19 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   diagnosed only after read_config consumed the caller's stdin bytes.
 - ledger.rs:28 — lift's merged ledger uses bare fs::write: clobbers
   an existing ledger unconditionally, no refuse-existing policy.
+
+## wave-17 additions (shapes constraints, csvw manifest)
+
+- shapes constraints.rs: qualified arm clean; 2 unverified suspicions
+  on eval_closed (:1677 scans AnyGraph — potential over-reporting if
+  the contract is default-graph-only) and permitted-predicate TermId
+  interning (:1664 — an unoccurring declared IRI could be skipped on
+  id mismatch).
+- csvw metadata.rs:2182 — expand_datatype's allow_absolute is never
+  called true (both sites pass false): spec-legal absolute datatype
+  base IRIs silently rejected, dead branch at :2239.
+- metadata.rs:1718-1734 — template_property returns Some(String::new())
+  on an invalid template, discarding the inherited fallback every
+  sibling helper returns.
+- metadata.rs:338-345 — column numbering by columns.len() shifts
+  derived _col.N names after any skipped non-object description.
