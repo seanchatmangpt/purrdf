@@ -2873,3 +2873,44 @@ the boundary. No change.
 Clean per the lane: compile explosion bounded, max_work ticked on every
 loop, single-slot backtracking monotone, set bookkeeping consistent.
 
+---
+
+## wave-33 status (2026-10-28)
+
+### Fixed (in-tree, UNVERIFIED)
+
+- rdf-wasm (4): canon-arrow guard via from_name (alias/case slip closed);
+  sync governor refusals carry OPTIONS_CODE (typed-error contract);
+  presentation-record parse failure throws (mirrors diagnostic arm);
+  Weak job registry + JobInner::drop releases the update claim (an
+  abandoned AsyncJob no longer blocks the dataset's next async update
+  forever nor leaks the stack region; abandoned ids recycle via
+  strong_count). One plan deviation: decode_governor_args actually has a
+  max_scratch_bytes param the banked diff omitted — applied to the real
+  text.
+
+### New findings filed (plans needed)
+
+- entail rif_xml parser (5): repeated cardinality-one elements last-wins
+  silently (two <formula> children drop rule A entirely — rif_xml.rs:
+  259-299/:342-359/:184-202; single_element's TooManyChildren is the
+  idiom to mirror); xml:lang on a Const silently discarded (:404-427);
+  empty <And> becomes an inert rule instead of top-or-refusal
+  (:307-336 + eval.rs:344-363); unknown import profile silently degrades
+  to bare-RDF identity, contradicting the module's own "never skips
+  unknown semantics" doc (:490-497); non-text children inside
+  Const/Var silently vanish in text_of (:559-568).
+- bench args (3): empty filter selects EVERYTHING in non-exact mode
+  (args.rs:274-283; --exact "" fails loud, the asymmetry is the bug);
+  --baseline/--save-baseline silently inert in --test/--list modes
+  (parse should refuse like the wasm32 special-case at :244-260);
+  Mode::Help dead branch panics on duplicates via with_arguments.
+- AGENTS.md/RUST_GUIDELINES drift (4): the job table claims "ledger
+  order" but carries 65 of 107 rows (owned-or-borrowed is ledger row 2
+  and absent); div-ceil home is pub(crate), unreachable as cited;
+  RUST_GUIDELINES §6 lint block shows deny/forbid levels the workspace
+  doesn't set (agents self-check against a lint that doesn't exist);
+  §7 recommends cargo nextest, which the repo doesn't ship or gate on.
+- REFUTED: glob "**/" overmatch (executor trace: boundary-only retry +
+  end-of-tokens-needs-end-of-input gives exactly the SPEC contract).
+
