@@ -1357,3 +1357,17 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   production; 3 interner-strictness divergences vs RFC 9052 on the
   receive path (empty crit refused, IV+PartialIV coexistence refused,
   kid always emitted unprotected).
+
+## wave-16 additions (jsonschema output rest)
+
+- collect (:273-277) keeps only units with own error/annotation:
+  intermediate failing units explained-by-children are dropped from
+  the flat basic list (Core §12.2 lists every unit on the failing
+  path) — PARTIAL, depends on upstream error guarantees.
+- detailed() fallback for a valid no-annotation tree emits bare
+  header() without the annotations member — second omit-when-empty
+  instance (W13 was Basic; this is Detailed).
+- condense (:359) filters error by !valid: a valid-subtree unit
+  carrying an error silently loses it in Detailed while leaf()
+  prints it (projection disagreement).
+- built-stack alignment, Clone/Drop/PartialEq verified sound.
