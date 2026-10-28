@@ -1787,3 +1787,30 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   timed closures untouched; ladder unchanged. The bench should now
   run without OOM on CI.
 - validate xpath_regex: CLEAN.
+
+## wave-20 additions (B-lanes + C2 competitive research)
+
+- sql compiler statement_kind (B20): is_object only collects "_:"-
+  prefixed objects (full-IRI statement nodes win root selection);
+  foreign_class fallback walks HashMap nondeterministically;
+  from_turtle discards language tags; MIXED_DOCUMENT_ROOTS mislabels
+  single-node defects.
+- gts agent_memory (B18): min_confidence drops un-annotated claims
+  even at 0.0; empty superseded_by mints inert empty-IRI; revise
+  resolves only the LAST segment's table (older-pack claims
+  UnknownClaim); digest_id folds file_len — ids layout-dependent, not
+  content-stable.
+- n3 parser ordering: second verifier REFUTES the "either ordering
+  landed" claim — the must-precede-first-triple error remains and
+  EYE accepts post-triple quantifiers; genuinely missing fix.
+- shapes profile (B8): the landed failure fix REPLACES rather than
+  joins; governor early-return skips take_failure; thread-local
+  pass-through can yield spurious XPathProfileConflict.
+- C2 COMPETITIVE RESEARCH (Jena): no official LUBM/BSBM numbers
+  published — only qualitative claims + archived SDB-era figures.
+  Third-party TDB2 load rates: ~45k-150k triples/s (Wikidata 16.7B @
+  44.8k/s). ESWC 2023 evaluation placed Fuseki LAST among engines.
+  Apples-to-apples requires: same hardware, same loader mode, same
+  dataset scale points. THE BAR IS THIRD-PARTY MEASUREMENT, not
+  vendor claims — a publishable purrdf number needs only to beat
+  45k-150k triples/s on comparable hardware.
