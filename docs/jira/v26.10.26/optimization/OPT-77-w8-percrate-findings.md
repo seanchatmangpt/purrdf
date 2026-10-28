@@ -1582,3 +1582,5 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   uriBaseId stamped on absolute URIs (SARIF §3.4.2 violation,
   :650-653/:754-756); invocation notifications clobbered (:288-289);
   O(results×rules) position scan (:742-744).
+
+- columnar langtag gap: CONFIRMED (is_identity_folded only; "en-" passes; surfaces as generic Reconstruction, not row-bearing terms.lang — is_well_formed exists but is never called in columnar).
