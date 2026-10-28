@@ -2870,3 +2870,15 @@ candidate (needs F&O §19.1.1 verification).
   concern does not reproduce); two minor diff-undocumented items
   disclosed.
 
+### wave-32 addendum 2
+
+- FIXED: shapes parameterized-target sh:ask pre-bindings (AskTarget banks
+  substitutions; eval_target_ask_view pre-binds beside $this; Invocation
+  ::with_bindings — the lane's resolution of the flagged question: neither
+  without_parameters (under-counts pre-bound names, evading the
+  VALUES/projection rules) nor the unreachable occurrence lookup, but the
+  vetted bindings themselves).
+- Banked verified diffs remaining: sparql-results (3), markdown (6),
+  rdf-wasm (4 incl. Weak-registry Drop design), duckdb B19, agent_memory,
+  COSE kid, simd.md re-anchor, xsd -0 (needs F&O verification).
+
