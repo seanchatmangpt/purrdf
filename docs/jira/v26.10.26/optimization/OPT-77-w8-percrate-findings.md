@@ -452,3 +452,15 @@ string.
   evidence-only churn (perf).
 - Termination verified sound across Star/Plus/Range on cycles
   (visited-guarded BFS, per-level union, binary-power composition).
+
+## wave-11 semantic additions (sparql-algebra scope/walk)
+
+- scope.rs:607-649 — visit_leaf_labels_with_memory drops LeftJoin/
+  Lateral/Filter-EXISTS/Minus right-side blank labels (`_ => {}` arm)
+  while Join/Union descend unconditionally: inconsistent label
+  exposure under LabelSource::All.
+- scope.rs:536-565 — spine-leaves descent through ANY Join returns
+  composite nodes as "leaves": leaf ordering/identity depends on tree
+  shape, not source order.
+- walk.rs:54-68 — NodeRef::at_path walks all children per step (no
+  early exit): cost-contract drift, not correctness.
