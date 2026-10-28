@@ -949,3 +949,13 @@ n3 printing.rs round-trip (5):
   count==0 error conflates "no match" with "term not in dataset";
   the g.is_none() default-graph assumption is unverified against
   loader behavior.
+
+## wave-14 additions (rdf-core diagnostic.rs)
+
+- to_json (:576-628) omits the native cause attachment entirely
+  (structurally incomplete vs StructuredError/Error::source).
+- Hash/PartialEq (:358-383) ignore cause while clone_with_memory
+  preserves it: distinct-provenance diagnostics collapse in sets/maps.
+- RdfLocation Display renders <unknown>:17:9 for pathless positions.
+- retained_bytes (:438-460) silently reports unknown capacity on
+  overflow and never charges the cause SharedOwned.
