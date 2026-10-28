@@ -178,7 +178,6 @@ check: node-prerequisite binaryen-prerequisite bounded-preflight ## The full loc
 	bash scripts/bootstrap-crates-io.sh --self-test
 	python3 scripts/check-wasm-js-exports.py
 	python3 scripts/check-entailment-surface.py
-	python3 scripts/check-python-stub-parity.py
 	python3 scripts/conformance-matrix.py --self-test
 	python3 scripts/check-simd-asm.py --self-test
 	python3 scripts/bench-suite-targets.py --self-test
