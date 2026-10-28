@@ -502,3 +502,21 @@ string.
   bounds, but the rfc3339 parser admits ±23:59 offsets: an
   RFC-3339-sourced instant can fall outside the assumed bound and
   yield a WRONG determinate order.
+
+## wave-11 semantic additions (markdown slicer — identity instability)
+
+- dialect/markdown.rs:524/:539 — ATX heading + doctrinal-divider
+  recognition requires space/tab after the marker: a bare `#`/`⁂` at
+  end-of-line is read as content, silently moving unit boundaries
+  (the function's own quoted CommonMark clause says end-of-line
+  suffices).
+- split.rs:56-58 — overlap==0 newline cuts lose the separator byte:
+  pieces' concatenation is not the unit's byte span (one byte lost
+  per seam).
+- claims.rs:475 vs identity.rs:164 — claim dedup collapses duplicate
+  anchors while citation_iri hashes the DUPLICATED reified list:
+  byte-identical graphs mint different citation node IRIs (identity
+  encodes multiplicity the emitted claims deny).
+- claims.rs:87 — section identity digests raw heading bytes including
+  CRLF's \r: a CRLF doc and its LF twin mint different section IRIs
+  despite the documented same-structure guarantee.
