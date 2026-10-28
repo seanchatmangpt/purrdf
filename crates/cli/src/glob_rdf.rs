@@ -41,6 +41,8 @@ pub enum Failure {
         predicate: Option<String>,
         /// Number of objects found; root absence has zero.
         count: usize,
+        /// Optional diagnostic detail overriding the generic message.
+        detail: Option<String>,
     },
 }
 
@@ -55,6 +57,13 @@ impl std::fmt::Display for Failure {
             Self::Vocabulary { reason, value } => {
                 write!(f, "glob RDF vocabulary {reason}: {value}")
             }
+            Self::Selection {
+                role,
+                subject,
+                count,
+                detail: Some(detail),
+                ..
+            } => write!(f, "{detail}"),
             Self::Selection {
                 role,
                 subject,
@@ -195,28 +204,26 @@ pub(crate) fn run(args: &GlobRdfArgs) -> Result<(), CliError> {
     let count = objects.len();
     if count != 1 {
         // When count is 0, name which endpoint was unresolvable if determinable.
-        let detail = if count == 0 {
+        let message = if count == 0 {
             match (subject, predicate) {
-                (None, _) => Some("unresolvable subject"),
-                (_, None) => Some("unresolvable predicate"),
-                (Some(_), Some(_)) => Some("no matching triples"),
+                (None, _) => format!(
+                    "glob RDF input object: unresolvable subject {}",
+                    args.input_subject
+                ),
+                (_, None) => format!(
+                    "glob RDF input object: unresolvable predicate {}",
+                    args.input_predicate
+                ),
+                (Some(_), Some(_)) => format!(
+                    "glob RDF input object {} {}: no matching triples",
+                    args.input_subject, args.input_predicate
+                ),
             }
         } else {
-            None
-        };
-        let message = match detail {
-            Some("unresolvable subject") => format!(
-                "glob RDF input object: unresolvable subject {}",
-                args.input_subject
-            ),
-            Some("unresolvable predicate") => format!(
-                "glob RDF input object: unresolvable predicate {}",
-                args.input_predicate
-            ),
-            _ => format!(
-                "glob RDF input object {} {} (unresolvable subject/predicate): expected one distinct object selection, found {count}",
+            format!(
+                "glob RDF input object {} {}: expected one distinct object selection, found {count} distinct objects",
                 args.input_subject, args.input_predicate
-            ),
+            )
         };
         return Err(selection_message(
             input,

@@ -82,9 +82,18 @@ impl Terms {
         &self.surfaces[id as usize]
     }
 
-    /// The id a store surface was interned under.
-    fn id_of_surface(&self, surface: &str) -> Option<u32> {
-        self.by_surface.get(surface).copied()
+    /// Every id a store surface was interned under.
+    ///
+    /// A surface carries exactly one store term, but the store term may read back
+    /// as more than one [`TermValue`]: canonical N-Quads spells a simple literal
+    /// and its `xsd:string` twin identically, so the reverse map holds one id per
+    /// interned reading. An empty slice means the surface was never interned —
+    /// the caller refuses that loudly rather than guessing.
+    fn ids_of_surface(&self, surface: &str) -> &[u32] {
+        self.by_surface
+            .get(surface)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
     }
 }
 
@@ -237,19 +246,35 @@ pub fn materialize_rif_with<D: DatasetView>(
         copy_into(&mut b, ds)?;
         // Sort the model by its interned term ids to get the deterministic first-seen
         // emission order.
-        let mut ordered: Vec<[u32; 3]> = evaluation
-            .facts()
-            .facts_sorted()
-            .iter()
-            .map(|fact| {
-                let id = |surface: &str| {
-                    terms
-                        .id_of_surface(surface)
-                        .expect("the evaluator mints no terms, so every surface was interned")
-                };
-                [id(&fact.subject), id(&fact.predicate), id(&fact.object)]
-            })
-            .collect();
+        let mut ordered: Vec<[u32; 3]> = Vec::new();
+        for fact in evaluation.facts().facts_sorted() {
+            // A derived fact is a store surface; a surface may read back as more
+            // than one term (a simple literal and its `xsd:string` twin share a
+            // canonical spelling), so the fact expands to every reading. Each
+            // expansion is checked against `original` below exactly like any
+            // other fact.
+            let slots = [
+                terms.ids_of_surface(&fact.subject),
+                terms.ids_of_surface(&fact.predicate),
+                terms.ids_of_surface(&fact.object),
+            ];
+            for (position, slot) in slots.iter().enumerate() {
+                if slot.is_empty() {
+                    return Err(EntailError::Build(format!(
+                        "derived fact names a surface the evaluator never interned \
+                         (position {position} of a fact): `{}`",
+                        [&fact.subject, &fact.predicate, &fact.object][position]
+                    )));
+                }
+            }
+            for &s in slots[0] {
+                for &p in slots[1] {
+                    for &o in slots[2] {
+                        ordered.push([s, p, o]);
+                    }
+                }
+            }
+        }
         ordered.sort_unstable();
         for t in ordered {
             if original.contains(&t) {

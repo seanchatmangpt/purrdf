@@ -241,6 +241,10 @@ impl FoldAccumulator {
     ) -> Result<crate::WorkspaceTerm, EvalError> {
         let mut frame = crate::workspace::LexicalFrame::new(workspace);
         let map = matches!(self.parts, FoldParts::Map(_));
+        let non_empty = match &self.parts {
+            FoldParts::List(items) => !items.is_empty(),
+            FoldParts::Map(pairs) => !pairs.is_empty(),
+        };
         let parts = std::mem::replace(&mut self.parts, FoldParts::List(Vec::new()));
         let (outcome, _) = match parts {
             FoldParts::List(items) => purrdf_cdt::functions::list_constructor_admitted(
