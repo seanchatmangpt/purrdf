@@ -1172,3 +1172,10 @@ n3 printing.rs round-trip (5):
   routed to set semantics drops bag-union duplicates; observable only
   when P under `?` itself has multi-derivation duplicates
   (alternatives/sequences), not for a lone-predicate `:p?`.
+
+- CONFIRMED (adversarial, full trace): datalog restored-row invisibility
+  — original append coordinates immutable, row_slots monotone, restored
+  index strictly below round_lo of the re-deriving round; both Delta and
+  OldOnly scans classify it wrong; only round-1 Delta::all would rescue,
+  and restores fire mid-stratum at R>=2. The session's highest-severity
+  confirmed finding (missed derivations = wrong query answers).
