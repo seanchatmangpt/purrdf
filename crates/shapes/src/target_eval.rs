@@ -197,6 +197,16 @@ fn narrowing(
     {
         return Ok(None);
     }
+    // A property shape (`sh:path` present; represented as a `Shape` wrapper with
+    // exactly one `property_shapes` entry — see [`crate::shapes::Shape::as_property`])
+    // binds its Class/HasValue/In constraints to the VALUE nodes produced by its
+    // path, never to the focus node: SHACL 1.2 Core, "Textual Constraints" — each
+    // value node, not `$this`, is the node the constraint judges. Node-level
+    // narrowing from those constraints would therefore under-approximate the set
+    // of conforming nodes and silently drop `sh:targetWhere` focus-node
+    // candidates. Only a property shape's `sh:minCount`-on-predicate narrowing
+    // ([`property_narrowing`]) is sound here, so the node-level arms are skipped.
+    let is_property_shape = shape.as_property().is_some();
     let model = shape.owner.as_deref().or(model);
     let mut best: Option<Vec<TermId>> = None;
     let mut offer = |candidate: Vec<TermId>| {

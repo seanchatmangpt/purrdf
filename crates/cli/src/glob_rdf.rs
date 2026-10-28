@@ -146,7 +146,7 @@ fn selection_detail(
             subject: memory.string(subject)?,
             predicate: predicate.map(|value| memory.string(value)).transpose()?,
             count,
-            detail: detail.map(|value| memory.string(value)).transpose()?,
+            detail: detail.map(|value| memory.string(&value)).transpose()?,
         })
     })();
     owned.map_or_else(CliError::GlobRdfStorage, refusal)
