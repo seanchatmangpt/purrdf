@@ -228,3 +228,18 @@ string.
   the one real namespace-coverage hole (extends OPT-72).
 - langtag errors carry no position (fieldless Copy enum) while the
   crate ships LineIndex/Position for IRIs — rule named, location not.
+
+## wave-10 semantic additions (gts reader — all reader.rs)
+
+- Invalid-header segment reuses the previous segment_index (sink
+  events from two segments indistinguishable; ~:2152/:2297).
+- expected_head silently unverified on the SegmentBoundary fatal path
+  in BOTH pre-segment early returns (:1760, :2277) — a pinned caller
+  gets no TruncatedLog and no skip notice.
+- h_blob_frame: a decoded payload that is not bytes drops silently
+  (empty Ok(_) => {} arms at :1148/:1234) — no opaque node, no
+  diagnostic, unlike every sibling failure.
+- address_exhausted path (:2239-2251) discards the TornAppendError
+  marker and abandons the open segment without finish_into_result.
+- is_header_item (:1471) classifies any map with "gts" and no "t" as
+  a header — mid-segment damage can silently fork the prev chain.
