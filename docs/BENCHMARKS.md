@@ -73,11 +73,10 @@ SPDX-License-Identifier: CC-BY-4.0
 >
 > - `purrdf-sparql-eval` — rc=101 across phase-1/2/3 and phase-4/4b
 >   (`/tmp/bench-logs/purrdf-sparql-eval.phase3.log` et al.); the phase-4b
->   `deep_nesting` split fails at compile: rc=101 0s, E0277
->   (`std::marker::Send` not satisfied for the `on_measurement_stack` body,
->   `/tmp/bench-logs/purrdf-sparql-eval.phase4b.--bench-deep_nesting.log`).
->   A phase-4b requeue of `deep_nesting` was IN FLIGHT at last read — this
->   row stays RED with "requeue running" until a terminal rc lands.
+>   `deep_nesting` split: E0277 COMPILE FIX CONFIRMED (requeue compiled
+>   clean), but the bench binary died SIGKILL at runtime (rc=101 527s,
+>   ~7.5-24 GB RSS) — the same memory-bound-OOM class as n3 (OPT-74).
+>   Row stays RED until the benches get memory-bounded fixtures.
 > - `purrdf-n3` — rc=101 phase-2, phase-4 and phase-4b
 >   (`/tmp/bench-logs/purrdf-n3.phase4.log`,
 >   `/tmp/bench-logs/purrdf-n3.phase4b.all.log`); phase-4b requeue
@@ -1877,8 +1876,10 @@ answer any other implementation would produce.
 > `shapes` — superseded by the phase-4 terminal row (13 measured / 0 failed,
 > rc=0 503s, `/tmp/bench-logs/purrdf-shapes.phase4.log:134`); `arrow`,
 > `branchless`, `duckdb`, `hash-conformance`, `hnsw` — terminal greens per
-> the banner above. `sparql-eval` (deep_nesting E0277), `n3`, `datalog`,
-> `entail` remain red (see banner). Register `/tmp/bench-logs/register.txt`
+> the banner above. `sparql-eval` (deep_nesting compile-fixed, runtime
+> OOM) and `n3` (same OOM class) remain red (OPT-74); `datalog` is GREEN
+> (13/0, early-stop caveat); `entail` PARTIAL (48/0). Register
+> `/tmp/bench-logs/register.txt`
 > is the receipt of record. Do not cite a figure from an unrun or red row;
 > no row here is a gate. Report-only.
 

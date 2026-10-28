@@ -37,3 +37,13 @@ OOMs at 64, it is the fixture/reasoner retention, not cumulative.
 n3's reasoner bench stays RED/report-only. The two parse rows from the
 SIGKILL'd runs are citable only under a partial banner (~1.03 ms /
 ~968 Kelem/s at 1000; ~10.35 ms / ~935-968 Kelem/s at 10000).
+
+> UPDATE (2026-10-27, requeue receipt): the E0277 experiment is DECIDED -
+> the both-bounds helper COMPILES (bench profile finished clean, no
+> E0277 in the requeue log). The failure is now purely runtime: the
+> deep_nesting binary also died SIGKILL (rc=101 527s) at ~7.5-24 GB RSS.
+> Both requeue reds are the same class: memory-bound bench rows OOM
+> this 48 GB box. Retitle scope: purrdf-n3 reasoner + purrdf-sparql-eval
+> deep_nesting benches need memory-bounded fixtures (shrink inputs,
+> cap recursion depth, or mark the top rows env-gated capacity probes)
+> before they can produce green rows here.
