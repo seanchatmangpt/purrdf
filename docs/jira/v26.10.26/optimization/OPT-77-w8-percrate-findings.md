@@ -1130,3 +1130,11 @@ n3 printing.rs round-trip (5):
   call site creates a fresh cache per query (pub(crate) type, Query
   borrows it); the :169 doc line is an accounting note. Doc-clearer
   only, no reachable wrong-answer path.
+
+- CONFIRMED: sql memo-after-validation (compile_turtle runs
+  validate_ast_shacl + canonical_graph_bytes before the :2004 lookup;
+  the :1920-1924 doc explicitly promises the opposite).
+- REFUTED: json IRI collision — document_id is hash-composed
+  (profile.rs:226-242, never caller-supplied) and decode re-runs
+  analyze + rejects on model.id() != document BEFORE the node walk;
+  the alias is unreachable.
