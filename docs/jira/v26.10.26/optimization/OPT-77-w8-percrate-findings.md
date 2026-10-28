@@ -715,3 +715,11 @@ n3 printing.rs round-trip (5):
 - engine.rs:247-258 — publish clones text-order projection names over
   evaluated rows; safe only via a fragile rdflib.rs ordering
   invariant with no tying assertion.
+
+## wave-12 clean lane (text corpus/segment/scratch)
+
+- text corpus.rs/segment.rs/storage/digest/delta: CLEAN —
+  resolve/digest preimages agree, radix rank accounting correct,
+  scratch reuse safe (HRTB sink + error-path swap). Latent notes:
+  reserve_for_query gated on dictionary while scratch consumers
+  aren't; GraphFree::ID hard-coded literal vs the shared constant.
