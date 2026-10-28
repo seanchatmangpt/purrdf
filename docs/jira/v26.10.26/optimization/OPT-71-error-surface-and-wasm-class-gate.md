@@ -47,3 +47,16 @@ d.ts or mjs.
 > (1ec93da2). check-wasm-js-exports.py has class reverse-drift + d.ts
 > parsing landed; the open residue is only the forward class-to-d.ts
 > gate with an internalization allowlist.
+
+> WAVE-10 SEMANTIC ADDITIONS (arrow header, 2026-10-27):
+> - header.rs:141-149 — batch_count=u32::MAX with a 1-byte payload PASSES
+>   header validation (only empty/nonempty consistency is checked); the
+>   batch×row product is never validated anywhere in the reader path.
+> - header.rs:111-112/172-175 — digests cover only the payload region;
+>   flags and batch_count are protected by no digest, so a hostile frame
+>   can flip them without verification failing.
+> - header.rs:102-114 — to_bytes never writes `reserved`, so a non-zero
+>   reserved struct serializes to a frame from_bytes would refuse
+>   (write/read asymmetry).
+> - header.rs:176-178 — reserved-zero check ordered after length checks;
+>   BadTotalLen can mask ReservedNotZero (classification only).
