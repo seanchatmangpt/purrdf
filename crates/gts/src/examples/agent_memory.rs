@@ -170,6 +170,8 @@ pub enum MemoryError {
     EmptyGeneratedEntity,
     /// A revision named a claim that is not present in the live segment.
     UnknownClaim(String),
+    /// A successor claim IRI was supplied but empty.
+    EmptySuccessor,
     /// The GTS writer refused the authoring configuration or an appended frame.
     Author(WriterError),
 }
@@ -187,6 +189,9 @@ impl fmt::Display for MemoryError {
                 f.write_str("invocation must be a non-empty IRI when supplied")
             }
             Self::EmptyGeneratedEntity => f.write_str("generated entity IRIs must be non-empty"),
+            Self::EmptySuccessor => {
+                f.write_str("superseded_by must be a non-empty IRI when supplied")
+            }
             Self::UnknownClaim(claim) => {
                 write!(f, "cannot revise unknown claim {claim:?}")
             }
@@ -205,6 +210,7 @@ impl purrdf_hash::error::StructuredError for MemoryError {
         EmptyTool => "gts-memory-empty-tool" {},
         EmptyInvocation => "gts-memory-empty-invocation" {},
         EmptyGeneratedEntity => "gts-memory-empty-generated-entity" {},
+        EmptySuccessor => "gts-memory-empty-successor" {},
         UnknownClaim(claim) => "gts-memory-unknown-claim" { "claim" => Iri(claim) },
         Author(cause) => "gts-memory-author" { "cause" => Cause(cause) },
     }
@@ -537,6 +543,12 @@ impl Memory {
             .ok_or_else(|| MemoryError::UnknownClaim(claim_id.to_string()))?;
         let mut annotations = Vec::new();
         if let Some(successor) = options.superseded_by {
+            // Trim before resolving: an all-whitespace successor would mint
+            // an inert empty-IRI term row and silently suppress nothing.
+            let successor = successor.trim();
+            if successor.is_empty() {
+                return Err(MemoryError::EmptySuccessor);
+            }
             let successor_id = iris.resolve(successor);
             let derived_from = iris.resolve(WAS_DERIVED_FROM);
             annotations.push((successor_id, derived_from, target, None));
