@@ -1851,3 +1851,5 @@ n3 reasoner.rs (backward chaining — SERIOUS):
 - sql bench target LANDED: crates/sql/benches/compile_query.rs
   (cold/memo-hit/execute groups, testkit harness) — the crate's first
   bench (committed with the cbor syntax fix).
+
+- shapes product host-shadowing: REFUTED — install runs verify_declared_functions against the assembled registry; cross-kind IRI collisions hard-fail in UserFunctionRegistry; declared-population fingerprint mismatch refused under UnsupportedCapability. Both restore seams covered (B7).
