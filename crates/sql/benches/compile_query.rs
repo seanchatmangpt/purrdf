@@ -98,7 +98,7 @@ fn bench_compile_memo_hit(c: &mut Bench) {
     group.sample_size(20);
     for &columns in &COLUMNS {
         let doc = statement_document(columns, 400);
-        group.throughput(Throughput::Bytes(doc.len() from_len(doc.len())));
+        group.throughput(Throughput::Bytes(doc.len() as u64));
         group.bench_function(BenchmarkId::new("columns", columns), |b| {
             b.iter(|| {
                 compile_turtle(black_box(&doc)).expect("seeded statement compiles");

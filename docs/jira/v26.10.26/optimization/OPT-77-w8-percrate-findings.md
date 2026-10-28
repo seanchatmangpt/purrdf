@@ -1830,3 +1830,24 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   the returned offset is the refused item's start, not proven torn;
   Limits refusals mislabeled TornAppendError.
 - validate xpath_regex: CLEAN.
+
+## wave-20 additions (batch 3 — B12/B14/B16 + sql bench landed)
+
+- regime.rs parse_one_term: empty/whitespace input yields the scaffold
+  quad and returns rdf:type as the "parsed term" (empty guard
+  unreachable); decode not-recorded refusal requires trailing \n
+  (message-routing defect); render unconditionally emits "availability
+  recorded" (unenforced invariant).
+- delta_view.rs: converted_annotations ignores its s/g arguments
+  (cross-graph/subject leaks, :508-521); converted arms never mask by
+  suppressed (:498/:519); withdrawn-and-redeclared graph policy seam
+  (:906-912).
+- sparql-algebra substitute.rs: seed-join descent stops at the first
+  multi-child node — MINUS right arms and sub-query bodies see ?this
+  unbound (escapes textual-substitution semantics, :15-17 vs :196-220).
+- sparql-algebra walk.rs: assigned_prebound misses Group AS-outputs
+  (latent, non-parser algebras); fold_post_order error paths may leak
+  admitted storage (Drop ownership unverified).
+- sql bench target LANDED: crates/sql/benches/compile_query.rs
+  (cold/memo-hit/execute groups, testkit harness) — the crate's first
+  bench (committed with the cbor syntax fix).

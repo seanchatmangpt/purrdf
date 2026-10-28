@@ -30,3 +30,9 @@ purrdf-shapes = { workspace = true }
 
 [dev-dependencies]
 purrdf-testkit = { workspace = true }
+
+# Charter-A04 admission hot path (cold compile vs memo hit over seeded wide
+# projections). Report-only; `make bench` lane.
+[[bench]]
+name = "compile_query"
+harness = false
