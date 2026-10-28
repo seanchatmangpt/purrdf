@@ -457,7 +457,7 @@ fn slab_fixed_len(variables: &[String], batch: &[Vec<Option<TermValue>>]) -> u64
     let columns = variables.len() as u64;
     rows.checked_mul(columns)
         .and_then(|term| term.checked_mul(5))
-        .and_then(|term| term.checked_add(columns * 4))
+        .and_then(|term| term.checked_add(columns.checked_mul(4)?))
         .expect("a bounded batch's fixed slab region cannot overflow u64")
 }
 

@@ -60,3 +60,17 @@ d.ts or mjs.
 >   (write/read asymmetry).
 > - header.rs:176-178 — reserved-zero check ordered after length checks;
 >   BadTotalLen can mask ReservedNotZero (classification only).
+
+> WAVE-10 SEMANTIC ADDITIONS (canon_arrow, 2026-10-27):
+> - FIXED in-tree: slab_fixed_len's unchecked `columns * 4` multiply
+>   (canon_arrow.rs:460) now checked_mul — was inconsistent with the
+>   checked twin at :255.
+> - :262 — the u32::MAX lexical-total guard applies to the BATCH total
+>   while offsets accumulate per column; batch totals over 4 GiB with
+>   per-column sums under are wrongly refused (over-strict).
+> - :432-447 — the out.failed() early-return skips the trailing-padding
+>   write, emitting a frame 64 bytes short of the declared contract.
+> - :438 — measure/emit agreement is debug_assert only; release builds
+>   ship drift silently at extreme counts.
+> - frame_total expect (:139): already ticketed above; confirmed
+>   reachable in principle.
