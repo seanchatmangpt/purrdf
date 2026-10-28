@@ -3254,6 +3254,7 @@ impl<'a> Graph<'a> {
             }
             closures.integrated..st.edges.len()
         };
+        let integrated_before = pending.start;
         st.closures.borrow_mut().integrated = st.edges.len();
         if self.patterns.len() == 0 {
             return;
@@ -3311,6 +3312,13 @@ impl<'a> Graph<'a> {
                                         journal.reach_extend(index, owner, step, target)
                                     });
                                     if self.changes_refused() {
+                                        // Roll the completion mark back to the
+                                        // pre-call value: the abandoned suffix
+                                        // was never folded in, so a later
+                                        // begin_round/reach_of must revisit it
+                                        // instead of trusting a current marker
+                                        // over unintegrated edges.
+                                        closures.integrated = integrated_before;
                                         return;
                                     }
                                 }

@@ -2417,6 +2417,12 @@ enum RdfTerm {
     Literal {
         lexical: String,
         datatype: Option<String>,
+        // Carried from the source TermValue so the document's language and
+        // base direction survive the read; consumers currently reduce to
+        // (lexical, datatype), but the data is preserved for the first
+        // consumer that needs it rather than dropped at the read seam.
+        language: Option<String>,
+        direction: Option<purrdf_core::RdfTextDirection>,
     },
 }
 
@@ -2443,10 +2449,13 @@ impl DatasetReader {
                 purrdf_core::TermValue::Literal {
                     lexical_form,
                     datatype,
-                    ..
+                    language,
+                    direction,
                 } => RdfTerm::Literal {
                     lexical: lexical_form,
                     datatype: Some(datatype),
+                    language,
+                    direction,
                 },
                 _ => continue,
             };
@@ -2628,9 +2637,9 @@ impl DatasetReader {
                 terms
                     .iter()
                     .filter_map(|t| match t {
-                        RdfTerm::Literal { lexical, datatype } => {
-                            Some((lexical.clone(), datatype.clone()))
-                        }
+                        RdfTerm::Literal {
+                            lexical, datatype, ..
+                        } => Some((lexical.clone(), datatype.clone())),
                         _ => None,
                     })
                     .collect()
@@ -3825,7 +3834,9 @@ impl RdfAstGraphReader for DatasetReader {
             .get(predicate)?
             .first()
             .and_then(|term| match term {
-                RdfTerm::Literal { lexical, datatype } => Some((lexical.clone(), datatype.clone())),
+                RdfTerm::Literal {
+                    lexical, datatype, ..
+                } => Some((lexical.clone(), datatype.clone())),
                 _ => None,
             })
     }
