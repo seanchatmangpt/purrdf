@@ -185,9 +185,11 @@ fn recursion(c: &mut Bench) {
 /// to assert.
 fn facts_per_second(c: &mut Bench) {
     let mut group = c.benchmark_group("seminaive_facts_per_second");
-    // ~10^6-fact EDB clone + fixpoint per iteration is multi-second per
-    // sample; a low explicit sample count keeps the row inside the 30s
-    // ceiling with an honest named sample count instead of a 30s early-stop.
+    // Receipt (phase-4b): derive_1m_facts is a CAPACITY row — one iteration
+    // cost ~470s, so the 30s ceiling cannot hold it (a running sample is
+    // never preempted) and it early-stopped at 1 of 10 samples; /224 stopped
+    // at 6, /448 at 1 (44.6s). The rows are honest point estimates, not
+    // sampled statistics; treat them as report-only capacity probes.
     group.sample_size(10);
 
     // derive_1m_facts — the recursive closure program over the dense fanout EDB

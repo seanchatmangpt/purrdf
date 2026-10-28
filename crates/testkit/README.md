@@ -81,7 +81,11 @@ member.
   `--save-baseline`/`--baseline`/`--baseline-lenient` save and compare records
   with a bootstrapped change. Every measured benchmark writes a fixed-schema
 
-Every benchmark is bounded by a hard wall-clock ceiling (`MAX_BENCH_WALL`, 30 s): warm-up is capped at half the ceiling, sampling stops when the budget is spent or the next sample would overrun it, and the summary names the actual sample count — an early stop is a normal, honest row, not a failure. `--wall-max` may lower the ceiling per run; it can never raise it.
+Every benchmark is bounded by a hard wall-clock ceiling (`MAX_BENCH_WALL`, 30 s):
+warm-up is capped at half the ceiling, sampling stops when the budget is spent or
+the next sample would overrun it, and the summary names the actual sample count —
+an early stop is a normal, honest row, not a failure. `--wall-max` may lower the
+ceiling per run; it can never raise it.
   `estimates.json` under `PURRDF_BENCH_HOME`, or else `purrdf-bench/` beside the
   build's `CARGO_TARGET_TMPDIR` (`target/purrdf-bench/` by default); `--test`
   runs each routine once instead, and an unknown option is refused by name. The

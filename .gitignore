@@ -24,6 +24,8 @@ __pycache__/
 .baseline
 .agents
 target-*
+!bindings/python/licenses/dependencies/target-lexicon-0.13.5/
+!bindings/python/licenses/dependencies/target-lexicon-0.13.5/**
 # ...but NOT the hygiene tool itself (the target-* rule for lane dirs was
 # swallowing it; an unversioned hygiene tool is an unversioned gate).
 !scripts/target-hygiene.sh

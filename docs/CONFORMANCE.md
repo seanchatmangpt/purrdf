@@ -269,8 +269,8 @@ number, never a silent skip (see [Ledger discipline](#ledger-discipline) and
   in-process by `purrdf-core`'s own writer rather than files on disk. The
   determinism cases' expectations are pinned Rust literals for the same reason
   frozen vectors would be — recomputing them with the kernel under test would
-  agree with any kernel at all. These arithmetic probes run natively; `make wasm-test` selects the actual
-  WASM dispatch and SIMD kernels.
+  agree with any kernel at all. These arithmetic probes run natively;
+  `make wasm-test` selects the actual WASM dispatch and SIMD kernels.
 - `purrdf_geo::determinism::CORPUS` and `crates/geo/tests/` — the GeoSPARQL 1.1
   lane, also with **no corpus directory** and, unlike every other row, **no
   vendored OGC suite**: the SHACL shapes are first-party `example.org` mirrors
@@ -630,9 +630,11 @@ way the matrix stays honest:
      why the scoreboard reports rule-table coverage and entailment conformance
      as separate rows.
 - **SHACL** — the harness discovers **129** `sht:Validate` entries and passes
-  **129 / 129** as approved, with **0 ledgered xfails**: **120** from the W3C `core/` and `sparql/` suites,
-  graded under the dated `shacl-rec-2017-07-20` profile (the Recommendation they test, and the law the
-  published 2017 report names), plus **9** under `vectors/shacl/af/`, graded under the compatibility law. Of those 9, **6 are vendored** from pySHACL's
+  **129 / 129** as approved, with **0 ledgered xfails**: **120** from the W3C
+  `core/` and `sparql/` suites, graded under the dated `shacl-rec-2017-07-20`
+  profile (the Recommendation they test, and the law the published 2017 report
+  names), plus **9** under `vectors/shacl/af/`, graded under the compatibility
+  law. Of those 9, **6 are vendored** from pySHACL's
   DASH tests and **3 are first-party** cases authored for PurRDF against W3C
   "SHACL 1.2 Node Expressions", which the DASH corpus predates — there is
   **no W3C SHACL-AF conformance suite**, so no vendored suite grades that surface
@@ -725,8 +727,9 @@ way the matrix stays honest:
   `"0"`, `"3"` for the fields `01`, `02`, `00`, `03` and is graded by value, so no
   spelling of `SECONDS` satisfies both suites term for term. A rule whose head
   templates a triple term containing a variable is a run-once rule (SPARQL 1.2
-  RL, "Elements of the Abstract Syntax"), so the stratification tests whose head feeds its own body through
-  such a template (`stratification-bad-06` and `-07`) are refused as
+  RL, "Elements of the Abstract Syntax"), so the stratification tests whose head
+  feeds its own body through such a template (`stratification-bad-06` and `-07`)
+  are refused as
   unstratifiable. SPARQL 1.2 RL grammar
   rule [2] is implemented as written. Beside the suite,
   `crates/shapes/tests/vocabulary_import_invariance.rs` proves that merging the
@@ -774,9 +777,10 @@ explicit scalar ranges. Wildcards and anchors retain XPath's meaning; `s`,
 `m`, `x`, and `q` are incorporated into the emitted source. Under `q`, `s`,
 `m`, and `x` have no effect, as XPath specifies. Every flag combination
 containing `i` is written into the source as XPath case variants, since simple
-case folding does not implement them. Unknown flags refuse. The emitter enforces the exact
-multiline anchor rules, including the final newline exclusion; the separately
-documented Rust-validator differences above remain specific to that validator. Source and output limits are hard errors.
+case folding does not implement them. Unknown flags refuse. The emitter enforces
+the exact multiline anchor rules, including the final newline exclusion; the
+separately documented Rust-validator differences above remain specific to that
+validator. Source and output limits are hard errors.
 
 `json_schema::compile`, `compile_with_value_vocab`, and `compile_schema` all
 return `Result`. A pattern that cannot be translated returns
@@ -800,8 +804,10 @@ explicit Unicode escapes into XSD scalar ranges. Unsupported input returns
 ### Dated native XPath programs
 
 `purrdf_core::xsd_regex::xpath` executes an explicitly selected
-[XPath F&O 2.0 Second Edition (2010-12-14)](https://www.w3.org/TR/2010/REC-xpath-functions-20101214/#regex-syntax)
-or [XPath F&O 3.1 (2017-03-21)](https://www.w3.org/TR/2017/REC-xpath-functions-31-20170321/#regex-syntax)
+[XPath F&O 2.0 Second Edition (2010-12-14)]
+(https://www.w3.org/TR/2010/REC-xpath-functions-20101214/#regex-syntax)
+or [XPath F&O 3.1 (2017-03-21)]
+(https://www.w3.org/TR/2017/REC-xpath-functions-31-20170321/#regex-syntax)
 law. Both support backreferences, ordered captures and replacement; only the
 3.1 law admits non-capturing groups and `q`. The native parser, matcher and
 replacement modules carry dated grammar/matching vectors, invalid neighbors,

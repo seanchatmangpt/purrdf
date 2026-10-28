@@ -1,11 +1,17 @@
 # Bench Coverage Report - v26.10.26 Wave
 
-> **TERMINAL (2026-10-27, writer lane): all FQ-01..15 rows are terminal.**
-> Terminal green total is **1181 measured / 0 failed** (supersedes the 864
-> and 418 snapshots below; see section 4 terminal addendum). Terminal reds
-> carry exact error classes: sparql-eval deep_nesting E0277, n3 E0063
-> (`rules`), datalog E0063 (`wall_max`), entail no-footer abort, rdf-core
-> rc=124 cap. Register + logs re-read from disk this lane; no cargo run.
+> **TERMINAL (2026-10-27, writer lane, post-drain): all FQ-01..15 rows are
+> terminal.** Terminal green total is **1693 measured / 0 failed**
+> (supersedes the 1181, 864 and 418 snapshots below; see section 4 terminal
+> addendum). New since the 1181 read: purrdf-datalog GREEN (13/0, rc=0
+> 1333s), the purrdf-core 14-target phase-4b shard GREEN (499/0 across 12
+> footer-bearing targets, rc=0 each; pack_restore_alloc + purremb_alloc
+> report-only, no footers), hnsw recall-200k rc=0 2493s report-only green
+> (corpus=200000x4096, no measured footer, excluded). Terminal reds carry
+> exact error classes: sparql-eval deep_nesting E0277, n3 E0063
+> (`rules`), entail no-footer abort, rdf-core 3600s cap (rc=124 phase-4;
+> the phase-4b shard is green). Register + logs re-read from disk this
+> lane; no cargo run.
 >
 > **STALENESS BANNER (2026-10-27, F14 lane; refreshed by F15 ~12:45; final
 > register sync 2026-10-27 ~13:05).**
@@ -634,7 +640,7 @@ its log does not show.
   failure (register row): needs a **vendoring fix owner, not a bench fix**
   (section 5). |
 
-[**SUPERSEDED — see the terminal addendum below: total is now 1181 / 0.**]
+[**SUPERSEDED — see the terminal addendum below: total is now 1693 / 0.**]
 Terminal green total (recounted 2026-10-27 from the register rc=0 receipts,
 fix-queue ground truth): purrdf 44 + purrdf-rdf 123 + shapes 37 + iri 2 +
 sparql-algebra 140 + sparql-results 14 + columnar 12 + lex 22 + cdt 12 +
@@ -648,7 +654,7 @@ tables, section 4) carry no measured count and are excluded.
 
 ### 4-T. Terminal addendum (writer lane, 2026-10-27 — register + logs re-read)
 
-Source: `/tmp/bench-logs/register.txt` (44 lines on disk) plus the phase-4 /
+Source: `/tmp/bench-logs/register.txt` (63 lines at this read; re-read at use time - requeues append) plus the phase-4 /
 phase-4b logs, footers grepped fresh this lane. No cargo was run.
 
 | run | rc | wall | footer (grep-verified) |
@@ -659,12 +665,17 @@ phase-4b logs, footers grepped fresh this lane. No cargo was run.
 | purrdf-branchless (phase-4b all) | 0 | 77s | **7** measured / 0 failed |
 | purrdf-duckdb (phase-4b all) | 0 | 652s | **14 = 10 + 4** measured / 0 failed (two binaries) |
 | purrdf-hnsw build + recall (phase-4b, FQ-03/FQ-14) | 0 | 84s + 638s | no `benchmarks measured` footer — report tables only, **excluded from totals** |
+| purrdf-datalog (4b all) | 0 | 1333s | **13** measured / 0 failed (footer at `purrdf-datalog.phase4b.all.log:516`); closes the earlier E0063 `wall_max` red |
+| purrdf-core (4b shard, 14 targets) | 0 each | — | **499** measured / 0 failed across 12 footer-bearing targets, rc=0 each (model_traits 150, xsd_regex 191, mutable 23, pack_index_compare 23, pack_query 13, purremb 14, shared_homes 8, shared_views 48, small 12, sssom 2, pack_bits 9, primitives_table 6); `pack_restore_alloc` + `purremb_alloc` report-only, no footers |
+| purrdf-hnsw recall-200k | 0 | 2493s | report-only tables (corpus=200000x4096 sections), no measured footer — **excluded from totals** |
 
-Terminal total: 864 (above) + 273 + 13 + 10 + 7 + 14 =
-**1181 measured / 0 failed**. Like the 864, it spans two ladder series (the
+Terminal total: 864 (above) + 273 + 13 + 10 + 7 + 14 + 13 (datalog) + 499
+(core shard) = **1693 measured / 0 failed**. hnsw-200k adds no measured
+count. Like the 864, it spans two ladder series (the
 26 geo-kernel pre-shrink batch4096 rows) and is not a single homogeneous
-run. Report-only rows (hnsw build/recall tables) carry no measured count
-and are excluded.
+run. Report-only rows (hnsw build/recall + recall-200k tables,
+pack_restore_alloc, purremb_alloc) carry no measured count and are
+excluded.
 
 Still-red at terminal (exact error classes, register rows on disk):
 
@@ -672,7 +683,7 @@ Still-red at terminal (exact error classes, register rows on disk):
 |---|---|---|
 | purrdf-sparql-eval | 4b deep_nesting rc=101 0s | E0277 in the bench wrapper (`on_measurement_stack` Send bound, deep_nesting bench) — FQ-08's canon_arrow fix landed 612bba89; this is a NEW red, wrapper needs an owner |
 | purrdf-n3 | phase-4 rc=101 161s | E0063 missing `rules` in lib test compile |
-| purrdf-datalog | phase-4 rc=101 54s | E0063 missing `wall_max` in purrdf-testkit lib |
+| purrdf-datalog | phase-4 rc=101 54s | E0063 missing `wall_max` in purrdf-testkit lib — **CLOSED post-drain**: 4b all rerun rc=0 1333s, 13 measured / 0 failed (counted in the 1693) |
 | purrdf-entail | phase-4 rc=101 923s; 4b log has no footer | no `benchmarks measured` footer — abort before footer |
 | purrdf-rdf-core | phase-4 rc=124 3600s | cap-out; rows on disk but no footer — report-only, excluded from totals |
 
@@ -693,12 +704,13 @@ Any may fail E0425-style until their row lands.
 
 ## 5. Queue (synced 2026-10-27 ~13:05)
 
-> **TERMINAL close-out (writer lane):** queue is drained. arrow, duckdb,
-> branchless, hash-conformance and shapes-pydantic now hold rc=0 green rows
+> **TERMINAL close-out (writer lane, post-drain):** queue is drained. arrow,
+> duckdb, branchless, hash-conformance, shapes-pydantic, datalog (13/0, 4b
+> all) and the rdf-core 14-target 4b shard (499/0) now hold rc=0 green rows
 > (section 4-T); sparql-eval deep_nesting re-red with a new E0277 (wrapper),
-> n3 E0063 `rules`, datalog E0063 `wall_max` (testkit lib), entail aborted
-> before its footer, rdf-core capped at 3600s (rc=124). Each red's close
-> condition stays: a register row with a rc.
+> n3 E0063 `rules`, entail aborted before its footer. hnsw recall-200k is
+> report-only green. Each red's close condition stays: a register row with
+> a rc.
 
 - Phase-2, remaining: toml (running now), then mime / glob / datalog /
   entail / rdf-core / shex / hash-conformance (FQ-07: coordinator must add

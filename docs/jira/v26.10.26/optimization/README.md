@@ -51,9 +51,9 @@ No source code was modified by the inspection; tickets are engineering specs onl
 | OPT-40 | `OPT-40-layout-geometry.md` | Agent 11 | rdf-events, rdf-core, hnsw |
 | OPT-41 | `OPT-41-branchless-reuse-dedupe.md` | reuse-audit lanes | branchless, rdf-core |
 | OPT-43 | `OPT-43-csv-portable-swar-kernel.md` | ticket-writer §3.5 | rdf-core — LANDED (both halves; wave-5 audit) |
-| OPT-44 | `OPT-44-hnsw-finite-lane-mask.md` | ticket-writer §3.5 | hnsw |
+| OPT-44 | `OPT-44-hnsw-finite-lane-mask.md` | ticket-writer §3.5 | hnsw — branchless half landed, hnsw wiring open |
 | OPT-45 | `OPT-45-sparql-small-n-position-scans.md` | ticket-writer §3.5 | sparql-eval — landed, UNVERIFIED |
-| OPT-46 | `OPT-46-n3-lexer-digit-run-swar.md` | ticket-writer §3.5 | n3 |
+| OPT-46 | `OPT-46-n3-lexer-digit-run-swar.md` | ticket-writer §3.5 | n3 — LANDED (cites verified, wave-5) |
 | OPT-47 | `OPT-47-order-by-key-reprojection.md` | ticket-writer §3.5 | sparql-eval — EXECUTED |
 | OPT-48 | `OPT-48-path-relation-small-n-sorts.md` | ticket-writer §3.5 | sparql-eval — landed, UNVERIFIED |
 | OPT-49 | `OPT-49-datalog-sources-small-n-sorts.md` | ticket-writer §3.5 | datalog — landed, UNVERIFIED |

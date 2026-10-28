@@ -41,6 +41,13 @@ Splits `cargo bench` into compile (Mode A) and measure (Mode B):
                        bench, decided by the retry). Each run is capped at
                        CAP seconds (killed -> rc=124 row).
 
+  Register rows cover Mode B only, plus compile failures: a green
+  (rc=0) Mode A compile intentionally records NO row (its artifact
+  evidence is the .compile.fast.log plus resolved binaries); a failed
+  compile emits a single `CRATE BENCH=compile rc=R SECS=S log=...`
+  row, so "one row per bench attempt" holds for measure attempts and
+  compile attempts that end red.
+
   `--resume` skips a crate only when EVERY bench name from its manifest has
   a green (rc=0) register row; without --resume no green row skips any
   re-measurement. SIGTERM/SIGINT/SIGHUP are installed once at module level

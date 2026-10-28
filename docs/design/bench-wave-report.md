@@ -11,13 +11,16 @@ pinned (grep / awk / tomllib, bijection verified both directions); one RNG
 home (getrandom absent from `crates/*/benches/`, grep rc=1) and one temp home.
 Three-phase detached runners plus 14 static lanes on a no-build box.
 
-> **TERMINAL (writer lane, 2026-10-27):** the final standing total is
-> **1181 measured / 0 failed** — the 864 subtotal plus hash-conformance 273
-> (digests 255 + hasher 18), shapes-pydantic 13, arrow 10, branchless 7,
-> duckdb 14 (all phase-4/4b rc=0, footers grep-verified). hnsw 4b
-> build/recall are rc=0 report tables with no measured footer — excluded.
-> Supersedes both the 418 and 864 snapshots below. See
-> bench-coverage-report.md section 4-T.
+> **TERMINAL (writer lane, 2026-10-27, post-drain):** the final standing
+> total is **1693 measured / 0 failed** — the 1181 subtotal plus
+> purrdf-datalog 13 (phase-4b all, rc=0 1333s, footer at
+> `purrdf-datalog.phase4b.all.log:516` — its earlier E0063 `wall_max` red
+> is closed) and the purrdf-core 14-target phase-4b shard, 499 measured /
+> 0 failed across 12 footer-bearing targets (`pack_restore_alloc` and
+> `purremb_alloc` are report-only alloc harnesses, no footers). hnsw
+> recall-200k is rc=0 2493s report-only tables (corpus=200000x4096) — no
+> measured footer, excluded. All footers grep-verified. Supersedes the
+> 418, 864 and 1181 snapshots. See bench-coverage-report.md section 4-T.
 >
 > SUPERSEDED (2026-10-27): the final standing totals are 864 measured
 > / 0 failed with purrdf-rdf 123 and shapes 37 — this section's 418
@@ -92,13 +95,17 @@ reconstructed from logs as footer-cited receipts.
 | purrdf-arrow (4b all) | 10 | `purrdf-arrow.phase4b.all.log`, rc=0 103s |
 | purrdf-branchless (4b all) | 7 | `purrdf-branchless.phase4b.all.log`, rc=0 77s |
 | purrdf-duckdb (4b all) | 14 = 10 + 4 (two binaries) | `purrdf-duckdb.phase4b.all.log`, rc=0 652s |
+| purrdf-datalog (4b all) | 13 | `purrdf-datalog.phase4b.all.log`, rc=0 1333s, footer at :516 (closes the earlier E0063 `wall_max` red) |
+| purrdf-core (4b shard, 14 targets) | 499 across 12 footer-bearing targets | `purrdf-core.phase4b.--bench-*.log`, rc=0 each; model_traits 150 + mutable 23 + pack_bits 9 + pack_index_compare 23 + pack_query 13 + primitives_table 6 + purremb 14 + shared_homes 8 + shared_views 48 + small 12 + sssom 2 + xsd_regex 191; `pack_restore_alloc` + `purremb_alloc` report-only, no footers |
 | purrdf-hnsw build + recall (4b) | excluded — no measured footer | `purrdf-hnsw.phase4b.--bench-{build,recall}.log`, rc=0; report tables only |
+| purrdf-hnsw recall-200k | excluded — report-only | `purrdf-hnsw.phase4b.--bench-recall.log`, rc=0 2493s; corpus=200000x4096 sections, report tables, no measured footer |
 
-Terminal total: 864 + 273 + 13 + 10 + 7 + 14 = **1181 measured / 0 failed**
-(spans two ladder series — the 26 geo-kernel pre-shrink batch4096 rows — and
+Terminal total: 864 + 273 + 13 + 10 + 7 + 14 + 13 (datalog) + 499 (core
+shard) = **1693 measured / 0 failed** (hnsw-200k adds no measured count;
+spans two ladder series — the 26 geo-kernel pre-shrink batch4096 rows — and
 is not a single homogeneous run). Terminal reds: sparql-eval E0277 (4b
-deep_nesting wrapper), n3 E0063 `rules`, datalog E0063 `wall_max` (testkit
-lib), entail no-footer abort, rdf-core rc=124 3600s cap.
+deep_nesting wrapper), n3 E0063 `rules`, entail no-footer abort, rdf-core
+rc=124 3600s cap.
 
 ## 5. Timeline (reconstructed)
 
@@ -247,9 +254,11 @@ corpus.
 > **TERMINAL (writer lane): nothing is in flight.** Phase-3 greens landed
 > (geo-kernel 109/0, retrieval 18/0, text 299/0); the phase-4/4b queue is
 > drained — greens: hash-conformance 273/0, shapes-pydantic 13/0, arrow
-> 10/0, branchless 7/0, duckdb 14/0; reds: sparql-eval E0277 (wrapper),
-> n3 E0063, datalog E0063 (testkit lib), entail no-footer abort, rdf-core
-> rc=124 3600s cap. Remaining UNVERIFIED classes only (section 10).
+> 10/0, branchless 7/0, duckdb 14/0, datalog 13/0 (4b all, rc=0 1333s),
+> rdf-core shard 499/0 (14 targets, 4b, rc=0 each); reds: sparql-eval
+> E0277 (wrapper), n3 E0063, entail no-footer abort. hnsw 4b build/recall
+> + recall-200k are report-only green. Remaining UNVERIFIED classes only
+> (section 10).
 
 Historical snapshot (superseded):
 - Phase-3 runner (pid 81055): geo-kernel in flight (post-Cargo.lock fix);
@@ -264,7 +273,8 @@ Historical snapshot (superseded):
 
 REFRESH-PENDING: this section is stale on arrival; read
 `/tmp/bench-logs/register.txt` for live state. (Terminal read 2026-10-27:
-register has 44 rows; section 9 terminal block above is authoritative.)
+register has 63 rows at this read (re-read at use time - requeues
+append); section 9 terminal block above is authoritative.)
 
 Post-freeze addition (not in the phase-4 queue): the OPT-17 wiring wave adds
 a `canon-arrow` arm to `crates/sparql-results` including a new bench subject
@@ -302,8 +312,9 @@ UNSUBSTANTIATED rows recorded but not executed — read-only lane).
 
 ## 11.x Conflicting totals — adjudication
 
-**TERMINAL (writer lane, 2026-10-27): the adjudicated total is 1181 measured
-/ 0 failed** (§4-T). Supersession chain: 421 → 418 → 864 → **1181**. The
+**TERMINAL (writer lane, 2026-10-27, post-drain): the adjudicated total is
+1693 measured / 0 failed** (§4-T). Supersession chain: 421 → 418 → 864 →
+1181 → **1693**. The
 56/23 close-out counts above are as-bannered, not re-derived; refresh both
 from receipts before citing. A count recalled from session memory is stale
 by default — re-read the receipt at use time.
@@ -317,7 +328,7 @@ measured / 0 failed (§4).
 
 | artifact | path |
 |---|---|
-| register (terminal rc rows) | `/tmp/bench-logs/register.txt` (44 rows as of the terminal sync; FQ-15 banner receipt re-verified) |
+| register (terminal rc rows) | `/tmp/bench-logs/register.txt` (63 rows at this read - re-read at use time, requeues append; FQ-15 banner receipt re-verified) |
 | phase-2 runner log | `/tmp/bench-logs/phase2-runner.log` |
 | phase-3 runner log | `/tmp/bench-logs/phase3-runner.log` |
 | fix queue | `/tmp/bench-fix-queue.md` |
@@ -386,7 +397,9 @@ produced by the pre-fix orchestrator; branchless compile red there is stale
 
 ---
 
-Footer: TERMINAL as of the writer-lane sync 2026-10-27 (register 44 rows;
-1181 measured / 0 failed). Sections still marked REFRESH-PENDING above are
+Footer: TERMINAL as of the writer-lane post-drain sync 2026-10-27 (register
+63 rows at this read - 44 at the earlier sync, requeues appended since;
+1693 measured / 0 failed). Sections still marked
+REFRESH-PENDING above are
 historical snapshots retained on purpose. All receipts live under
 `/tmp/bench-logs` (ephemeral — persisted copy planned before /tmp reaping).

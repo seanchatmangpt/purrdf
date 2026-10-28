@@ -171,9 +171,11 @@ Non-vacuity rules:
 
 1. **The register is the register of truth.** A green claim must name its
    row. A claim that cannot name a row is UNVERIFIED.
-2. **Absence is not a pass.** `register-fast.txt` does not exist yet; until
-   the first fast wave appends to it, the fast lane's standing is UNVERIFIED
-   for every class in §5. (Same fail-closed shape as `scripts/fb-receipts.jsonl`
+2. **Absence is not a pass.** `register-fast.txt` now exists (3 rows:
+   branchless compile rc=101 - the fail-closed shape working, the lane
+   records red - lex scan rc=0 214s, cdt parse_render rc=0 123s). Until
+   more benches append, the fast lane's standing is UNVERIFIED for every
+   class in §5 without a named row. (Same fail-closed shape as `scripts/fb-receipts.jsonl`
    — absent-by-design until first run, court exits 2 until then.)
 3. **A fast lane that never fails typed is a vacuous gate.** The runner must
    be able to record red: rc=137 retries solo, typed errors propagate to the
