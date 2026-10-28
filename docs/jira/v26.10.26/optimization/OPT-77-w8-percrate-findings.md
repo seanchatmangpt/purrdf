@@ -590,3 +590,21 @@ string.
 - Sign1 signing/verify lane verified clean (sig_structure covers
   received protected bytes verbatim; alg only from signed map;
   Ed25519-only resolver cannot downgrade composites).
+
+## wave-12 semantic additions (purremb embedding, validate shacl)
+
+- embedding/verify.rs ~460-500: inter-section alignment padding is
+  never checked zero on read, though the writer always emits zeros
+  and NO digest covers padding bytes — a junk-padding artifact passes
+  all content digests (padding-zero invariant unenforced on read).
+- embedding/writer.rs:1457 — zero-norm rejection tests norm == 0.0
+  before finiteness: an overflow-to-inf prefix is misclassified as
+  "invalid norm" instead of ZeroNorm (taxonomy, math correct).
+- embedding/writer.rs:1406 vs verify.rs:539 — raw-path F32 hashing
+  via raw_bytes vs verify's LE re-encode is byte-identical only on
+  little-endian hosts (the one fold divergence; view.rs guards this
+  elsewhere with target_endian).
+- validate/shacl.rs: delegation boundary, no logic bugs (change
+  targeting reads the MUTATED snapshot correctly; additions-before-
+  removals settlement matches contract; one lossy error path at :402
+  drops row context).
