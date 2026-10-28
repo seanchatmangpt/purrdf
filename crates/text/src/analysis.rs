@@ -659,11 +659,23 @@ impl Analyzer {
             for (at, word) in unicode::word_indices(part) {
                 if word.chars().any(unicode::is_alphanumeric) {
                     if word.chars().any(unspaced) {
+                        // Split only the unspaced-script runs into per-grapheme
+                        // tokens; consecutive non-unspaced clusters (Latin, etc.)
+                        // stay grouped as a single word token.
+                        let mut run_start: Option<usize> = None;
                         for (offset, cluster) in unicode::grapheme_bounds(word) {
-                            out.push(
-                                range.start + at + offset
-                                    ..range.start + at + offset + cluster.len(),
-                            );
+                            let end = offset + cluster.len();
+                            if cluster.chars().any(unspaced) {
+                                if let Some(start) = run_start.take() {
+                                    out.push(range.start + at + start..range.start + at + offset);
+                                }
+                                out.push(range.start + at + offset..range.start + at + end);
+                            } else if run_start.is_none() {
+                                run_start = Some(offset);
+                            }
+                        }
+                        if let Some(start) = run_start {
+                            out.push(range.start + at + start..range.start + at + word.len());
                         }
                     } else {
                         out.push(range.start + at..range.start + at + word.len());

@@ -154,12 +154,17 @@ impl DistanceCache {
     }
 
     /// Record a distance and charge it as one evaluation.
+    ///
+    /// The evaluation is charged unconditionally: the distance was computed whether or
+    /// not the bounded workspace admits the entry, so the work count must reflect it even
+    /// when `insert_admitted` fails and the search aborts. Only admitted entries are
+    /// stored in the cache.
     fn insert(&self, row: usize, distance: f64) -> Result<()> {
         let mut state = self.state.borrow_mut();
+        state.evaluations = state.evaluations.saturating_add(1);
         let _ = state
             .entries
             .insert_admitted(row, distance, &self.workspace)?;
-        state.evaluations = state.evaluations.saturating_add(1);
         Ok(())
     }
 

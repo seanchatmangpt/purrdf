@@ -467,7 +467,13 @@ fn apply_operation(
     check_stop(cfg.governors)?;
     match op {
         GraphUpdateOperation::InsertData { data } => {
-            insert_data(data, m, bnode_counter, cfg.governors)
+            insert_data(
+                data,
+                m,
+                bnode_counter,
+                cfg.options.bnode_mint_prefix,
+                cfg.governors,
+            )
         }
         GraphUpdateOperation::DeleteData { data } => {
             delete_data(data, m, bnode_counter, cfg.governors)
@@ -542,15 +548,18 @@ fn apply_operation(
 /// DATA never queries the dataset, so it takes the snapshot-free ground path: no
 /// `m.freeze()` (which would compact the whole base+delta for nothing) and no
 /// `EvalCtx`. Blanks mint from the request-wide `counter` (see [`eval_update`]), so
-/// this op's labels never collide with another operation's.
+/// this op's labels never collide with another operation's. `requested_prefix` is the
+/// request-wide `bnode_mint_prefix` (same publication-namespace law as
+/// [`delete_insert`] and [`load`]).
 fn insert_data(
     data: &[QuadPattern],
     m: &mut MutableDataset,
     counter: &mut u64,
+    requested_prefix: Option<&str>,
     governors: Option<&Arc<GovernorState>>,
 ) -> Result<(), UpdateAbort> {
     let prefix = template_has_blank_node(data)
-        .then(|| mutable_mint_prefix(m, None))
+        .then(|| mutable_mint_prefix(m, requested_prefix))
         .flatten();
     let mut blanks: crate::template::TemplateBlanks = crate::template::TemplateBlanks::default();
     for qp in data {

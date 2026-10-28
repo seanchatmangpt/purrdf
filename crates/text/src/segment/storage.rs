@@ -126,6 +126,16 @@ impl Storage {
         }
     }
     pub(super) fn exact(&self, input: &[u8], arena: &str) -> Option<usize> {
+        if input.is_empty() {
+            // The empty word, when present, sorts first and carries rank 0 at the root.
+            return match self {
+                Self::Radix(radix) => {
+                    let rank = radix.states[0].rank;
+                    (rank != u32::MAX).then(|| rank as usize)
+                }
+                Self::Minimal(dag) => dag.states[dag.root as usize].terminal.then_some(0),
+            };
+        }
         let mut found = None;
         self.prefixes(input, arena, |end, rank| {
             if end == input.len() {
@@ -185,6 +195,13 @@ impl Storage {
 }
 impl Radix {
     fn build(arena: &[u8], offsets: &[u32]) -> Self {
+        if offsets.is_empty() {
+            // Degenerate dictionary: only the root exists, no edges, nothing terminal.
+            return Self {
+                states: vec![RadixState::default()],
+                edges: Vec::new(),
+            };
+        }
         let mut states = vec![RadixState::default()];
         let mut edges = Vec::new();
         let mut tasks = vec![(0usize, 0usize, offsets.len() - 1, 0usize)];

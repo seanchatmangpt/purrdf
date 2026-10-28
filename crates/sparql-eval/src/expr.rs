@@ -1041,29 +1041,33 @@ pub(crate) fn ebv_term<D: DatasetView + Sync>(
     ctx: &mut EvalCtx<'_, D>,
     term: SolutionTerm<D::Id>,
 ) -> Result<Option<bool>, EvalError> {
-    let is_lang_tagged = match term {
+    // A language-tagged literal is a string literal typed `xsd:string`
+    // (SPARQL 1.1 §17.2.2), so its EBV is `lexical form` ≠ "" — not a type
+    // error. `xsd_of_term` cannot produce that value (`rdf:langString` is
+    // outside the XSD datatype table), so it is handled directly here.
+    let lang_tagged_empty = match term {
         SolutionTerm::Existing(id) => ctx
             .dataset
-            .with_term(id, |term| {
-                matches!(
-                    term,
-                    TermRef::Literal {
-                        language: Some(_),
-                        ..
-                    }
-                )
+            .with_term(id, |term| match term {
+                TermRef::Literal {
+                    language: Some(_),
+                    value,
+                    ..
+                } => Some(value.is_empty()),
+                _ => None,
             })
             .map_err(|error| ctx.workspace.source_error(error))?,
-        SolutionTerm::Computed(sid) => matches!(
-            ctx.scratch.computed_value(sid),
+        SolutionTerm::Computed(sid) => match ctx.scratch.computed_value(sid) {
             TermValue::Literal {
                 language: Some(_),
+                value,
                 ..
-            }
-        ),
+            } => Some(value.is_empty()),
+            _ => None,
+        },
     };
-    if is_lang_tagged {
-        return Ok(None);
+    if let Some(empty) = lang_tagged_empty {
+        return Ok(Some(!empty));
     }
     Ok(xsd_of_term(ctx, term)?
         .as_deref()

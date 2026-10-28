@@ -353,7 +353,30 @@ pub(crate) fn write_rdf<D: DatasetView>(
                 Err(diagnostic) => match target.abandon(diagnostic.into()) {
                     // The reader went away; the document it asked for is complete
                     // enough for it, and the command succeeded.
-                    CliError::DownstreamClosed => return Ok(LossLedger::new()),
+                    //
+                    // Even on this early exit the ledger is not empty by fiat: the
+                    // contract-loss half (src → dst codec pair) and the declared
+                    // empty named graphs were both settled before the first byte —
+                    // `empty_named_graphs_dropped` reads the dataset, not the pipe —
+                    // so a `--loss-ledger` caller still sees the pre-pipe drops.
+                    // The mid-stream counts (statement rows / directional literals /
+                    // named-graph rows dropped before the write failed) are carried
+                    // only in the success-path `SerializeReport`; the serializer's
+                    // Err variant returns the bare `RdfDiagnostic` and no partial
+                    // report, so they are unrecoverable here — an upstream-serializer
+                    // gap, not a decision this sink makes.
+                    CliError::DownstreamClosed => {
+                        return Ok(build_ledger(
+                            src_codec,
+                            format.loss_codec_name(),
+                            &RealizedDrops {
+                                statement_rows: 0,
+                                directional_literals: 0,
+                                named_graph_rows: 0,
+                                empty_named_graphs,
+                            },
+                        ))
+                    }
                     other => return Err(other),
                 },
             };

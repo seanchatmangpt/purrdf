@@ -114,6 +114,10 @@ pub unsafe extern "C" fn purrdf_rowcursor_next(rc: *mut PurrdfRowCursor) -> i32 
             }
             let rc = &mut *rc;
             if rc.next >= rc.rows.len() {
+                // Exhaustion clears the current-row slot: `_term` must report
+                // InvalidArgument ("no row is current"), not serve the stale
+                // last row.
+                rc.current = None;
                 return PurrdfStatus::CursorExhausted as i32;
             }
             rc.current = Some(rc.next);

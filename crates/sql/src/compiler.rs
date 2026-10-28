@@ -1987,6 +1987,26 @@ pub fn compile_turtle(turtle: &str) -> Result<CompiledQuery, AstError> {
         include_str!("../ontologies/sql-ast.ttl"),
         include_str!("../ontologies/statement_classes.ttl")
     );
+    // Charter-A04 memo lookup FIRST: the memo key is BLAKE3(Canon(G_AST)), so
+    // canonicalization must run once before the lookup, but SHACL validation
+    // does not feed the key. A repeated identical admitted graph (same digest)
+    // hits the memo and must never re-run SHACL validation or canonicalization
+    // for the re-render (doc above). The memo only ever stores
+    // SelectStatement compiles, so a hit implies the statement class without
+    // re-parsing; on a miss we fall through to validation and the full path.
+    // R1: canonicalize ONCE at compile time (not per receipt). Failure is a
+    // typed REFUSAL-01 AstError, never a crash.
+    let canon_bytes = canonical_graph_bytes(turtle)?;
+    let h_ast = *blake3::hash(&canon_bytes).as_bytes();
+    if let Some(arc) = ast_compile_memo()
+        .lock()
+        .ok()
+        .and_then(|m| m.get(&h_ast).cloned())
+    {
+        let mut cq = (*arc).clone();
+        cq.ast_graph_turtle = Some(turtle.to_string());
+        return Ok(cq);
+    }
     validate_ast_shacl(turtle, &shapes)?;
     let reader = DatasetReader::from_turtle(turtle)?;
     let (node, kind) = reader.statement_kind()?;
@@ -1995,20 +2015,6 @@ pub fn compile_turtle(turtle: &str) -> Result<CompiledQuery, AstError> {
     // sub-select carries its own index per §7's example graph.
     if let Some(using) = reader.get_single_object(&node, "http://graphlaw.org/sql#usingSource") {
         require_statement_index(&reader, &using)?;
-    }
-    // R1: canonicalize ONCE at compile time (not per receipt). Failure is a
-    // typed REFUSAL-01 AstError, never a crash.
-    let canon_bytes = canonical_graph_bytes(turtle)?;
-    let h_ast = *blake3::hash(&canon_bytes).as_bytes();
-    if kind.as_str() == "SelectStatement"
-        && let Some(arc) = ast_compile_memo()
-            .lock()
-            .ok()
-            .and_then(|m| m.get(&h_ast).cloned())
-    {
-        let mut cq = (*arc).clone();
-        cq.ast_graph_turtle = Some(turtle.to_string());
-        return Ok(cq);
     }
     let compiled = compile_statement_arm(&reader, &node, kind.as_str());
     let compiled = compiled.map(|mut cq| {
