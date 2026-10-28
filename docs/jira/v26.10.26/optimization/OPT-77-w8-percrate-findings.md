@@ -2243,3 +2243,75 @@ corrected anchors (wave-12's dtd line numbers had drifted).
   truth, bench-correctness sample, OPT-70 single-sourcing (DELIVERED, see
   plans), and the live CI-verdict fetch.
 
+---
+
+## wave-25 status (2026-10-28, CI-truth + fix wave)
+
+### CI VERDICT (gh, runs 40659364805 et al.) — read this first
+
+- EVERY CI job fails on the pushed wave-21..25 commits, from TWO roots:
+  1. **[patch] BLOCKER (pre-wave, machine-local)**: root Cargo.toml lines
+     ~381-383 patch frozen-duckdb* to /Users/sac/... absolute paths that do
+     not exist on CI — every cargo invocation dies at source resolution,
+     before Format/clippy/tests ever run. Removing the [patch] changes
+     resolved sources and needs a Cargo.lock regeneration on a cargo box;
+     --locked builds fail until then. USER DECISION + cargo box required.
+  2. **Format failures on ~45 pre-wave files**: bounded-fmt only covers
+     changed files; the workspace Format step checks all. FIXED in wave-25:
+     whole-tree rustfmt sweep landed (REMAINING-DIRTY: 0), commit ca2c4e72.
+- Consequence: NO clippy/test signal exists yet for any wave-21..25 edit.
+  The [patch] must be resolved on a cargo box before compile truth.
+
+### Fixed this wave (in-tree, UNVERIFIED)
+
+- Whole-tree fmt repair (see above) — the one CI failure class the wave
+  edits did own.
+- csvw terms: cardinality One on the RAW count (surviving-only was the
+  silent-arbitrary-.first() bug); required kept on survivors (verified
+  different semantics); shared fixture's unrepresentable witness moved to
+  the parents column so ledger assertions hold without tripping the raw
+  check. Implementation plan from the retry lane applied nearly verbatim;
+  the dedicated raw-2 negative fixture/test remains to add.
+- testkit harness: PURRDF_TEST_REQUIRE_EXACT dedups duplicate --exact
+  filters (a passing suite was exiting 101).
+- testkit bench: early-stop floor as sample_count.min(MIN_SAMPLE_SIZE)
+  (behavior-identical today; intent-safe).
+- gts agent_memory: min_confidence is_none_or (un-annotated claims pass any
+  floor).
+- lex xml dtd: char-ref ';' scan bounded to the 10-byte window (hardening;
+  InvalidCharRef at the markup instead of scanning the literal's tail).
+  The reader.rs:850 content-path ';' scan is bounded by markup structure
+  and needs no change.
+
+### New findings filed (plans needed next wave)
+
+- shapes HIGH: duplicate sh:severity on one shape resolves by STORE ORDER —
+  first_object_of over raw store order flips conformance on triple order;
+  multi-valued severity must be refused (messages_of reads all values;
+  severity_of drops extras silently). shapes.rs:2982-2989.
+- shapes MEDIUM: conforms_from_dataset reads the FIRST typed report node
+  while conformance_disallows_from_dataset unions ALL of them — a
+  two-report dataset is judged under a law no single report states.
+  report.rs:2607-2647.
+- shapes MEDIUM: tuples_from_dataset first-object picks over AnyGraph +
+  unwrap_or_default for absent severities — store-order-dependent tuple
+  content and silent absent-vs-empty conflation. report.rs:2568-2592.
+- shapes LOW-MED: reifier source refusals misattribute constraint index 0
+  (occurrence: None by design -> unwrap_or_default). report.rs:1140.
+- validate: column-only SARIF region is schema-invalid (§3.30 requires
+  startLine/charOffset/byteOffset); diagnostic kind hardcoded None (=fail
+  by default — Info diagnostics become failures); artifact URIs emitted raw
+  (spaces/Windows paths break resolution); complete-JSON omits the
+  conformance disallow set SARIF carries. build.rs:615-624/:656-663/:775-780.
+- testkit (from the W25 L3 plan, partially applied): alloc-probe TLS
+  try_with drops silently corrupt the live-byte ledger (plan banked:
+  process-wide dropped-record counters + dropped_tls_records()); bench
+  zero-match run exits 0 and --list miscounts (plan banked: record list
+  outcomes + typed no-match failure; 118 bench_main! targets affected);
+  iter_with_large_drop upfront iterations*size_of allocation (plan banked:
+  chunked collection; 4 call sites); duplicate-id assert before --list
+  dispatch (plan banked: report as failure in discovery mode).
+- W24 sweeps died on rate limits: gts pub.digest HIGH (requeue),
+  sparql-eval, retrieval, jsonschema numerics, from_turtle, OPT-75, doc
+  book truth, bounded-tier verify (requeue).
+
