@@ -740,3 +740,7 @@ n3 printing.rs round-trip (5):
   offset instead of failing at the markup boundary.
 - Namespace stack verified clean (resolve/mark truncation, reserved
   prefixes, attribute-vs-element order).
+
+## wave-13
+
+- rdf-core ownership.rs: CLEAN (0 findings).
