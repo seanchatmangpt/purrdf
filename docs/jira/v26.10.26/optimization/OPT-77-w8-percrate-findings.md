@@ -3078,3 +3078,25 @@ direction).
   applying against fresh strings next tick.
 - FIX-RECHECK batches 2+3: all 18 spot-checks PRESENT, no regressions.
 
+### wave-37 progress
+
+- LANDED: duckdb B19 complete (unit-honored xsd:dateTime, XPath canonical
+  float/double text, xsd:date via civil_from_days, xsd:hexBinary for
+  blobs, DuplicateColumn typed refusal, null/unrepresentable counters on
+  ExecutionResult, purrdf-xsd dep) + the wasm JobInner::drop claim
+  release (the Weak-registry piece had landed without it — an abandoned
+  handle still blocked the dataset's next update; recheck batch 4 caught
+  the gap, fix-recheck 8/8 otherwise PRESENT).
+- COSE: 4th string-check done against HEAD (all sites READY; no
+  From<Vec<u8>> for Value impl exists — writer.rs:1257 needs
+  Value::Bytes(encrypt.kid.clone()); one semantic casualty documented:
+  the invalid-UTF8-kid Malformed test becomes a valid-bytes case and
+  must be repurposed). Application next tick against these exact
+  strings.
+- Fix plans banked: percent.rs encode() doc-stated resident-panic
+  contract (callers all pass unbounded text; signature change would be
+  inconsistent with 20+ sibling sites), shex imports root_iri threading
+  (with the exact ripple list), envelope-probe CeilingVerdict enum.
+- FILED: sparql-conformance trio + serviceData grading bypass;
+  conformance-kit scoreboard closure (4 findings).
+
