@@ -894,13 +894,14 @@ pub(crate) fn collect_prefixes_term(
 }
 
 pub(crate) fn datatype_renders_without_prefix(datatype: &str, value: &str) -> bool {
-    matches!(
-        datatype,
-        "http://www.w3.org/2001/XMLSchema#integer"
-            | "http://www.w3.org/2001/XMLSchema#decimal"
-            | "http://www.w3.org/2001/XMLSchema#double"
-    ) || (datatype == "http://www.w3.org/2001/XMLSchema#boolean"
-        && matches!(value, "true" | "false"))
+    // The collector must agree with the renderer's shorthand condition: the
+    // renderer prints the value bare only when the lexical form matches the
+    // datatype (a decimal needs a `.`, a double an exponent), so a
+    // non-canonical lexical still renders prefixed and needs the xsd prefix
+    // emitted. Delegating keeps the two from drifting again.
+    crate::printing::numeric_shorthand_round_trips(datatype, value)
+        || (datatype == "http://www.w3.org/2001/XMLSchema#boolean"
+            && matches!(value, "true" | "false"))
 }
 
 pub(crate) fn best_prefix_for_iri(

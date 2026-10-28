@@ -368,7 +368,10 @@ fn explicit_graph_for_printing(graph: &Graph) -> (Vec<String>, Vec<Triple>) {
 
 fn formula_to_n3(graph: &Graph, prefixes: &BTreeMap<String, String>, indent: usize) -> String {
     if graph.is_empty() {
-        return "true".to_string();
+        // `true` mid-triple reparses as xsd:boolean, not as the empty
+        // formula; `{}` reparses via parse_term's LBrace arm to exactly
+        // Term::Formula([]).
+        return "{}".to_string();
     }
     let (declarations, triples) = explicit_graph_for_printing(graph);
     let pad = " ".repeat(indent);
@@ -409,7 +412,7 @@ fn formula_to_n3(graph: &Graph, prefixes: &BTreeMap<String, String>, indent: usi
 /// grammar). `"72.0"^^xsd:double`
 /// written bare would come back as an `xsd:decimal`, so it keeps its
 /// datatype instead.
-fn numeric_shorthand_round_trips(datatype: &str, value: &str) -> bool {
+pub(crate) fn numeric_shorthand_round_trips(datatype: &str, value: &str) -> bool {
     let has_exponent = value.contains('e') || value.contains('E');
     let has_dot = value.contains('.');
     match datatype {
@@ -567,15 +570,19 @@ fn valid_local(s: &str) -> bool {
 }
 
 fn sanitize_blank(s: &str) -> String {
-    s.chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '_' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect()
+    // Percent-encoding, not a blanket '_': the old mapping was lossy and
+    // colliding (`_:a b` and `_:a_b` both printed `_:a_b`, merging two
+    // distinct blanks on reparse). % itself is encoded, so the mapping is
+    // injective; the accepted trade-off is injective-but-not-identity (a
+    // label `a b` reparses as `a%20b`).
+    let mut out = String::with_capacity(s.len());
+    for b in s.as_bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'_' | b'-' | b'.' => out.push(*b as char),
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
 }
 
 // NOTE: `escape_string` is the N3/Turtle *string* escape law (`\"`, `\\`,
