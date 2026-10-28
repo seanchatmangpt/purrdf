@@ -722,6 +722,12 @@ pub struct SourceRef {
     pub label: String,
     /// The 1-based line the item was read from.
     pub line: usize,
+    /// BLAKE3 of the labeled document's full text, captured at parse time by
+    /// the parser's single `SourceRef` constructor. `None` when the document
+    /// was parsed without a source label. Proof fact steps record this as
+    /// `pe:sourceDigest`, so a checker can tell a fact quoted from the named
+    /// document from one spliced in from another (cross-document splice).
+    pub digest: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

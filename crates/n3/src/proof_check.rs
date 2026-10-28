@@ -62,6 +62,50 @@ fn condition_index(condition: &str) -> usize {
         .expect("a known condition")
 }
 
+/// How much resolution power an untrusted proof document gets (WP P01).
+///
+/// Hardened by default: an impure built-in keeps its obligation but loses
+/// resolution power, rule applications must pin their head variables, and a
+/// fact step is held to the source digest it records. `legacy()` restores
+/// the pre-hardening behavior so courts can witness the flip and old proof
+/// documents keep checking as they did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckPolicy {
+    /// Hardened (`false`, the default): an impure built-in step's conclusion
+    /// resolves nothing — no premise, support, or boundary evidence may
+    /// point at one — and a rule application may not leave a body-determined
+    /// head variable open, or the step would conclude every instance of
+    /// itself. `true` (legacy): the pre-hardening behavior.
+    pub trusted_resolve: bool,
+    /// Hardened (`false`, the default): a fact step that records a source
+    /// digest is held to the source's own digest, and a fact step that names
+    /// a digest-carrying source without recording the digest stays a visible
+    /// obligation rather than counting as verified. `true` (legacy): source
+    /// digests are not consulted.
+    pub trusted_digest: bool,
+}
+
+impl Default for CheckPolicy {
+    fn default() -> Self {
+        Self {
+            trusted_resolve: false,
+            trusted_digest: false,
+        }
+    }
+}
+
+impl CheckPolicy {
+    /// The pre-hardening policy: a proof document may resolve to anything it
+    /// recorded and source digests are not consulted.
+    #[must_use]
+    pub fn legacy() -> Self {
+        Self {
+            trusted_resolve: true,
+            trusted_digest: true,
+        }
+    }
+}
+
 /// Where a premise or carried-rule dependency resolves (§4 C4).
 #[derive(Debug, Clone)]
 pub enum Resolution {

@@ -30,8 +30,14 @@ pub fn parse_n3_with_source(
 ) -> Result<Document> {
     let tokens = lex(input)?;
     let line_starts = line_starts(input);
+    // Digest site (P01): a labeled parse content-addresses its own bytes
+    // once, so every SourceRef the parser mints carries the document's
+    // BLAKE3. Unlabeled parses keep `digest: None`.
+    let digest = source_label.is_some().then(|| {
+        purrdf_hash::hex::Lower(purrdf_hash::blake3::hash(input.as_bytes()).as_bytes()).to_string()
+    });
     Parser::new(tokens, base_iri)
-        .with_source(source_label, line_starts)
+        .with_source(source_label, line_starts, digest)
         .parse_document()
 }
 
@@ -429,6 +435,7 @@ struct Parser {
     blank_counter: usize,
     profile: ParserProfile,
     source_label: Option<String>,
+    source_digest: Option<String>,
     line_starts: Vec<usize>,
     /// Current term-nesting depth, checked against `MAX_TERM_NESTING_DEPTH`.
     depth: usize,
@@ -494,6 +501,7 @@ impl Parser {
             blank_counter: 0,
             profile,
             source_label: None,
+            source_digest: None,
             line_starts: Vec::new(),
             depth: 0,
             scopes: vec![QuantifierScope::default()],
@@ -503,8 +511,14 @@ impl Parser {
         }
     }
 
-    fn with_source(mut self, source_label: Option<&str>, line_starts: Vec<usize>) -> Self {
+    fn with_source(
+        mut self,
+        source_label: Option<&str>,
+        line_starts: Vec<usize>,
+        source_digest: Option<String>,
+    ) -> Self {
         self.source_label = source_label.map(ToOwned::to_owned);
+        self.source_digest = source_digest;
         self.line_starts = line_starts;
         self
     }
@@ -515,9 +529,11 @@ impl Parser {
             Ok(idx) => idx + 1,
             Err(idx) => idx,
         };
+        // The digest was fixed at entry, so every minted SourceRef carries it.
         Some(SourceRef {
             label: label.clone(),
             line: line.max(1),
+            digest: self.source_digest.clone(),
         })
     }
 

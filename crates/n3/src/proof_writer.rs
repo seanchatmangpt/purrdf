@@ -588,11 +588,22 @@ fn render_entry(
     match entry {
         ProofEntry::Rule(proof) => render_rule_entry(proof, numbering, prefixes),
         ProofEntry::Fact { fact, source } => {
-            format!(
-                "  {}\n    pe:fact {}.",
-                graph_for_triple(fact, prefixes),
-                quoted_string(&fact_label(source.as_ref()))
-            )
+            // The document digest the fact's SourceRef carries (P01 H2): a
+            // reader of the proof can hold the fact step to the document it
+            // was lifted from, so a cross-document splice fails C1.
+            match source.as_ref().and_then(|source| source.digest.as_deref()) {
+                Some(digest) => format!(
+                    "  {}\n    pe:fact {} ;\n    pe:sourceDigest {}.",
+                    graph_for_triple(fact, prefixes),
+                    quoted_string(&fact_label(source.as_ref())),
+                    quoted_string(digest),
+                ),
+                None => format!(
+                    "  {}\n    pe:fact {}.",
+                    graph_for_triple(fact, prefixes),
+                    quoted_string(&fact_label(source.as_ref()))
+                ),
+            }
         }
         ProofEntry::Builtin { fact, builtin } => {
             format!(

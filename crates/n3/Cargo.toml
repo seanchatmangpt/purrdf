@@ -75,6 +75,12 @@ harness = false
 name = "n3_proofs"
 harness = false
 
+[[test]]
+# The WP P01 forgery court: three forge classes, each with a legacy() flip
+# twin, against the hardened proof checker.
+name = "n3_forgery"
+harness = false
+
 [[bench]]
 # Backward-proof latency along the axes a proof's cost actually has: rule-body
 # depth, premise fan-out and the term count of the goal. Report-only.

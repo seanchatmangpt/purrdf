@@ -15,7 +15,7 @@ use crate::error::{EyeronError, Result};
 use crate::reasoner::Bindings;
 
 use crate::proof_check::{
-    Checked, Document as ProofDocument, Kind, Report, Resolution, StepCheck, check,
+    CheckPolicy, Checked, Document as ProofDocument, Kind, Report, Resolution, StepCheck, check,
 };
 
 const PE: &str = "https://eyereasoner.github.io/pe#";
@@ -130,6 +130,10 @@ struct Step {
     builtin: Option<Term>,
     bindings: Vec<(String, Term)>,
     uses: Vec<Triple>,
+    /// A source digest the step records for its fact (`pe:sourceDigest`).
+    expect_digest: Option<String>,
+    /// The source label a fact step records (`pe:fact "..."`).
+    fact_label: Option<String>,
 }
 
 /// A proof document read from N3 text, as the checker's [`Document`] view.
@@ -158,6 +162,12 @@ pub struct N3Proof {
     steps: Vec<Step>,
     claims: Vec<Triple>,
     index: BTreeMap<Triple, usize>,
+    /// The source's own per-fact source references, which the digest policy
+    /// holds a fact step to (P01 H2).
+    fact_sources: BTreeMap<Triple, crate::ast::SourceRef>,
+    /// How much resolution power the document gets, and whether source
+    /// digests are enforced (P01).
+    policy: CheckPolicy,
     /// Steps whose conclusion has free variables, which each conclude every
     /// instance of itself.
     general_steps: Vec<usize>,
@@ -288,22 +298,52 @@ impl WitnessRegistry {
 }
 
 /// Read `proof` as a proof document for the program in `source`, and check
-/// it.
+/// it under the hardened policy (P01).
 pub fn check_proof(source: &str, proof: &str, label: &str) -> Result<Report> {
+    check_proof_with_policy(source, proof, label, CheckPolicy::default())
+}
+
+/// As `check_proof`, but under an explicit policy — `CheckPolicy::legacy()`
+/// restores the pre-hardening behavior (P01 flip control).
+pub fn check_proof_with_policy(
+    source: &str,
+    proof: &str,
+    label: &str,
+    policy: CheckPolicy,
+) -> Result<Report> {
     let document = crate::parser::parse_n3_with_source(source, None, Some(label))?;
-    check_proof_document(&document, proof)
+    check_proof_document_with_policy(&document, proof, policy)
 }
 
 /// As `check_proof`, but for a source already parsed — an example assembled
 /// from several documents has to be merged before it is numbered.
 pub fn check_proof_document(source: &crate::ast::Document, proof: &str) -> Result<Report> {
-    let document = N3Proof::read_document(source, proof)?;
-    Ok(check(&document))
+    check_proof_document_with_policy(source, proof, CheckPolicy::default())
+}
+
+/// As `check_proof_document`, but under an explicit policy (P01 flip
+/// control).
+pub fn check_proof_document_with_policy(
+    document: &crate::ast::Document,
+    proof: &str,
+    policy: CheckPolicy,
+) -> Result<Report> {
+    let checker = N3Proof::read_document_with_policy(document, proof, policy)?;
+    Ok(check(&checker))
 }
 
 impl N3Proof {
     /// Read `proof` (N3 text) against the already-parsed source `document`.
     pub fn read_document(document: &crate::ast::Document, proof: &str) -> Result<Self> {
+        Self::read_document_with_policy(document, proof, CheckPolicy::default())
+    }
+
+    /// As `read_document`, but under an explicit policy (P01 flip control).
+    pub fn read_document_with_policy(
+        document: &crate::ast::Document,
+        proof: &str,
+        policy: CheckPolicy,
+    ) -> Result<Self> {
         // `reason` numbers the rules it was given, having dropped the query
         // rules; a checker must number them the same way (§5.1).
         let rules: Vec<crate::ast::Rule> = document
@@ -377,6 +417,22 @@ impl N3Proof {
         let general_steps = (0..steps.len())
             .filter(|&position| !steps[position].conclusion.is_ground())
             .collect();
+        // A rule is also data the document gives, so a fact step citing a
+        // written rule is held to that rule's own source digest as well:
+        // both the engine's rendering of the rule statement and the
+        // written/rewritten form the checker lifts (P01 H2).
+        let mut fact_sources = document.fact_sources.clone();
+        for rule in &document.rules {
+            let Some(source) = &rule.source else { continue };
+            let rendered = crate::proof_writer::rule_statement(rule);
+            fact_sources
+                .entry(rendered)
+                .or_insert_with(|| source.clone());
+            let written = written_rule_statement(rule);
+            fact_sources
+                .entry(written)
+                .or_insert_with(|| source.clone());
+        }
         Ok(Self {
             rules,
             given,
@@ -396,15 +452,52 @@ impl N3Proof {
             steps,
             claims,
             index,
+            fact_sources,
+            policy,
             general_steps,
         })
+    }
+
+    /// The source reference that anchors `conclusion` — the exact fact, an
+    /// instance of a general (non-ground) source fact, or a written rule —
+    /// whose document digest a fact step is held to (P01 H2).
+    fn source_ref_for(&self, conclusion: &Triple) -> Option<&crate::ast::SourceRef> {
+        if let Some(source) = self.fact_sources.get(conclusion) {
+            return Some(source);
+        }
+        if conclusion.is_ground() {
+            return self
+                .fact_sources
+                .iter()
+                .find(|(candidate, _)| {
+                    !candidate.is_ground() && match_assertion(candidate, conclusion)
+                })
+                .map(|(_, source)| source);
+        }
+        None
+    }
+
+    /// Whether this step is an impure-builtin step, whose conclusion is
+    /// only ever an obligation: the recorded read (an `IMPURE_BUILTINS`
+    /// relation, or one nested in a negative/collection test) cannot be
+    /// re-decided, so nothing else in the proof may resolve to it (P01 H1).
+    fn impure_step(&self, step: &Step) -> bool {
+        step.kind == Kind::Builtin && reads_outside_proof(&step.conclusion)
+    }
+
+    /// P01 H1: under the hardened policy an impure step's conclusion is
+    /// obligation-only. `legacy()` restores resolution power (P01 flip).
+    fn resolvable(&self, position: usize) -> bool {
+        self.policy.trusted_resolve || !self.impure_step(&self.steps[position])
     }
 
     fn resolve(&self, statement: &Triple) -> Resolution {
         // Most recorded conclusions resolve directly. General assertions
         // and renamed closed graphs need the additional checks below.
         if let Some(position) = self.index.get(statement) {
-            return Resolution::Step(*position);
+            if self.resolvable(*position) {
+                return Resolution::Step(*position);
+            }
         }
         // Closed graph terms keep their identity under consistent local
         // quantifier renaming, including between separately printed steps.
@@ -412,18 +505,22 @@ impl N3Proof {
             if let Some(position) = self
                 .steps
                 .iter()
-                .position(|step| ground_statements_equal(&step.conclusion, statement))
+                .enumerate()
+                .find(|(position, step)| {
+                    self.resolvable(*position)
+                        && ground_statements_equal(&step.conclusion, statement)
+                })
+                .map(|(position, _)| position)
             {
                 return Resolution::Step(position);
             }
         }
         // An instance of a step that concludes a general statement is that
         // step's, so the step is what it depends on (C2, C7).
-        if let Some(&position) = self
-            .general_steps
-            .iter()
-            .find(|&&position| match_assertion(&self.steps[position].conclusion, statement))
-        {
+        if let Some(&position) = self.general_steps.iter().find(|&&position| {
+            self.resolvable(position)
+                && match_assertion(&self.steps[position].conclusion, statement)
+        }) {
             return Resolution::Step(position);
         }
         if self.given.contains(statement) || self.gives_rule(statement) {
@@ -602,6 +699,8 @@ impl N3Proof {
                         carried: None,
                         bindings: Vec::new(),
                         uses: Vec::new(),
+                        expect_digest: None,
+                        fact_label: None,
                     };
                     if matches!(self.check_builtin(&probe), Ok(Checked::Verified)) {
                         pending.push((position + 1, trial, dependencies.clone()));
@@ -616,7 +715,9 @@ impl N3Proof {
                         self.steps
                             .iter()
                             .enumerate()
-                            .filter(|(_, step)| !self.answers_query(step))
+                            .filter(|(index, step)| {
+                                !self.answers_query(step) && self.resolvable(*index)
+                            })
                             .map(|(index, step)| (&step.conclusion, Some(index))),
                     )
                     .collect::<Vec<_>>()
@@ -786,6 +887,27 @@ impl N3Proof {
         // Resolve unquoting after the premises: a partial recorded binding
         // list need not repeat the graph value a premise already supplies.
         let conclusion = unquoted_conclusion(&conclusion, &bindings).unwrap_or(conclusion);
+        // P01 H3: every free universal of the head must be pinned by the
+        // recorded application — bound by a recorded `pe:binding` or by the
+        // recorded premises — before the head is matched. A head variable
+        // left open until the head match would take its value from the
+        // step's own conclusion, so the step would conclude every instance
+        // of itself (a variadic head). Head-only universals survive when
+        // the step pins them explicitly; existentials take the witness
+        // path (C8) instead. `legacy()` restores the pre-hardening
+        // behavior (P01 flip control).
+        if !self.policy.trusted_resolve {
+            for free in conclusion.free_variables() {
+                let Term::Var(name) = free else { continue };
+                if !bindings.contains_key(name.as_str()) {
+                    return Err(format!(
+                        "head variable ?{} is pinned by no recorded binding or premise: this \
+                         application would conclude every instance of its head",
+                        name
+                    ));
+                }
+            }
+        }
         let mut occupied = BTreeSet::new();
         if !conclusion.existentials.is_empty() {
             occupied = triple_blank_labels(&step.uses);
@@ -882,6 +1004,79 @@ impl N3Proof {
     fn check_fact(&self, step: &Step) -> Verdict {
         if !step.uses.is_empty() {
             return Err("a source fact step must not have premises".to_string());
+        }
+        // P01 H2: a fact step is held to the source document it names. The
+        // rows, under the hardened policy (`legacy()` skips them):
+        //   recorded + source carries the same digest → proceed, and the
+        //     recorded label must name that document;
+        //   recorded but the source carries no digest for this fact → C1;
+        //   recorded and the digests differ → C1 (a cross-document splice:
+        //     the fact was lifted out of some other document);
+        //   not recorded but the source carries one → the step stays an
+        //     obligation ("unverified source digest"), never verified;
+        //   neither → the source's own givenness check, as before.
+        if !self.policy.trusted_digest {
+            let recorded = step.expect_digest.as_deref();
+            let anchored = self.source_ref_for(&step.conclusion);
+            match (recorded, anchored) {
+                (Some(recorded), Some(source)) => match source.digest.as_deref() {
+                    Some(source_digest) => {
+                        if recorded != source_digest {
+                            return Err(format!(
+                                "records source digest {}…, but {} carries {}… for this fact: a \
+                                 cross-document splice",
+                                &recorded[..recorded.len().min(12)],
+                                step.fact_label.as_deref().unwrap_or("the source"),
+                                &source_digest[..source_digest.len().min(12)]
+                            ));
+                        }
+                        if let Some(label) = &step.fact_label {
+                            if crate::proof_writer::source_label_for_proof(label)
+                                != crate::proof_writer::source_label_for_proof(
+                                    source.label.as_str(),
+                                )
+                            {
+                                return Err(format!(
+                                    "names source {:?}, but this fact is anchored in {:?}",
+                                    label, source.label
+                                ));
+                            }
+                        }
+                    }
+                    None => {
+                        return Err(
+                            "records a source digest, but no digest-carrying source document \
+                             gives this fact"
+                                .to_string(),
+                        );
+                    }
+                },
+                (Some(_), None) => {
+                    return Err(
+                        "records a source digest, but no digest-carrying source document gives \
+                         this fact"
+                            .to_string(),
+                    );
+                }
+                // A step that NAMES the digest-carrying source without
+                // recording its digest stays a visible obligation; a step
+                // whose label names some other document (the "<unknown>"
+                // label of an unlabeled emission) claims no such
+                // provenance and falls through to the source's own
+                // givenness check.
+                (None, Some(source))
+                    if source.digest.is_some()
+                        && step.fact_label.as_deref().is_some_and(|label| {
+                            crate::proof_writer::source_label_for_proof(label)
+                                == crate::proof_writer::source_label_for_proof(
+                                    source.label.as_str(),
+                                )
+                        }) =>
+                {
+                    return Ok(Checked::Trusted("unverified source digest"));
+                }
+                _ => {}
+            }
         }
         if self.given.contains(&step.conclusion) || self.gives_rule(&step.conclusion) {
             Ok(Checked::Verified)
@@ -1421,7 +1616,7 @@ fn read_steps(body: &[Triple]) -> Result<Vec<Step>> {
                     ));
                 }
             }
-            "rule" | "fact" | "builtin" | "unproven" | "uses" | "binding" => {
+            "rule" | "fact" | "builtin" | "unproven" | "uses" | "binding" | "sourceDigest" => {
                 if formula_triple(&triple.s).is_none() {
                     return Err(metadata_error(
                         &triple.s,
@@ -1453,6 +1648,8 @@ fn read_steps(body: &[Triple]) -> Result<Vec<Step>> {
             builtin: None,
             bindings: Vec::new(),
             uses: Vec::new(),
+            expect_digest: None,
+            fact_label: None,
         };
         let mut justifications = 0;
         let mut names = BTreeSet::new();
@@ -1478,10 +1675,29 @@ fn read_steps(body: &[Triple]) -> Result<Vec<Step>> {
                 }
                 "fact" => {
                     step.kind = Kind::Fact;
-                    if plain_string(&triple.o).is_none() {
+                    let label = plain_string(&triple.o)
+                        .filter(|label| !label.is_empty())
+                        .ok_or_else(|| {
+                            metadata_error(
+                                subject,
+                                "pe:fact requires a nonempty string source label",
+                            )
+                        })?;
+                    step.fact_label = Some(label.to_string());
+                }
+                "sourceDigest" => {
+                    let digest = plain_string(&triple.o)
+                        .filter(|digest| !digest.is_empty())
+                        .ok_or_else(|| {
+                            metadata_error(
+                                subject,
+                                "pe:sourceDigest requires a nonempty string digest",
+                            )
+                        })?;
+                    if step.expect_digest.replace(digest.to_string()).is_some() {
                         return Err(metadata_error(
                             subject,
-                            "pe:fact requires a string source label",
+                            "a step must have at most one pe:sourceDigest",
                         ));
                     }
                 }
@@ -1545,6 +1761,12 @@ fn read_steps(body: &[Triple]) -> Result<Vec<Step>> {
             return Err(metadata_error(
                 subject,
                 "pe:binding is only valid on a rule step",
+            ));
+        }
+        if step.expect_digest.is_some() && step.kind != Kind::Fact {
+            return Err(metadata_error(
+                subject,
+                "pe:sourceDigest is only valid on a fact step",
             ));
         }
         steps.push(step);
@@ -1714,8 +1936,11 @@ impl ProofDocument for N3Proof {
                 .chain(
                     self.steps
                         .iter()
-                        .filter(|step| !self.answers_query(step))
-                        .map(|step| step.conclusion.clone()),
+                        .enumerate()
+                        .filter(|(index, step)| {
+                            !self.answers_query(step) && self.resolvable(*index)
+                        })
+                        .map(|(_, step)| step.conclusion.clone()),
                 )
                 .collect(),
         );
