@@ -166,7 +166,7 @@ pub fn bootstrap_median(samples: &[f64], resamples: usize, confidence: f64, seed
 
 /// The relative change of the median from `base` to `new`
 /// (`median(new) / median(base) - 1`), and its bootstrap percentile interval
-/// from `resamples` paired resamples of both sets at `confidence`, seeded at
+/// from `resamples` independent resamples of both sets from one RNG stream at `confidence`, seeded at
 /// `seed`.
 pub fn bootstrap_change(
     new: &[f64],

@@ -38,7 +38,7 @@ Behavior worth knowing before you pick a format:
   populated provenance is trimmed at the exit gate and
   `SerializeOutcome::provenance_dropped` is set; the drop is never silent.
 
-The crate depends only on [`purrdf-core`](https://crates.io/crates/purrdf-core),
+The crate depends on purrdf-core, purrdf-iri, purrdf-lex, purrdf-hash and purrdf-arrow (the canon-arrow egress)
 [`purrdf-iri`](https://crates.io/crates/purrdf-iri) and
 [`purrdf-lex`](https://crates.io/crates/purrdf-lex) (the JSON and XML readers)
 and stays wasm-clean; term and N-Triples syntax come exclusively from the

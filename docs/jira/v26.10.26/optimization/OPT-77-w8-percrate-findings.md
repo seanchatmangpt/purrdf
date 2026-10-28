@@ -168,3 +168,31 @@ string.
   misleading (fresh per call).
 - sql: see prior append (memo-after-validation, triple reparse,
   clear-on-overflow, ast/serializer inversion, graphlaw literals).
+
+## wave-9 final additions
+
+- rdf-core: visit_blank_identities covers only the base leg (delta
+  values + declared graphs still full-walked, mutable.rs:619-641) -
+  OPT-50 open half is larger than ticketed; test-only diagnostic-code
+  drift x-purrdf-private-extension vs -ext (target.rs:1420/1432);
+  evidence.rs types are cross-crate-test-only consumers.
+- cdt: Cargo.toml [lib] comment claims iri+xsd are the ONLY deps but
+  five exist (stale); canonical_lexical_len + the per-part
+  conformance fns are dead pub surface; the injectivity caveat is
+  doc-only, not a typed invariant.
+- sparql-results: README deps line FIXED in-tree; frame_total expect
+  + double recomputation (:139, :420, :426) -> OPT-71 item; readers
+  carry no byte/line positions in any error (both json + xml).
+- testkit stats.rs:169 - "paired resamples" is independent resampling
+  from one stream: FIXED in-tree (wording).
+- rdf: media_type.rs:100/:376 "(none today)" parenthetical is false
+  (Gts carries loss_codec_name Some("gts")); viz.rs:2 header omits
+  the registered-mark form; projections::loss is private with no
+  re-export (undocumented intentional?).
+- book: performance.md total updated to 1,693 in-tree; projections.md
+  example writes /tmp/terms.tar (cosmetic).
+- shacl corpora: PASS (73/64/686 pins all verify).
+- SATURATION VERDICT (wave-9 lane): TODO/FIXME density ~0 across a
+  133k-LOC sample; dead_code/deprecated ~0.008/kLOC. The marker-class
+  audit surface is saturated; further waves should be semantic/logic
+  reviews, not another 20-lane marker sweep.

@@ -48,8 +48,7 @@ gate asserts a speedup.
 > `primitives_table` bench target and the `purrdf_testkit::bench` harness
 > (bootstrap CIs, Tukey fences) — the sole harness; criterion is removed.
 > Every benchmark is bounded by a 30 s wall-clock ceiling (`MAX_BENCH_WALL`,
-> lowerable per run via `--wall-max`). The wave is terminal: 1,181 measured /
-> 0 failed across phase-4/4b — receipts: `docs/BENCHMARKS.md` and
+> lowerable per run via `--wall-max`). The wave is terminal: 1,693 measured / 0 failed across phase-4/4b — receipts: `docs/BENCHMARKS.md` and
 > `docs/design/bench-wave-report.md` (terminal total); ticket index:
 > `docs/jira/v26.10.26/optimization/`. The bench inventory above does not yet
 > list the new targets. No figure above is superseded — the layer table is
