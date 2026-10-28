@@ -2815,70 +2815,44 @@ memory/COSE application lanes.
   rows erase defect classification) — markdown.rs:106-125/:201-221/
   :365/:545-549 + decode.rs:259-274.
 
----
+### wave-32 addendum 3 — json record sweep (5 findings, severity-graded)
 
-## wave-32 status (2026-10-28)
+- json_record! ToJson silently collapses duplicate member names (assoc
+  insert replaces first-match; FromJson refuses the symmetric input) —
+  write-side asymmetry vs the "same shapes, same words" contract
+  (record.rs:1071-1080).
+- Record::defaulted uses error.within instead of within_native — refusal
+  pointers bypass the allocation account (record.rs:854; latent leak).
+- Record::raw marks the field taken before refusing the duplicate —
+  recovered-continue can name a failed field in `expected` (order-only).
+- BTreeMap::from_json refuses on a discarded first occurrence's
+  validation error while sorted_last_wins accepts the same document —
+  two documented last-wins paths disagree (record.rs:1352-1371; needs a
+  spec call).
+- OutputLayout::record may undercount short-string heap (allocator-class
+  rounding vs text*2 + members*16; under-claim admits plans the writer
+  exceeds — lower confidence).
+Clean: sorted_last_wins dedup, write.rs layout parity, assoc first-match
+consistency.
 
-### Fixed (in-tree, UNVERIFIED)
+### wave-32 addendum 4 — shapes json_schema/linkml sweep (4 findings)
 
-- alloc-probe: exclusive ledgers — live leg first; live failure charges
-  the whole call wholesale, later-leg failures charge only the missing
-  piece (note_dropped_allocation_count/bytes split). Closes the
-  wave-25-introduced double-count. open() maps unreachable TLS onto the
-  already-open assert; sample() uses try_with + zero fallback.
-- capture_sparql_goldens: prune_stale_siblings before each write
-  (reclassification no longer accumulates contradictory artifacts; the
-  no-git-diff-on-rerun contract holds in the reclassification direction).
-
-### Verdicts
-
-- Commit-range audit (last 25 commits): zero SUBJECT-MISMATCH — every
-  subject touches exactly the paths it names. Two DIFF-UNDOCUMENTED
-  minors (28364188 carried alloc-probe/sink/design-doc work the subject
-  omitted; 63cd9fe8 carried 17 ledger lines) — disclosed here, no action
-  (fix-forward doctrine).
-- wasm scope A (pointer lifetimes/cancellation/take-once): CLEAN.
-- CI refresh: no completed run on current head (queued/cancelled); the
-  Docs run fails at the zh-Hans gate on the machine-local [patch] paths —
-  the ONLY signal remains the [patch] blocker. FORMAT still unexercised.
-
-### Banked, awaiting application
-
-sparql-results (envelope decode + datatype refusal + duplicate-var),
-shapes ask-prebinding (Invocation decision pending), n3 printing (3),
-markdown (6), rdf-wasm (4), duckdb B19, agent_memory, COSE kid,
-bounded-tier gate-parity extension, simd.md re-anchoring, xsd -0
-candidate (needs F&O §19.1.1 verification).
-
-### wave-32 addendum
-
-- FIXED: n3 printing (3 defects — prefix-collector now delegates to the
-  renderer's shorthand condition; sanitize_blank percent-encodes
-  instead of a lossy/colliding '_'; empty formula renders {} which
-  reparses to Formula([]) instead of `true`).
-- Banked final diffs (verified verbatim, ready to apply): sparql-results
-  (MalformedResult::LanguageDatatype + DuplicateVariable variants;
-  bnode envelope decode in both readers; writer refusals in json+xml),
-  markdown (6 diffs incl. the CRLF-aware line-end table + oracle
-  rework), rdf-wasm (canon-arrow from_name guard; coded_error with
-  OPTIONS_CODE for the sync governor refusals; presentation-record
-  throw; the Weak-registry AsyncJob Drop design with the Rc re-entrancy
-  analysis), shapes ask-prebinding (Invocation decision: keep
-  without_parameters unless the law validates parameters — test will
-  say), alloc-probe/golden prune APPLIED.
-- COMMIT AUDIT: last 25 commits zero subject-mismatches (wave-21's
-  concern does not reproduce); two minor diff-undocumented items
-  disclosed.
-
-### wave-32 addendum 2
-
-- FIXED: shapes parameterized-target sh:ask pre-bindings (AskTarget banks
-  substitutions; eval_target_ask_view pre-binds beside $this; Invocation
-  ::with_bindings — the lane's resolution of the flagged question: neither
-  without_parameters (under-counts pre-bound names, evading the
-  VALUES/projection rules) nor the unreachable occurrence lookup, but the
-  vetted bindings themselves).
-- Banked verified diffs remaining: sparql-results (3), markdown (6),
-  rdf-wasm (4 incl. Weak-registry Drop design), duckdb B19, agent_memory,
-  COSE kid, simd.md re-anchor, xsd -0 (needs F&O verification).
+- HIGH: multiple shapes sharing a targetClass silently lose all but the
+  first shape's constraints — defs.entry(name).or_insert_with is
+  first-writer-wins (json_schema.rs:1615/:1624); the "bodies are
+  identical per shape" comment is false for distinct shapes targeting
+  the same class. Fix: conjoin via allOf or hard-fail like the other
+  keying guards.
+- is_primary is an unbounded starts_with with no namespace boundary
+  (:327-329) — a meta2: prefix that string-extends meta: is judged
+  primary; discriminator consts route instances fail-open while sh:class
+  refs resolve to the wrong class's shape.
+- Enum $defs inserted unconditionally after a target-only collision
+  validation (:1714-1716/:3532-3553) — a primary class named XEnum on a
+  non-target surface is silently clobbered by the enum body.
+- x-enum-varnames uses bare local_name (:3445) — cross-namespace
+  same-local-name members mint two identical OpenAPI variant identifiers
+  (codegen compile failure).
+Clean: linkml slot planner, the CURIE contract/expand symmetry in both
+Namespaces and the linkml importer/projection pair.
 
