@@ -180,13 +180,18 @@ static TLS_DROPPED_DEALLOCATIONS: AtomicU64 = AtomicU64::new(0);
 /// lost (the usual cross-thread-drop shape).
 static TLS_DROPPED_NET_BYTES: AtomicI64 = AtomicI64::new(0);
 
-/// Count one recorder call the per-thread ledger could not accept, and move
-/// the net-byte figure by the same signed amount a successful one would have.
+/// Count one allocation call the per-thread ledger could not accept.
 ///
 /// Plain atomics, not TLS, so this is reachable precisely when TLS is not —
 /// which is the only situation that calls it.
-fn note_dropped_allocation(size: usize) {
+fn note_dropped_allocation_count() {
     TLS_DROPPED_ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
+}
+
+/// Charge the requested bytes of one allocation call the per-thread ledger
+/// could not accept, by the same signed amount a successful one would have
+/// added.
+fn note_dropped_allocation_bytes(size: usize) {
     TLS_DROPPED_NET_BYTES.fetch_add(widen_i64(size), Ordering::Relaxed);
 }
 
@@ -206,14 +211,10 @@ fn note_dropped_deallocation(size: usize) {
 /// aborts — nor silently lose the call: any leg that fails charges the whole
 /// call to the dropped ledger, where it stays visible.
 fn thread_record_allocation(size: usize) {
-    let mut dropped = false;
-    dropped |= THREAD_ALLOCATIONS
-        .try_with(|count| count.set(count.get().saturating_add(1)))
-        .is_err();
-    dropped |= THREAD_REQUESTED_BYTES
-        .try_with(|bytes| bytes.set(bytes.get().saturating_add(widen_u64(size))))
-        .is_err();
-    dropped |= THREAD_LIVE_BYTES
+    // The live leg runs FIRST. If it cannot be taken, the whole call is
+    // charged to the dropped ledger — count and bytes together — because a
+    // call with no live-byte effect is a call the ledger never saw at all.
+    let live_dropped = THREAD_LIVE_BYTES
         .try_with(|live| {
             let now = live.get().saturating_add(widen_i64(size));
             live.set(now);
@@ -224,8 +225,24 @@ fn thread_record_allocation(size: usize) {
             });
         })
         .is_err();
-    if dropped {
-        note_dropped_allocation(size);
+    if live_dropped {
+        note_dropped_allocation_count();
+        note_dropped_allocation_bytes(size);
+        return;
+    }
+    // Later legs charge only the piece that was lost: the live-byte ledger
+    // already carries this call, so a wholesale charge here would double it.
+    if THREAD_ALLOCATIONS
+        .try_with(|count| count.set(count.get().saturating_add(1)))
+        .is_err()
+    {
+        note_dropped_allocation_count();
+    }
+    if THREAD_REQUESTED_BYTES
+        .try_with(|bytes| bytes.set(bytes.get().saturating_add(widen_u64(size))))
+        .is_err()
+    {
+        note_dropped_allocation_bytes(size);
     }
 }
 
@@ -568,7 +585,13 @@ impl CurrentThreadWindow {
     /// shared high-water mark and the outer one would then report a peak it
     /// never saw.
     pub fn open() -> Self {
-        let already_open = THREAD_WINDOW_OPEN.with(|open| open.replace(true));
+        // Unreachable TLS (initialization/teardown) cannot take the guard, so
+        // it maps onto the one loud failure this constructor has: the
+        // already-open assert. Opening silently over a missing ledger would
+        // not be loud.
+        let already_open = THREAD_WINDOW_OPEN
+            .try_with(|open| open.replace(true))
+            .unwrap_or(true);
         assert!(
             !already_open,
             "a CurrentThreadWindow is already open on this thread"
@@ -586,15 +609,20 @@ impl CurrentThreadWindow {
 
     /// Read the window without closing it.
     pub fn sample(&self) -> Measurement {
-        let live = THREAD_LIVE_BYTES.with(Cell::get);
-        let peak = THREAD_PEAK_BYTES.with(Cell::get);
-        let trough = THREAD_TROUGH_BYTES.with(Cell::get);
+        // try_with with a zero fallback: if this thread's TLS is unreachable
+        // (teardown), the ledger reads as zeros rather than aborting the
+        // sampler — the dropped ledger is where those calls surface.
+        let live = THREAD_LIVE_BYTES.try_with(Cell::get).unwrap_or(0);
+        let peak = THREAD_PEAK_BYTES.try_with(Cell::get).unwrap_or(0);
+        let trough = THREAD_TROUGH_BYTES.try_with(Cell::get).unwrap_or(0);
         Measurement {
             allocations: THREAD_ALLOCATIONS
-                .with(Cell::get)
+                .try_with(Cell::get)
+                .unwrap_or(0)
                 .saturating_sub(self.allocations),
             requested_bytes: THREAD_REQUESTED_BYTES
-                .with(Cell::get)
+                .try_with(Cell::get)
+                .unwrap_or(0)
                 .saturating_sub(self.requested_bytes),
             retained_bytes: live.saturating_sub(self.live_bytes),
             peak_working_bytes: peak.saturating_sub(trough),

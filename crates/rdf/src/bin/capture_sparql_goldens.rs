@@ -142,6 +142,7 @@ fn capture_corpus(goldens: &Path) -> Tally {
         // --- multi-query files: no single-invocation golden. ---
         if is_multi_query_file(&query_text) {
             tally.multi += 1;
+            prune_stale_siblings(&stem, "skip-multi");
             write_marker(
                 &with_ext(&stem, "skip-multi"),
                 "multi-query file: contains >1 top-level SPARQL query; skipped (run native for \
@@ -169,6 +170,7 @@ fn capture_corpus(goldens: &Path) -> Tally {
                            errored (gate runs native for well-formedness only)\n"
                 }
             };
+            prune_stale_siblings(&stem, "nondeterministic");
             write_marker(&with_ext(&stem, "nondeterministic"), note);
             continue;
         }
@@ -189,6 +191,7 @@ fn capture_corpus(goldens: &Path) -> Tally {
                 let msg = e.to_string();
                 if is_deferred_construct(&e.code) {
                     tally.deferred += 1;
+                    prune_stale_siblings(&stem, "deferred");
                     write_marker(
                         &with_ext(&stem, "deferred"),
                         &format!(
@@ -211,6 +214,12 @@ fn write_result_golden(
     result: &SparqlResult,
     tally: &mut Tally,
 ) -> Result<(), purrdf_core::CanonError> {
+    let keep = match result {
+        SparqlResult::Graph(_) => "nq",
+        SparqlResult::Solutions { .. } => "rows",
+        SparqlResult::Boolean(_) => "ask",
+    };
+    prune_stale_siblings(stem, keep);
     match result {
         SparqlResult::Graph(graph) => {
             let nquads = try_canonicalize(graph)?.nquads;
@@ -392,6 +401,44 @@ fn expect_solutions<'a>(
 /// `.nq` / `.rows` / `.ask` / a marker extension).
 fn with_ext(stem: &Path, ext: &str) -> PathBuf {
     stem.with_extension(ext)
+}
+
+/// Every extension a corpus golden/marker may carry. A reclassification or a
+/// result-kind change must not leave a stale sibling of another kind behind.
+const CLASSIFICATION_EXTS: [&str; 6] = [
+    "skip-multi",
+    "nondeterministic",
+    "deferred",
+    "nq",
+    "rows",
+    "ask",
+];
+
+/// Remove golden/marker siblings of `stem` whose extension differs from `keep`.
+/// NotFound is expected (nothing stale); any other error is fatal.
+fn prune_stale_siblings(stem: &Path, keep: &str) {
+    let dir = stem
+        .parent()
+        .expect("golden stem always has a parent directory");
+    let file = stem
+        .file_name()
+        .and_then(|n| n.to_str())
+        .expect("golden stem file name is valid UTF-8");
+    let stem_name = match file.rsplit_once('.') {
+        Some((base, _)) => base,
+        None => file,
+    };
+    for ext in CLASSIFICATION_EXTS {
+        if ext == keep {
+            continue;
+        }
+        let sibling = dir.join(format!("{stem_name}.{ext}"));
+        match std::fs::remove_file(&sibling) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => panic!("remove stale golden {}: {e}", sibling.display()),
+        }
+    }
 }
 
 fn ensure_parent(path: &Path) {
