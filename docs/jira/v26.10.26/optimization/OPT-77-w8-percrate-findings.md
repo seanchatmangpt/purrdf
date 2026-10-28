@@ -1879,3 +1879,14 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   standalone surface in purrdf-sql.
 - Makefile bug disclosed: `make b-sparql-eval` (without purrdf-
   prefix) targets a nonexistent package (exit 101) — pre-existing.
+
+## wave-20 additions (cli node-expr/shapes_tools)
+
+- shapes_tools.rs:461-464 — ExprFlags::spelled() has no
+  --expr-turtle-file branch: diagnostics misname the operator's flag.
+- shapes_source.rs:183-197 — a pair whose iri is already in root.loaded
+  is still inserted: an import of the root's own IRI can resolve to
+  the pair document instead of the root graph (root silently swapped
+  out of the closure).
+- cli.rs:1802 — --expr-at requires = "expr_via" makes the zero-step
+  walk (At { via: &[] }) unreachable from the CLI.
