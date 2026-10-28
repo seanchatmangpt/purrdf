@@ -1769,3 +1769,21 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   bindings (:463-507).
 
 - validate xpath_regex.rs: CLEAN (RESOURCES table matches Resource::index order exactly; profile parsing/limits sound).
+
+## wave-19/20 additions (B-lanes)
+
+- n3 parser quantifiers: PARTIAL — cross-scope + RDF12 landed; the
+  scope.started must-precede-first-triple error is NOT the removed
+  @forAll/@forSome ordering (second verifier correct: either-ordering
+  fix genuinely missing; EYE accepts post-triple quantifiers).
+- shapes profile.rs (B8): the landed failure-drop fix REPLACES the
+  original error wholesale (comment claims "join" — mismatch);
+  governor-error early return skips take_failure (failure dropped
+  there too); admit thread-local pass-through can yield
+  XPathProfileConflict the caller never caused.
+- n3 memory-bounded fixtures (B1, OPT-74 fix): LANDED — analytic
+  closure counts replace fixture-time materialization (chain =
+  n²+3n, peer = 6n; both derived from the bench's own docstrings);
+  timed closures untouched; ladder unchanged. The bench should now
+  run without OOM on CI.
+- validate xpath_regex: CLEAN.
