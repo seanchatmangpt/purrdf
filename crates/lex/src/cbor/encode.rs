@@ -303,7 +303,8 @@ fn canonical_bottom_up(root: &Value) -> io::Result<Vec<u8>> {
 ///
 /// # Errors
 ///
-/// The writer's error.
+/// The writer's error, or the refusal of a reserved simple value (24..=31),
+/// which has no well-formed encoding.
 pub fn write<W: Write + ?Sized>(value: &Value, out: &mut W) -> io::Result<()> {
     run(vec![Job::Value(value)], out, false)
 }
