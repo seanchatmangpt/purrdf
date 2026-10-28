@@ -1303,9 +1303,17 @@ impl Folder<'_, '_, '_> {
         let base = self.g.terms.len();
         // Shift a valid local id into the outer space; pass non-ints through
         // so the downstream handler's own checks reject them with diagnostics.
+        // An id whose shift overflows usize takes the same route: `u64::MAX`
+        // is the canonical refused value — every downstream bounds check
+        // rejects it (ForwardReference in h_terms, Bounds in quad rows) —
+        // so the overflow can neither panic in debug builds nor alias an
+        // existing term in release ones.
         let sh = |v: &Value| -> Value {
             match as_idx(v) {
-                Some(iv) => Value::from((iv + base) as u64),
+                Some(iv) => match iv.checked_add(base) {
+                    Some(shifted) => Value::from(shifted as u64),
+                    None => Value::from(u64::MAX),
+                },
                 None => v.clone(),
             }
         };

@@ -2315,3 +2315,20 @@ corrected anchors (wave-12's dtd line numbers had drifted).
   sparql-eval, retrieval, jsonschema numerics, from_turtle, OPT-75, doc
   book truth, bounded-tier verify (requeue).
 
+### wave-25 addendum (same day)
+
+- gts reader h_snapshot: id-shift overflow now substitutes the canonical
+  refused u64::MAX instead of debug-panicking / release-aliasing an
+  existing term (checked_add; downstream ForwardReference/Bounds refuse
+  it with the same typed variants as any other out-of-range id). APPLIED.
+- gts voided-frame plan banked (NOT applied — public diagnostic surface +
+  test churn): a failed segment header currently voids the segment
+  silently on the streaming path (process_frame early-return) while the
+  buffered path folds nothing but emits one diagnostic. Plan: keep the
+  void per spec §17 (silently misfolding is the forbidden outcome) but
+  make it loud and sink-visible — new FoldError::VoidedFrame { frame }
+  variant in the DamagedFrame class + per-skipped-frame sink.frame
+  (valid:false) events + buffered-path parity loop. Exact diffs cited in
+  the lane receipt; tests pinned by buffered==streamed diagnostic
+  identity (Diagnostic PartialEq on code/detail/frame_index).
+
