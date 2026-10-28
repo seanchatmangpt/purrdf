@@ -605,12 +605,40 @@ impl Bench {
             return;
         }
         let fresh = self.with_tally(|tally| tally.ids.insert(text.clone()));
-        assert!(fresh, "benchmark id `{text}` is used twice in one run");
         match self.arguments.mode {
-            Mode::Help => {}
-            Mode::List => self.emit(&format!("{text}: benchmark\n")),
-            Mode::Test => self.test(text, routine),
-            Mode::Benchmark => self.measure(id, text, config, throughput, routine),
+            Mode::Help => {
+                assert!(fresh, "benchmark id `{text}` is used twice in one run");
+            }
+            Mode::List => {
+                // Discovery stays alive on a duplicate: report it as a
+                // failure outcome instead of panicking before anything is
+                // listed, so `--list` shows the full id surface and the
+                // collision.
+                if fresh {
+                    self.emit(&format!("{text}: benchmark\n"));
+                    // A listed id is one the run counted — record it, or the
+                    // summary reports "0 benchmarks listed" over N lines.
+                    self.record(Outcome {
+                        id: text.clone(),
+                        estimates: None,
+                        change: None,
+                        failure: None,
+                    });
+                } else {
+                    self.fail(
+                        text.clone(),
+                        format!("benchmark id `{text}` is used twice in one run"),
+                    );
+                }
+            }
+            Mode::Test => {
+                assert!(fresh, "benchmark id `{text}` is used twice in one run");
+                self.test(text, routine);
+            }
+            Mode::Benchmark => {
+                assert!(fresh, "benchmark id `{text}` is used twice in one run");
+                self.measure(id, text, config, throughput, routine);
+            }
         }
     }
 
@@ -1190,6 +1218,14 @@ fn run_main(target_tmpdir: Option<&str>, groups: &[fn()]) -> u8 {
         .filter(|outcome| outcome.failure.is_some())
         .collect();
     let count = outcomes.len();
+    // A filter matching nothing is a loud failure, not a clean exit 0: the
+    // module contract is "exit 0 when every selected benchmark ran", and an
+    // empty selection ran none. List mode keeps exit 0 (listing zero ids is
+    // the accurate answer to what was asked).
+    if count == 0 && mode != Mode::List {
+        platform::print_error("error: no benchmarks were selected.\n");
+        return ERROR_EXIT_CODE;
+    }
     let verb = match mode {
         Mode::Test => "tested",
         Mode::List => "listed",

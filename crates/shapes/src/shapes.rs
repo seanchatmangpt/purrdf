@@ -2978,13 +2978,28 @@ impl<'s> Parser<'s> {
     }
 
     /// The `sh:severity` of `node`, which must be an IRI (SHACL 1.2 Core
-    /// §3.6.2.4); a literal or blank node is refused rather than skipped.
+    /// §3.6.2.4); a literal or blank node is refused rather than skipped, and
+    /// so is more than one value: "the values of sh:severity" is a single
+    /// evaluated severity, so a multi-valued read must not resolve by store
+    /// order (same refuse-don't-skip rule as [`Self::messages_of`]).
     pub(crate) fn severity_of(&self, node: &Term) -> Result<Option<Severity>, String> {
-        match self.first_object_of(node, sh::SEVERITY) {
-            None => Ok(None),
-            Some(value) => severity_from_term(&value)
-                .map(Some)
-                .ok_or_else(|| format!("sh:severity on {node} must be an IRI, got {value}")),
+        let mut severity = None;
+        let mut count = 0usize;
+        for value in self.objects_of(node, sh::SEVERITY) {
+            count += 1;
+            if severity.is_none() {
+                severity =
+                    Some(severity_from_term(&value).ok_or_else(|| {
+                        format!("sh:severity on {node} must be an IRI, got {value}")
+                    })?);
+            }
+        }
+        match (count, severity) {
+            (0, _) => Ok(None),
+            (1, Some(s)) => Ok(Some(s)),
+            _ => Err(format!(
+                "sh:severity on {node} must have a single IRI value; got {count} values"
+            )),
         }
     }
 

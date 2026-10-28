@@ -169,6 +169,18 @@ pub fn rdf_level(severity: RdfSeverity) -> Level {
     }
 }
 
+/// SARIF result `kind` for an [`RdfSeverity`], mirroring [`shacl_kind`]: a
+/// diagnostic that is not a failure (`Note`, `Info` — both already `level:
+/// note` via [`rdf_level`]) is `informational`, never SARIF's silent
+/// `fail` default for an absent kind.
+#[must_use]
+pub fn rdf_kind(severity: RdfSeverity) -> Option<ResultKind> {
+    match severity {
+        RdfSeverity::Error | RdfSeverity::Warning => None,
+        RdfSeverity::Note | RdfSeverity::Info => Some(ResultKind::Informational),
+    }
+}
+
 /// Ordering rank for a level (most severe first). Part of the deterministic
 /// result sort key.
 #[must_use]
@@ -615,7 +627,7 @@ fn diagnostic_to_sarif(diagnostic: &RdfDiagnostic, base_id: Option<&str>) -> Sar
     SarifResult {
         rule_id: diagnostic.code.clone(),
         rule_index: None,
-        kind: None,
+        kind: rdf_kind(diagnostic.severity),
         level: rdf_level(diagnostic.severity),
         message: Message::text(text),
         locations,
@@ -654,18 +666,23 @@ fn diagnostic_location(
     }
 
     let physical = location.path.as_ref().map(|path| {
-        let region = (location.line.is_some() || location.column.is_some()).then(|| Region {
-            // SARIF regions may carry only a column when the line is unknown;
-            // a column without a line is still a usable coordinate.
+        // Percent-encode with the first-party PATH set: a raw space or
+        // backslash makes the artifact reference unresolvable, so the URI
+        // field carries a valid reference, not the raw host path.
+        let uri = purrdf_lex::percent::encode(path, purrdf_lex::percent::PATH);
+        // SARIF §3.30 requires a region to carry startLine (or an offset);
+        // a column-only region is schema-invalid, so a location without a
+        // line emits no region at all.
+        let region = (location.line.is_some() && location.column.is_some()).then(|| Region {
             start_line: location.line,
             start_column: location.column,
             ..Region::default()
         });
         PhysicalLocation {
             artifact_location: ArtifactLocation {
-                uri: path.clone(),
+                uri: uri.into_owned(),
                 // SARIF §3.4.2: `uriBaseId` is meaningless on an absolute URI.
-                uri_base_id: base_id_for(path, base_id),
+                uri_base_id: base_id_for(&uri, base_id),
             },
             region,
         }

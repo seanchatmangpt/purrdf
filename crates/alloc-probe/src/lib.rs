@@ -170,6 +170,32 @@ thread_local! {
     static THREAD_WINDOW_OPEN: Cell<bool> = const { Cell::new(false) };
 }
 
+/// Allocation calls lost because this thread's TLS was unreachable — recorded
+/// in plain statics, which unlike TLS are reachable during TLS teardown.
+static TLS_DROPPED_ALLOCATIONS: AtomicU64 = AtomicU64::new(0);
+/// Deallocation calls lost to the same cause.
+static TLS_DROPPED_DEALLOCATIONS: AtomicU64 = AtomicU64::new(0);
+/// Requested bytes lost, signed: allocations dropped add, deallocations
+/// dropped subtract, so a negative figure means more frees than allocs were
+/// lost (the usual cross-thread-drop shape).
+static TLS_DROPPED_NET_BYTES: AtomicI64 = AtomicI64::new(0);
+
+/// Count one recorder call the per-thread ledger could not accept, and move
+/// the net-byte figure by the same signed amount a successful one would have.
+///
+/// Plain atomics, not TLS, so this is reachable precisely when TLS is not —
+/// which is the only situation that calls it.
+fn note_dropped_allocation(size: usize) {
+    TLS_DROPPED_ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
+    TLS_DROPPED_NET_BYTES.fetch_add(widen_i64(size), Ordering::Relaxed);
+}
+
+/// The dealloc counterpart: subtracts from [`TLS_DROPPED_NET_BYTES`].
+fn note_dropped_deallocation(size: usize) {
+    TLS_DROPPED_DEALLOCATIONS.fetch_add(1, Ordering::Relaxed);
+    TLS_DROPPED_NET_BYTES.fetch_sub(widen_i64(size), Ordering::Relaxed);
+}
+
 /// Record `size` bytes handed out on the current thread.
 ///
 /// The per-thread ledger is uncontended `Cell` traffic, so it runs
@@ -177,33 +203,80 @@ thread_local! {
 /// over counters that were always being kept. `try_with` rather than `with`,
 /// because an allocation can happen while this thread's TLS is being
 /// initialized or destroyed, and a probe must never be the reason a program
-/// aborts.
+/// aborts — nor silently lose the call: any leg that fails charges the whole
+/// call to the dropped ledger, where it stays visible.
 fn thread_record_allocation(size: usize) {
-    let _ = THREAD_ALLOCATIONS.try_with(|count| count.set(count.get().saturating_add(1)));
-    let _ = THREAD_REQUESTED_BYTES
-        .try_with(|bytes| bytes.set(bytes.get().saturating_add(widen_u64(size))));
-    let _ = THREAD_LIVE_BYTES.try_with(|live| {
-        let now = live.get().saturating_add(widen_i64(size));
-        live.set(now);
-        let _ = THREAD_PEAK_BYTES.try_with(|peak| {
-            if now > peak.get() {
-                peak.set(now);
-            }
-        });
-    });
+    let mut dropped = false;
+    dropped |= THREAD_ALLOCATIONS
+        .try_with(|count| count.set(count.get().saturating_add(1)))
+        .is_err();
+    dropped |= THREAD_REQUESTED_BYTES
+        .try_with(|bytes| bytes.set(bytes.get().saturating_add(widen_u64(size))))
+        .is_err();
+    dropped |= THREAD_LIVE_BYTES
+        .try_with(|live| {
+            let now = live.get().saturating_add(widen_i64(size));
+            live.set(now);
+            let _ = THREAD_PEAK_BYTES.try_with(|peak| {
+                if now > peak.get() {
+                    peak.set(now);
+                }
+            });
+        })
+        .is_err();
+    if dropped {
+        note_dropped_allocation(size);
+    }
 }
 
-/// Record `size` bytes returned on the current thread.
+/// Record `size` bytes returned on the current thread, as
+/// [`thread_record_allocation`] does for allocations: a call the per-thread
+/// ledger cannot take is charged to the dropped ledger, never vanished.
 fn thread_record_deallocation(size: usize) {
-    let _ = THREAD_LIVE_BYTES.try_with(|live| {
-        let now = live.get().saturating_sub(widen_i64(size));
-        live.set(now);
-        let _ = THREAD_TROUGH_BYTES.try_with(|trough| {
-            if now < trough.get() {
-                trough.set(now);
-            }
-        });
-    });
+    let dropped = THREAD_LIVE_BYTES
+        .try_with(|live| {
+            let now = live.get().saturating_sub(widen_i64(size));
+            live.set(now);
+            let _ = THREAD_TROUGH_BYTES.try_with(|trough| {
+                if now < trough.get() {
+                    trough.set(now);
+                }
+            });
+        })
+        .is_err();
+    if dropped {
+        note_dropped_deallocation(size);
+    }
+}
+
+/// What the per-thread ledgers could not record, because the thread that made
+/// the call had unreachable thread-locals at the time.
+///
+/// A `dealloc` that arrives during TLS destruction is the case that matters:
+/// buffers dropped as a thread exits never lower its live-byte cell, so any
+/// window reading that thread's ledger reports them as retained forever. The
+/// dropped ledger is what distinguishes that artefact from real retention.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TlsDropped {
+    /// Allocation calls lost to unreachable thread-locals.
+    pub allocations: u64,
+    /// Deallocation calls lost the same way.
+    pub deallocations: u64,
+    /// Requested bytes those calls carried, signed: allocations dropped add,
+    /// deallocations dropped subtract. A negative value means more frees than
+    /// allocs were lost — the cross-thread/TLS-teardown shape.
+    pub net_bytes: i64,
+}
+
+/// Read the dropped-call ledger accumulated since process start. Monotone in
+/// `allocations` and `deallocations`; `net_bytes` may move either way.
+#[must_use]
+pub fn dropped_tls_records() -> TlsDropped {
+    TlsDropped {
+        allocations: TLS_DROPPED_ALLOCATIONS.load(Ordering::Relaxed),
+        deallocations: TLS_DROPPED_DEALLOCATIONS.load(Ordering::Relaxed),
+        net_bytes: TLS_DROPPED_NET_BYTES.load(Ordering::Relaxed),
+    }
 }
 
 // ---------------------------------------------------------------------------

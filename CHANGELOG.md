@@ -466,8 +466,8 @@ bump is bugfix-only. The C ABI (`purrdf.h`) is versioned separately and remains
   nested `FILTER` or `BIND`, `OPTIONAL`, `MINUS`, `LATERAL`, `SERVICE`,
   `EXISTS` or property-function call) skips the rewrite's expression walk
   (the `prebind_seed_fast_path` bench times both), which takes the SHACL
-  allocation pins to 40 / 78 / 48 / 101 per focus node ungoverned and
-  58 / 98 / 66 / 126 governed.
+  allocation pins to 40 / 77 / 48 / 79 per focus node ungoverned and
+  56 / 97 / 64 / 103 governed.
 
   **Migration.** A query run with request substitutions or prepared-execution
   parameters that reads a bound variable inside `OPTIONAL`, `MINUS`, a

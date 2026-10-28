@@ -1178,6 +1178,25 @@ impl Folder<'_, '_, '_> {
         }
 
         if let Some(digest) = pub_meta.as_ref().and_then(public_blob_digest) {
+            // GTS-SPEC §22.1 "Inline blob digest": when the payload is inline,
+            // the declared digest must match digest_str(decoded bytes). The
+            // encrypt branch already hashes actual content; this branch
+            // trusted the declaration. Same damaged-payload diagnostic class,
+            // computed detail naming both sides of the mismatch.
+            if let Some(Value::Bytes(raw)) = d {
+                let actual = digest_str(&raw);
+                if actual != digest {
+                    let error = PayloadError::Damaged(PayloadCause::TransformedNotBytes);
+                    self.opaque(frame, "blob", error.opaque_reason());
+                    self.diag_native(
+                        error.diagnostic_code(BLOB_BUDGET_DIAGNOSTIC),
+                        error,
+                        format!("blob digest mismatch: pub declares {digest}, content is {actual}"),
+                        index,
+                    );
+                    return;
+                }
+            }
             if let Some(meta) = pub_meta {
                 self.blob_meta_index
                     .set(&mut self.g.blob_meta, digest.clone(), meta);

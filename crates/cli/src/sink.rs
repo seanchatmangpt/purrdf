@@ -412,9 +412,18 @@ pub(crate) fn write_rdf<D: DatasetView>(
         // GTS is a READ-ONLY target for this pipeline: `format::refuse_gts_target`
         // declines `--to gts` at resolution time, with the reason. This arm keeps the
         // match total and fails closed rather than writing something that is not GTS,
-        // for the caller who reaches the sink by some other route.
-        SourceFormat::Gts => Err(format::refuse_gts_target(target, "the output target")
-            .expect_err("refuse_gts_target rejects SourceFormat::Gts")),
+        // for the caller who reaches the sink by some other route — as a typed
+        // refusal, never a panic.
+        SourceFormat::Gts => {
+            match format::refuse_gts_target(target, "the output target") {
+                Err(error) => Err(error),
+                // Unreachable through the verbs (resolution refuses first);
+                // if a future caller skips `resolve_target`, fail closed.
+                Ok(()) => Err(CliError::Usage(
+                    "GTS is a read-only target for this pipeline".to_string(),
+                )),
+            }
+        }
     }
 }
 

@@ -546,8 +546,8 @@ needed only below a `GROUP BY`, a sub-`SELECT`, a `FILTER` or `BIND` inside a gr
 an `OPTIONAL` or `MINUS` right arm, a `LATERAL` or `SERVICE` operand, an `EXISTS`
 body or a property-function call; a query with none of them reads every pre-bound
 variable from the seeded row, so it now takes the seed alone. That restored the
-`sh:expression` term and lowered the others: 40 / 78 / 48 / 101 ungoverned,
-58 / 98 / 66 / 126 governed, and 200 on the `&str`-door `sh:ask` fallback lane.
+`sh:expression` term and lowered the others: 40 / 77 / 48 / 79 ungoverned,
+56 / 97 / 64 / 103 governed, and 200 on the `&str`-door `sh:ask` fallback lane.
 `substitute::seed_fast_path_tests` holds the fast path to the walk's answers.
 
 An id is meaningful only against the dataset that minted it, so the door makes a
