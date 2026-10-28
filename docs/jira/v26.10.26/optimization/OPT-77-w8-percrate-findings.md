@@ -696,3 +696,22 @@ n3 printing.rs round-trip (5):
   on the runner re-deriving via from_update_parts (if from_parts, the
   answer cap slips through).
 - Row conversion order + consume-once bookkeeping verified correct.
+
+## wave-12 semantic additions (sparql-eval engine pipeline)
+
+- engine.rs:4170-4186 — the on-demand read's Limit stage skips the
+  length check AND passed-increment for undecided-evidence rows:
+  undecided rows are emitted after LIMIT is exhausted; the
+  materialized lane applies LIMIT to every row (lane divergence).
+- engine.rs/:4171-4176 — reaching LIMIT does continue-pull without
+  setting ended: the cursor drives the relation to exhaustion (work +
+  side-effect divergence).
+- engine.rs:399-438 — reorder_like_admitted runs after
+  certificate.split() on the Truncated branch: the truncation proof
+  describes the PRE-reorder layout (certificate not recomputed).
+- engine.rs:2846-2856 — Slice-over-Distinct accepted on the on-demand
+  walk while dedup-keeps-first depends on pre-Slice order that lane
+  never materializes (DISTINCT-under-LIMIT lane divergence).
+- engine.rs:247-258 — publish clones text-order projection names over
+  evaluated rows; safe only via a fragile rdflib.rs ordering
+  invariant with no tying assertion.
