@@ -3128,3 +3128,20 @@ direction).
   catalog id assignment, compared_pairs windowing, tar numeric/PAX-length
   writers, blob pub.digest vs reader recomputation.
 
+### wave-38 — COSE kid LANDED (opaque bstr, both sides)
+
+- Encrypt0Parts.kid Cow<[u8]>; recipient_kid -> Vec<u8>; all three
+  resolvers Fn(&[u8]); Encrypt0Options.kid Vec<u8> emitted as a CBOR
+  bstr; borrowed fast path drops the UTF-8 gate; reader
+  ContentKeyResolver type alias flipped; all test/bench resolvers and
+  fixtures flipped; the 0xff-kid case repurposed out of the malformed
+  matrix into a dedicated verbatim-identity test (it is now a VALID
+  kid that must reach the resolver as [0xff, 0x00, 0xfe]).
+- REMAINING SUB-ITEM (banked): either-bucket lookup — a kid in the
+  PROTECTED header is still not consulted (both decoders scan the
+  unprotected map only); writer always emits unprotected, so frozen
+  vectors are unaffected, but the 9052 either-bucket rule is the other
+  half of the conformance fix.
+- signing lane (sign_with kid: &str) deliberately untouched — a
+  signature's kid is a different surface (wave-28 decision).
+
