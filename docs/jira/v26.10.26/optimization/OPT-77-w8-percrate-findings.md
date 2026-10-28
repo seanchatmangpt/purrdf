@@ -2815,3 +2815,38 @@ memory/COSE application lanes.
   rows erase defect classification) — markdown.rs:106-125/:201-221/
   :365/:545-549 + decode.rs:259-274.
 
+---
+
+## wave-32 status (2026-10-28)
+
+### Fixed (in-tree, UNVERIFIED)
+
+- alloc-probe: exclusive ledgers — live leg first; live failure charges
+  the whole call wholesale, later-leg failures charge only the missing
+  piece (note_dropped_allocation_count/bytes split). Closes the
+  wave-25-introduced double-count. open() maps unreachable TLS onto the
+  already-open assert; sample() uses try_with + zero fallback.
+- capture_sparql_goldens: prune_stale_siblings before each write
+  (reclassification no longer accumulates contradictory artifacts; the
+  no-git-diff-on-rerun contract holds in the reclassification direction).
+
+### Verdicts
+
+- Commit-range audit (last 25 commits): zero SUBJECT-MISMATCH — every
+  subject touches exactly the paths it names. Two DIFF-UNDOCUMENTED
+  minors (28364188 carried alloc-probe/sink/design-doc work the subject
+  omitted; 63cd9fe8 carried 17 ledger lines) — disclosed here, no action
+  (fix-forward doctrine).
+- wasm scope A (pointer lifetimes/cancellation/take-once): CLEAN.
+- CI refresh: no completed run on current head (queued/cancelled); the
+  Docs run fails at the zh-Hans gate on the machine-local [patch] paths —
+  the ONLY signal remains the [patch] blocker. FORMAT still unexercised.
+
+### Banked, awaiting application
+
+sparql-results (envelope decode + datatype refusal + duplicate-var),
+shapes ask-prebinding (Invocation decision pending), n3 printing (3),
+markdown (6), rdf-wasm (4), duckdb B19, agent_memory, COSE kid,
+bounded-tier gate-parity extension, simd.md re-anchoring, xsd -0
+candidate (needs F&O §19.1.1 verification).
+
