@@ -1045,3 +1045,17 @@ n3 printing.rs round-trip (5):
   Bands::One; math_for_sources retry behavior UNVERIFIED. Band
   rounding direction, wrap widening, and normalization idempotence
   all verified safe.
+
+## wave-14 additions (hnsw payload/guard)
+
+- guard.rs:742-746 — verify_rebuild launders malformed/missing
+  identity TLVs via .ok() chains into "not reassociated": a
+  reassociated payload verified under Exact (ArithmeticMismatch
+  contradicting the documented Ok(false)) or a wrong-law verdict.
+- graph.rs:965-974 vs :752-755 — encode writes build-shape fields
+  conditionally, decode reads them unconditionally under a
+  shape-bearing arithmetic: a None-shape Recorded shifts every later
+  field (spurious decode refusals).
+- guard.rs:731-733 — PayloadUnavailable folded into Ok(false),
+  conflating unavailable with tampered (the enum deliberately
+  separates them).
