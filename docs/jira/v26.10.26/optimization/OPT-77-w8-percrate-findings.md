@@ -1498,3 +1498,15 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   non-InvalidDigit hex errors to "odd number of digits";
   render_dl_certificate emits a fourth completeness value
   (storage-refused) absent from the documented grammar.
+
+## wave-17 additions (hnsw lib search accounting)
+
+- search.rs:172-178 — DistanceCache::insert increments evaluations
+  only after insert_admitted succeeds: on bounded-workspace
+  admission failure the search returns Err with NO work count for
+  the evaluations already performed.
+- lib.rs:700-708 — search_rows_work_admitted uses the admitted cache
+  even on the unbounded branch: behavior diverges from
+  search_rows_work for the same query by capability flag.
+- lib.rs:845-849 — greedy_descent nodes not marked visited before the
+  beam; correctness holds only via the memo (ties to finding 1).
