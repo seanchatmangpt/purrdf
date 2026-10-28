@@ -71,10 +71,20 @@ struct WorkloadRow {
 /// no measured envelope yet is reported as unchecked — refusing it would reject a
 /// valid run for the sole reason that nobody has measured it, which is the mirror of
 /// letting a real overrun pass.
-fn exceeds_ceiling(row: &WorkloadRow) -> Option<(i64, u64)> {
-    let ceiling = row.ceiling_bytes?;
-    let peak = u64::try_from(row.peak_bytes).unwrap_or(0);
-    (peak > ceiling).then_some((row.peak_bytes, ceiling))
+fn exceeds_ceiling(row: &WorkloadRow) -> Result<Option<(i64, u64)>, String> {
+    let Some(ceiling) = row.ceiling_bytes else {
+        return Ok(None);
+    };
+    // A NEGATIVE peak is a broken window measurement (counter underflow), not
+    // evidence of holding the ceiling: clamping it to 0 laundered a defective
+    // reading into a pass on the one path that is an acceptance criterion.
+    let peak = u64::try_from(row.peak_bytes).map_err(|_| {
+        format!(
+            "negative allocation peak {} in {}",
+            row.peak_bytes, row.name
+        )
+    })?;
+    Ok((peak > ceiling).then_some((row.peak_bytes, ceiling)))
 }
 
 fn print_report(profile: &Profile, rows: &[WorkloadRow]) {
@@ -171,13 +181,20 @@ fn main() -> ExitCode {
     // establish it rather than as a bare exit code.
     print_report(&active, &rows);
     for row in &rows {
-        if let Some((peak, ceiling)) = exceeds_ceiling(row) {
-            eprintln!(
-                "envelope-probe: {} peaked at {peak} bytes against a {ceiling}-byte \
-                 ceiling for profile {}",
-                row.name, active.name
-            );
-            failed = true;
+        match exceeds_ceiling(row) {
+            Ok(Some((peak, ceiling))) => {
+                eprintln!(
+                    "envelope-probe: {} peaked at {peak} bytes against a {ceiling}-byte \
+                     ceiling for profile {}",
+                    row.name, active.name
+                );
+                failed = true;
+            }
+            Ok(None) => {}
+            Err(reading) => {
+                eprintln!("envelope-probe: {reading}");
+                failed = true;
+            }
         }
     }
     if failed {
