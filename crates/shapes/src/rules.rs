@@ -874,6 +874,10 @@ pub fn infer_complete(
     };
     if shapes.validation_options.shacl_profile == crate::profile::ShaclProfile::LEGACY
         && shapes.validation_options.xpath_regex.is_none()
+        // An ambient native configuration means LEGACY is not "unselected":
+        // `Request::admit` would install this graph's own configuration, so
+        // the un-admitted fast path must not run under a foreign one.
+        && crate::xpath::current().is_none()
     {
         return execute();
     }

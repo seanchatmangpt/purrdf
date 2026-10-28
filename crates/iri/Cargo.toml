@@ -29,8 +29,8 @@ name = "purrdf_iri"
 # The grammar terminals, the byte-class scanners and the JSON string escaper,
 # re-exported as `purrdf_iri::{terminals, scan, json_escape}`.
 purrdf-lex = { workspace = true }
-# The base16 digit reader and uppercase writer behind percent-encoding, and the
-# fixed-key table hasher test-side maps use.
+# Runtime use is the structured-error machinery (StructuredError/error_visit!).
+# The base16/percent codecs and the fixed-key table hashers are test-only.
 purrdf-hash = { workspace = true }
 
 [dev-dependencies]

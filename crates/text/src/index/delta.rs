@@ -72,6 +72,10 @@ impl<P: CorpusProfile> TextIndex<P> {
         )?;
         let source_fingerprint = source.fingerprint::<P>();
         if source_fingerprint == self.source_fingerprint {
+            // The digest tracks the validated generation even when the
+            // fingerprint comparison short-circuits: never keep a stale
+            // source_digest behind the early return.
+            self.source_digest = source;
             self.coverage = coverage;
             self.source_version = version;
             finish_read(next)?;
@@ -188,6 +192,15 @@ impl<P: CorpusProfile> TextIndex<P> {
                         .ok_or_else(|| TextError::data("source coverage population overflow"))?;
                 }
             }
+        } else if count != 0 {
+            // A named selected graph absent from a NONEMPTY next source is a
+            // misconfiguration, not an all-removed transition: refusing loudly
+            // beats recording a silent empty digest that later surfaces as a
+            // misleading SourceMismatch.
+            return Err(TextError::data(
+                "the selected graph is absent from a source that holds statements",
+            )
+            .into());
         }
         Ok((
             SourceDigest::from_state(digest),
@@ -444,6 +457,14 @@ fn validate_delta<P: CorpusProfile>(
     mut expected: SourceDigest,
     mut prior: SourceDigest,
 ) -> Result<SourceDigest, TextDeltaError> {
+    // Refuse a self-contradictory delta before any mutation: a row in both
+    // the additions and the removals would cancel in the multiset summary
+    // and pass the reversed-digest check as a silent no-op.
+    for (ordinal, row) in added.iter().enumerate() {
+        if removed.binary_search(row).is_ok() {
+            return Err(TextDeltaError::ContradictoryDelta { ordinal });
+        }
+    }
     for row in join_by(rows.iter().enumerate(), added.iter().enumerate(), |a, b| {
         a.1.cmp(b.1)
     }) {

@@ -3830,6 +3830,9 @@ where
 {
     if shapes.validation_options.shacl_profile != crate::profile::ShaclProfile::LEGACY
         || shapes.validation_options.xpath_regex.is_some()
+        // Same law as `infer_complete`: an ambient native configuration makes
+        // LEGACY selected, so the un-admitted fast path must not run.
+        || crate::xpath::current().is_some()
     {
         return PreparedShapes::new(Arc::new(shapes.clone()))
             .bind_request(data.retained())

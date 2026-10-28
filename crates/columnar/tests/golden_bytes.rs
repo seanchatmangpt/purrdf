@@ -195,4 +195,41 @@ fn seeded_files_are_the_pinned_bytes() {
     assert_eq!(observed, pinned);
 }
 
-purrdf_testkit::harness_main!(seeded_files_are_the_pinned_bytes);
+/// NOT part of the default run: prints the ten observed file digests in
+/// `PINNED`-table literal form so a reviewed format change can refresh it.
+///
+/// # Regenerating the pinned digests
+///
+/// If (and ONLY if) an intentional, reviewed format change alters the written
+/// bytes, print the new digests with:
+///
+/// ```text
+/// cargo test -p purrdf-columnar --test golden_bytes regenerate_pinned_digests -- --ignored --nocapture
+/// ```
+///
+/// then paste the ten literals into `PINNED` and commit them alongside the
+/// format change that caused them to differ, with its reason.
+fn regenerate_pinned_digests() {
+    for compression in [Compression::Uncompressed, Compression::Zstd] {
+        for (table, digest) in digests(compression) {
+            println!(
+                "    (\n        Compression::{compression:?},\n        Table::{table:?},\n        \"{digest}\",\n    ),"
+            );
+        }
+    }
+}
+
+fn main() -> std::process::ExitCode {
+    use purrdf_testkit::harness::{self, Trial};
+    harness::main([
+        Trial::test("seeded_files_are_the_pinned_bytes", || {
+            seeded_files_are_the_pinned_bytes();
+            Ok(())
+        }),
+        Trial::test("regenerate_pinned_digests", || {
+            regenerate_pinned_digests();
+            Ok(())
+        })
+        .with_ignored_flag(true),
+    ])
+}

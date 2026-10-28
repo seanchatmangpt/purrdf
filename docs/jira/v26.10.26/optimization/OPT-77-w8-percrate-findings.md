@@ -2159,3 +2159,87 @@ corrected anchors (wave-12's dtd line numbers had drifted).
   re-export (:6), ast.rs hardcoded sql# literals (:104-123), and retrieval
   fusion_frontier_alloc.rs stale prose (:144/:404) remain OPEN.
 
+---
+
+## wave-23 status (2026-10-28, implementation-plan wave)
+
+### Fixed this wave (in-tree, UNVERIFIED)
+
+- shapes: xpath::current() tier added to the infer_complete legacy fast-path
+  gate (rules.rs:876) and the validate_with_focus_filter gate (engine.rs:
+  3832) — an ambient native configuration now routes through the prepared/
+  admit path instead of running un-admitted under a foreign configuration.
+  Verdict table from the lane: bind_complete_source pre-flight (engine.rs:
+  1987) = same-law earlier refusal (NOT yet applied — helper pending);
+  parse_shapes_with_options = ambient-blind by design, DOCUMENTED, no change.
+- text delta.rs: three fixes landed — ContradictoryDelta refusal (row in both
+  added+removed, refused before mutation; new error variant + Display +
+  StructuredError arm), fingerprint-equal early return now refreshes
+  source_digest, missing selected graph on a nonempty next source is a loud
+  TextError. Finding 1 (coverage-bit path-dependence) REFUTED by the lane:
+  both branches derive the bit from the same whole-source quantity; the
+  prior sketch's fix would have introduced the divergence it claimed to fix.
+- sparql-eval row_checkpoint_gate.rs: three XSD literals swapped to
+  purrdf_xsd::datatype constants (deps present).
+- shapes free_expression.rs:224: rdf#value literal -> purrdf_iri::vocab::rdf
+  ::VALUE.
+- sql compiler.rs: memo flush-on-overflow policy documented (KEEP verdict:
+  bench memo-hit group never triggers the clear; cold group is the honest
+  flush-cost measurement).
+- bench/LUBM_PROFILE.md: draw-order list completed (head index, research-
+  interest draws, ResearchGroup count).
+- cdt/Cargo.toml + iri/Cargo.toml comment drift corrected; helpers-ledger
+  MIN_TOKENS floor + normalize.rs twenty->thirty + hnsw README order note +
+  cli SUBCOMMANDS 16->20 landed in wave-22/23.
+- columnar golden_bytes.rs: #[ignore]-equivalent regen function added
+  (Trial::with_ignored_flag; the harness_main! macro cannot carry #[ignore]).
+- xml dtd wave-12 premise CORRECTED by the lane: entity_value decoding char
+  refs into replacement text is XML 1.0 §4.4/Appendix D CONFORMANT (incl.
+  the tricky example, pinned by in-repo tests + xmlconf); the PE re-scan is
+  likewise spec-required. Only hardening warranted: bounding the ';' scan —
+  PENDING (10-byte window; same class at reader.rs:855 and dtd.rs:786).
+- gts README/GTS-CONFORMANCE generated_by rows: WITHDRAWN — the prose
+  describes upstream-governed frozen artifacts; not ours to correct.
+
+### Plans banked (complete, verified, not yet applied)
+
+- gts COSE Encrypt0 kid -> opaque bytes, protected-then-unprotected (RFC
+  9052): full 6-site plan with consumer/test edits + writer-side
+  keep-&str recommendation. Needs one careful crypto lane.
+- entail classify.rs: union-find representatives (min-root union) +
+  ClaimBasis::SaturatedIncomplete variant (8 downstream sites enumerated,
+  wire tag 8, frozen digests unaffected) + reduction stays variant A once
+  representatives are correct. Two full tests drafted.
+- duckdb eval.rs B19: LexicalCell helper + rfc3339::format/xpath_*_text/
+  canonical_hex reuse (NO second bodies; xsd dep addition required) +
+  DuplicateColumnName refusal + unrepresentable counter. Tests drafted.
+- agent_memory B18: is_none_or + EmptySuccessor variant + known_iri
+  union-resolution + ID_SCHEME version gate (frozen hex must regen).
+- sql ast.rs SelectStatement/SelectItem move into ast.rs (serializer
+  imports); SQL_VOCAB_NS const (match-arm limits noted).
+- check-gate-parity.py bounded-tier table + scripts/bounded-tier.sh
+  (complete self-test suite drafted; workflow diff is 4 identical
+  bounded()-body deletions).
+- probe_evidence all-undecided-bucket mirror test (binop.rs) + early-exit
+  REFUSED (record content feeds ledger/memo/rank attribution at every
+  tier — O(bucket) is load-bearing).
+- shapes bind_complete_source pre-flight via a shared
+  resolve_xpath_selection helper (admit precedence single-sourced).
+- sparql-eval fresh sweep (expr.rs/modifier.rs) and retrieval sweep died on
+  rate limits — requeue.
+
+### Wave-23 verdicts
+
+- xml wave-12 "defects": 3 of 4 REFUTED (spec-conformant, vector-pinned);
+  1 hardening item stands (unbounded ';' scan).
+- text finding 1 REFUTED (see above).
+- rdf-core/lex fresh sweep (term/builder/terminals): CLEAN — all casts
+  guarded, no Result laundering, ring fence intact; two latent-fragility
+  asserts suggested (builder.rs:180/:863 rollback skip, :3070 freeze drop).
+- W24 lanes launched mid-wave: columnar reader/parquet, sparql-algebra,
+  json, geo, datalog-negation, validate, rdf codecs, cli verbs, jsonschema
+  numerics, n3 parser scoping, gts reader, testkit harness, python
+  bindings, wasm js, python gates (incl. the windows-sys verdict), book
+  truth, bench-correctness sample, OPT-70 single-sourcing (DELIVERED, see
+  plans), and the live CI-verdict fetch.
+

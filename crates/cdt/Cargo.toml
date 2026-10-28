@@ -18,8 +18,8 @@ categories = ["parser-implementations", "data-structures"]
 all-features = true
 
 [lib]
-# rlib-only CLOSED LEAF: `purrdf-iri` and `purrdf-xsd` are the ONLY permitted
-# runtime dependencies. There is no dependency on `purrdf-core` in either
+# rlib-only CLOSED LEAF: runtime dependencies are purrdf-hash, purrdf-lex,
+# purrdf-iri, purrdf-xsd and purrdf-events. There is no dependency on `purrdf-core` in either
 # direction — that is exactly what lets `purrdf-core` depend on this crate later
 # without a cycle. `#![no_std]` + `alloc`, so it stays wasm-clean.
 crate-type = ["rlib"]

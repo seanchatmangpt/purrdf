@@ -72,7 +72,7 @@ fn dataset(rows: usize) -> Arc<RdfDataset> {
         let value = builder
             .intern_literal(RdfLiteral::typed(
                 index.to_string(),
-                "http://www.w3.org/2001/XMLSchema#integer",
+                purrdf_xsd::datatype::XSD_INTEGER,
             ))
             .expect("fixture capacity");
         let list = builder
@@ -285,7 +285,7 @@ fn growing_dataset(rows: usize) -> Arc<RdfDataset> {
         let value = builder
             .intern_literal(RdfLiteral::typed(
                 format!("1{}", "7".repeat(39 + index / 5)),
-                "http://www.w3.org/2001/XMLSchema#integer",
+                purrdf_xsd::datatype::XSD_INTEGER,
             ))
             .expect("fixture capacity");
         builder
@@ -433,7 +433,7 @@ fn repeating_dataset(rows: usize) -> Arc<RdfDataset> {
         let value = builder
             .intern_literal(RdfLiteral::typed(
                 format!("{}{}", index % 10, "x".repeat(200)),
-                "http://www.w3.org/2001/XMLSchema#string",
+                purrdf_xsd::datatype::XSD_STRING,
             ))
             .expect("fixture capacity");
         builder

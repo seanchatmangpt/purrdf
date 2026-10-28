@@ -27,6 +27,12 @@ pub enum TextDeltaError {
         /// Canonical selected addition ordinal.
         ordinal: usize,
     },
+    /// A single row appears among both the effective additions and the
+    /// effective removals.
+    ContradictoryDelta {
+        /// Canonical selected addition ordinal.
+        ordinal: usize,
+    },
     /// Reversing the delta does not recover the indexed source generation.
     SourceMismatch {
         /// Existing selected-source identity.
@@ -85,6 +91,10 @@ impl core::fmt::Display for TextDeltaError {
                 f,
                 "text delta addition {ordinal} is absent from the next source"
             ),
+            Self::ContradictoryDelta { ordinal } => write!(
+                f,
+                "text delta addition {ordinal} is both an addition and a removal"
+            ),
             Self::SourceMismatch { expected, actual } => write!(
                 f,
                 "text delta source mismatch: expected {}, reconstructed {}",
@@ -142,6 +152,9 @@ impl purrdf_hash::error::StructuredError for TextDeltaError {
     purrdf_hash::error_visit! {
         SourceObservationUnavailable => "text-delta-source-observation-unavailable" {},
         MissingAddition { ordinal } => "text-delta-missing-addition" {
+            "ordinal" => Unsigned(*ordinal as u128),
+        },
+        ContradictoryDelta { ordinal } => "text-delta-contradictory-delta" {
             "ordinal" => Unsigned(*ordinal as u128),
         },
         SourceMismatch { expected, actual } => "text-delta-source-mismatch" {

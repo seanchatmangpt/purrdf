@@ -220,8 +220,10 @@ pub fn parse_term(text: &str) -> Result<Term, String> {
         };
     // One N-Triples statement carrying the term as its object: the codec's own grammar,
     // not a second one. `rdf:value` is RDF's own predicate for "the value of".
-    let document =
-        format!("_:purrdf-term <http://www.w3.org/1999/02/22-rdf-syntax-ns#value> {spelled} .\n");
+    let document = format!(
+        "_:purrdf-term <{}> {spelled} .\n",
+        purrdf_iri::vocab::rdf::VALUE
+    );
     let dataset = crate::text_ingest::parse_ntriples_to_dataset(&document)
         .map_err(|errors| format!("`{text}` is not one N-Triples term: {}", errors.join("; ")))?;
     let quads = native_quads(dataset.as_ref(), None, None, None, GraphFilter::AnyGraph);

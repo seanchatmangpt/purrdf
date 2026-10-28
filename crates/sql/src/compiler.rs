@@ -2025,8 +2025,13 @@ pub fn compile_turtle(turtle: &str) -> Result<CompiledQuery, AstError> {
         cq
     })?;
     // Charter-A04 memoization store: only cacheable-class (SelectStatement)
-    // compiles enter the memo. Flush-on-overflow at the pinned capacity so
-    // the memo never grows unbounded.
+    // compiles enter the memo. Flush-on-overflow at the pinned capacity
+    // (AST_COMPILE_MEMO_CAPACITY = 256) so the memo never grows unbounded.
+    // Policy note: a full flush, not LRU — a caller cycling more than 256
+    // distinct admitted graphs gets no hits. Accepted because the memo only
+    // serves same-digest re-renders of one document and the entry cost is
+    // paid on the miss path anyway; the memo-hit bench compiles one fixed
+    // document, so its hit rate is unaffected at any capacity.
     if kind.as_str() == "SelectStatement"
         && let Ok(mut memo) = ast_compile_memo().lock()
     {
