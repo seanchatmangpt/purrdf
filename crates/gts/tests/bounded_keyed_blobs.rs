@@ -57,7 +57,7 @@ fn blob(data: &[u8], transforms: &[&str], key: Option<[u8; 32]>) -> Vec<u8> {
                 raw: Some(data.to_vec()),
                 transform: transforms.iter().map(|name| (*name).into()).collect(),
                 encrypt: key.map(|key| Encrypt0Options {
-                    kid: "recipient".into(),
+                    kid: b"recipient".to_vec(),
                     key,
                     iv: fresh_bytes(),
                 }),
@@ -69,7 +69,7 @@ fn blob(data: &[u8], transforms: &[&str], key: Option<[u8; 32]>) -> Vec<u8> {
 }
 
 fn read(bytes: &[u8], sink: &mut Sink, key: Option<[u8; 32]>) -> StreamingReadResult {
-    let resolve = |kid: &str| if kid == "recipient" { key } else { None };
+    let resolve = |kid: &[u8]| if kid == b"recipient" { key } else { None };
     read_to_sink_with_options(
         bytes,
         ReadOptions::new(true, None).with_content_key(&resolve),
@@ -256,7 +256,7 @@ fn short_reads_preserve_exact_encoded_and_decoded_limit_boundaries() {
                 decoded_limit: Some(decoded_limit),
                 ..Sink::default()
             };
-            let resolve = |kid: &str| (kid == "recipient").then_some(key);
+            let resolve = |kid: &[u8]| (kid == b"recipient").then_some(key);
             let result = read_to_sink_from_reader(
                 ShortReads {
                     remaining: &container,
@@ -279,7 +279,7 @@ fn short_reads_preserve_exact_encoded_and_decoded_limit_boundaries() {
 fn short_read_authentication_failure_never_emits_plaintext() {
     let key = fresh_bytes();
     let container = blob(&vec![0; 65536], &[], Some(key));
-    let resolve = |_: &str| Some(wrong_key(key));
+    let resolve = |_: &[u8]| Some(wrong_key(key));
     let mut sink = Sink::default();
     let result = read_to_sink_from_reader(
         ShortReads {

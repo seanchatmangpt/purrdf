@@ -435,7 +435,7 @@ pub trait StreamingSink {
 }
 
 /// Resolves a 32-byte content key by COSE recipient `kid`.
-pub type ContentKeyResolver<'a> = dyn Fn(&str) -> Option<[u8; 32]> + 'a;
+pub type ContentKeyResolver<'a> = dyn Fn(&[u8]) -> Option<[u8; 32]> + 'a;
 
 /// Reader options for keyed/full-reader paths.
 #[derive(Clone, Copy, Default)]

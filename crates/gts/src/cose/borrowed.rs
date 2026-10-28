@@ -26,7 +26,7 @@ pub(super) fn parse(mut input: &[u8]) -> Option<Encrypt0Parts<'_>> {
         let label = read_argument(&mut input, UNSIGNED)?;
         let value = read_bytes(&mut input)?;
         match label {
-            4 if kid.is_none() => kid = std::str::from_utf8(value).ok(),
+            4 if kid.is_none() => kid = Some(value),
             5 if iv.is_none() => iv = Some(value),
             _ => {}
         }

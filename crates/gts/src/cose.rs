@@ -98,7 +98,7 @@ fn enc_structure(protected: &[u8]) -> Vec<u8> {
 /// in `vectors/encrypt0/*.json` and keeps the core crate wasm-portable. Callers
 /// that need randomized authoring generate the IV outside this crate and pass it
 /// in here.
-pub fn encrypt0_with_iv(plaintext: &[u8], kid: &str, key: &[u8; 32], iv: &[u8; 12]) -> Vec<u8> {
+pub fn encrypt0_with_iv(plaintext: &[u8], kid: &[u8], key: &[u8; 32], iv: &[u8; 12]) -> Vec<u8> {
     let protected = encrypt0_protected();
     let aad = enc_structure(&protected);
     let cipher = Aes256Gcm::new(key.into());
@@ -119,7 +119,7 @@ pub fn encrypt0_with_iv(plaintext: &[u8], kid: &str, key: &[u8; 32], iv: &[u8; 1
             Value::Map(vec![
                 (
                     Value::Integer(Integer::from(KID)),
-                    Value::Bytes(kid.as_bytes().to_vec()),
+                    Value::Bytes(kid.to_vec()),
                 ),
                 (Value::Integer(Integer::from(IV)), Value::Bytes(iv.to_vec())),
             ]),
@@ -133,13 +133,13 @@ pub fn encrypt0_with_iv(plaintext: &[u8], kid: &str, key: &[u8; 32], iv: &[u8; 1
 ///
 /// This is the portable production entry point. The caller owns nonce policy and
 /// must provide a fresh 12-byte IV for randomized encryption.
-pub fn encrypt0(plaintext: &[u8], kid: &str, key: &[u8; 32], iv: &[u8; 12]) -> Vec<u8> {
+pub fn encrypt0(plaintext: &[u8], kid: &[u8], key: &[u8; 32], iv: &[u8; 12]) -> Vec<u8> {
     encrypt0_with_iv(plaintext, kid, key, iv)
 }
 
 /// The cleartext fields of a parsed COSE_Encrypt0.
 struct Encrypt0Parts<'a> {
-    kid: Cow<'a, str>,
+    kid: Cow<'a, [u8]>,
     protected: Cow<'a, [u8]>,
     iv: Cow<'a, [u8]>,
     ciphertext: Cow<'a, [u8]>,
@@ -165,9 +165,9 @@ fn parse_encrypt0_owned(blob: &[u8]) -> Option<Encrypt0Parts<'_>> {
     let kid_target = Integer::from(KID);
     let iv_target = Integer::from(IV);
     let kid = unprotected.iter().find_map(|(k, v)| match (k, v) {
-        (Value::Integer(i), Value::Bytes(b)) if *i == kid_target => {
-            String::from_utf8(b.clone()).ok()
-        }
+        // RFC 9052 3.1: kid is a bstr — opaque bytes, never coerced through
+        // UTF-8 (a non-UTF8 kid made the whole envelope unreadable).
+        (Value::Integer(i), Value::Bytes(b)) if *i == kid_target => Some(b.clone()),
         _ => None,
     })?;
     let iv = unprotected.iter().find_map(|(k, v)| match (k, v) {
@@ -183,7 +183,7 @@ fn parse_encrypt0_owned(blob: &[u8]) -> Option<Encrypt0Parts<'_>> {
 }
 
 /// The recipient `kid` of a COSE_Encrypt0 (for key lookup), or `None`.
-pub fn recipient_kid(blob: &[u8]) -> Option<String> {
+pub fn recipient_kid(blob: &[u8]) -> Option<Vec<u8>> {
     parse_encrypt0(blob).map(|p| p.kid.into_owned())
 }
 
@@ -199,7 +199,7 @@ pub fn recipient_kid(blob: &[u8]) -> Option<String> {
 /// authentication. No unauthenticated plaintext is returned.
 pub fn decrypt0(
     blob: &[u8],
-    resolve: impl Fn(&str) -> Option<[u8; 32]>,
+    resolve: impl Fn(&[u8]) -> Option<[u8; 32]>,
 ) -> Result<Vec<u8>, Encrypt0Error> {
     decrypt0_bounded(blob, resolve, blob.len()).map_err(|error| match error {
         BoundedDecrypt0Error::Crypto(error) => error,
@@ -221,7 +221,7 @@ pub(crate) enum BoundedDecrypt0Error {
 /// decoder's buffer. The AES-GCM tag is excluded from the decoded limit.
 pub(crate) fn decrypt0_bounded(
     blob: &[u8],
-    resolve: impl Fn(&str) -> Option<[u8; 32]>,
+    resolve: impl Fn(&[u8]) -> Option<[u8; 32]>,
     limit: usize,
 ) -> Result<Vec<u8>, BoundedDecrypt0Error> {
     let parts =
@@ -231,7 +231,7 @@ pub(crate) fn decrypt0_bounded(
 
 fn decrypt_parts(
     parts: Encrypt0Parts<'_>,
-    resolve: impl Fn(&str) -> Option<[u8; 32]>,
+    resolve: impl Fn(&[u8]) -> Option<[u8; 32]>,
     limit: usize,
 ) -> Result<Vec<u8>, BoundedDecrypt0Error> {
     use BoundedDecrypt0Error::{Crypto, Limit};

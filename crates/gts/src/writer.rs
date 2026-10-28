@@ -118,7 +118,7 @@ impl Default for WriterOptions {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Encrypt0Options {
     /// Recipient key id.
-    pub kid: String,
+    pub kid: Vec<u8>,
     /// 32-byte AES-256-GCM content key.
     pub key: [u8; 32],
     /// 12-byte AES-GCM IV/nonce. Callers that need randomized encryption generate
@@ -1259,7 +1259,10 @@ impl<M: FrameMode> Writer<M> {
                 let encrypt_id = self.plain_codec_id("cose-encrypt0")?;
                 source = crate::cose::encrypt0(&source, &encrypt.kid, &encrypt.key, &encrypt.iv);
                 x_ids.push(encrypt_id);
-                recipients.push(Value::Map(vec![("kid".into(), encrypt.kid.into())]));
+                recipients.push(Value::Map(vec![(
+                    "kid".into(),
+                    Value::Bytes(encrypt.kid.clone()),
+                )]));
             }
             frame.push((
                 "x".into(),

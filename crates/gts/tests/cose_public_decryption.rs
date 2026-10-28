@@ -13,8 +13,8 @@ fn standalone_cose_decryption_authenticates_the_exact_plaintext() {
     for plaintext in [b"".as_slice(), b"an existing encrypted checkpoint"] {
         // These two fixture inputs have distinct lengths and therefore IVs.
         let iv = [u8::try_from(plaintext.len()).unwrap(); 12];
-        let blob = encrypt0(plaintext, "recipient", &key, &iv);
-        let opened = decrypt0(&blob, |kid| (kid == "recipient").then_some(key)).unwrap();
+        let blob = encrypt0(plaintext, b"recipient", &key, &iv);
+        let opened = decrypt0(&blob, |kid| (kid == b"recipient").then_some(key)).unwrap();
         assert_eq!(opened, plaintext);
         assert_eq!(decrypt0(&blob, |_| None), Err(Encrypt0Error::MissingKey));
         assert_eq!(
@@ -35,7 +35,7 @@ fn standalone_cose_decryption_authenticates_the_exact_plaintext() {
 fn standalone_decryption_opens_the_frozen_encrypt0_vector() {
     let fixture = frozen_fixture();
     let plaintext = decrypt0(&fixture.blob, |found| {
-        (found == fixture.kid).then_some(fixture.key)
+        (found == fixture.kid.as_slice()).then_some(fixture.key)
     })
     .unwrap();
     assert_eq!(plaintext, fixture.plaintext);
@@ -44,7 +44,7 @@ fn standalone_decryption_opens_the_frozen_encrypt0_vector() {
 struct Fixture {
     blob: Vec<u8>,
     key: [u8; 32],
-    kid: String,
+    kid: Vec<u8>,
     plaintext: Vec<u8>,
 }
 
@@ -55,7 +55,7 @@ fn frozen_fixture() -> Fixture {
     Fixture {
         blob: bytes("cose"),
         key: bytes("key").try_into().unwrap(),
-        kid: vector["kid"].as_str().unwrap().into(),
+        kid: vector["kid"].as_str().unwrap().as_bytes().to_vec(),
         plaintext: bytes("plaintext"),
     }
 }
@@ -106,6 +106,23 @@ fn standalone_decryption_rejects_every_truncated_envelope_before_key_lookup() {
 }
 
 #[test]
+fn a_non_utf8_kid_reaches_the_resolver_verbatim() {
+    // RFC 9052 3.1: kid is a bstr. A raw 0xff kid (invalid UTF-8) used to make
+    // the whole envelope `Malformed`; now it parses and the resolver sees the
+    // exact bytes.
+    let key = bytes("key").try_into().unwrap();
+    let iv = [0_u8; 12];
+    let blob = encrypt0(b"payload", &[0xff, 0x00, 0xfe], &key, &iv);
+    let seen = std::cell::RefCell::new(None);
+    let opened = decrypt0(&blob, |kid| {
+        *seen.borrow_mut() = Some(kid.to_vec());
+        None // unresolved: the lookup result is not what this pins
+    });
+    assert_eq!(opened, Err(Encrypt0Error::MissingKey));
+    assert_eq!(seen.borrow().as_deref(), Some(&[0xff_u8, 0x00, 0xfe][..]));
+}
+
+#[test]
 fn standalone_decryption_rejects_malformed_fields_before_key_lookup() {
     let fixture = frozen_fixture();
     let parts = envelope_parts(&fixture.blob);
@@ -129,9 +146,9 @@ fn standalone_decryption_rejects_malformed_fields_before_key_lookup() {
         set_header(&mut wrong_type, label, Value::Text("wrong type".into()));
         malformed.push(Value::Array(wrong_type.into()));
     }
-    let mut invalid_kid = parts;
-    set_header(&mut invalid_kid, 4, Value::Bytes(vec![0xff]));
-    malformed.push(Value::Array(invalid_kid.into()));
+    // NOTE: a kid of raw bytes (even 0xff...) is NOT malformed since the kid
+    // became an opaque bstr — it parses and reaches the resolver verbatim; see
+    // a_non_utf8_kid_reaches_the_resolver_verbatim below.
     for value in malformed {
         assert_eq!(
             decrypt0(&wire::encode(&value), |_| panic!(
@@ -259,11 +276,11 @@ fn standalone_decryption_passes_recipient_identity_to_the_key_resolver_verbatim(
     {
         // Distinct fixture nonces for each encryption under this key.
         let iv = [u8::try_from(index).unwrap(); 12];
-        let blob = encrypt0(plaintext, kid, &key, &iv);
+        let blob = encrypt0(plaintext, kid.as_bytes(), &key, &iv);
         let calls = std::cell::Cell::new(0);
         let opened = decrypt0(&blob, |found| {
             calls.set(calls.get() + 1);
-            assert_eq!(found, kid);
+            assert_eq!(found, kid.as_bytes());
             Some(key)
         });
         assert_eq!(opened.unwrap(), plaintext);
@@ -281,7 +298,7 @@ fn standalone_decryption_preserves_binary_plaintext_across_block_and_length_boun
     {
         let plaintext: Vec<u8> = (0..=255).cycle().take(length).collect();
         let iv = [u8::try_from(index).unwrap(); 12];
-        let blob = encrypt0(&plaintext, "binary", &key, &iv);
+        let blob = encrypt0(&plaintext, b"binary", &key, &iv);
         assert_eq!(
             decrypt0(&blob, |_| Some(key)).unwrap(),
             plaintext,

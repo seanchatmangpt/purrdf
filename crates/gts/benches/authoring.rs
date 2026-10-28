@@ -659,7 +659,7 @@ fn bench_reader_decryption(c: &mut Bench) {
             purrdf_hash::mix::lcg64_next(&mut lcg_state, purrdf_hash::mix::LCG64_MMIX_INCREMENT);
         word.copy_from_slice(&w.to_le_bytes());
     }
-    let resolve = |kid: &str| (kid == "reader-benchmark").then_some(key);
+    let resolve = |kid: &[u8]| (kid == b"reader-benchmark").then_some(key);
     let mut group = c.benchmark_group("gts_reader_decryption");
     group.sample_size(10);
     for (index, length) in [256, 65536, 1_048_576].into_iter().enumerate() {
@@ -673,7 +673,7 @@ fn bench_reader_decryption(c: &mut Bench) {
                 FrameOptions {
                     raw: Some(plaintext.clone()),
                     encrypt: Some(Encrypt0Options {
-                        kid: "reader-benchmark".into(),
+                        kid: b"reader-benchmark".to_vec(),
                         key,
                         iv,
                     }),
