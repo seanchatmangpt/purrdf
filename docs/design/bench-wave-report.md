@@ -214,6 +214,11 @@ lines). Notable deltas:
 
 | bench | variant | time | delta |
 |---|---|---|---|
+> SUPERSEDED (2026-10-27): this delta table cites the phase-3 rc=101
+> run (compile break, wrapper never exercised) in ephemeral /tmp, and
+> the phase-4b rerun itself failed compile (E0277). Do not cite; refresh
+> after the requeue lands.
+
 | construct_publication/100 | typed_staging | 554.1 µs | 1.62x over frozen (898.2 µs) |
 | construct_publication/10000 | typed_staging | 51.24 ms | 1.68x over frozen (86.31 ms) |
 | boundary_joins/after_optional | original | 58.01 ms | 3.16x slower than equiv (18.34 ms) |

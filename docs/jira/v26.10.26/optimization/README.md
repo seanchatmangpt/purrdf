@@ -72,6 +72,8 @@ No source code was modified by the inspection; tickets are engineering specs onl
 | OPT-69 | Python binding drops the provenance exit gate | — OPEN (optimization/OPT-69-python-provenance-exit-gate.md) |
 | OPT-70 | CI-required follow-ups: lock missing 3 members, bounded-gates ladder single-source, generated/ coverage, guard vs documented commands | — OPEN (optimization/OPT-70-ci-required-followups.md) |
 | OPT-71 | Error-surface deep items + wasm class parity gate | — OPEN (optimization/OPT-71-error-surface-and-wasm-class-gate.md) |
+| OPT-72 | W3C vocab-literal completion sweep (direct fixes + dep-decision items) | — OPEN (optimization/OPT-72-vocab-literals-completion.md) |
+| OPT-73 | uninlined_format_args backlog, 84 sites, deferred past the drain | — OPEN (optimization/OPT-73-clippy-format-args-backlog.md) |
 | OPT-5S | `../OPT-5s-bounded-ceiling.md` | Agent C14 | bounded wrapper + hook + corpus, ENFORCED |
 
 Note (2026-10-27): `OPT-64 and OPT-65-frozen-duckdb-endgame.md` exists on disk but has no

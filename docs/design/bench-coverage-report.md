@@ -777,9 +777,9 @@ Scope limits: numbers are this-host only and live in `/tmp/bench-logs`
     (stale-2026-07).**
 - **Python compat shim parsed Turtle/JSON-LD ~2.1-2.2x faster than real
   `rdflib`**
-  - Receipt: `docs/BENCHMARKS.md` compat section (line ~1038).
-  - Provenance: Linux, `rdflib` 7.6.0, best-of-5; the doc itself marks the
-    table an illustration, host-bound. **SAFE-TO-CITE (stale, host-bound).**
+  - Receipt: `docs/BENCHMARKS.md` compat section — that table now carries
+    STATUS: UNVERIFIED (no bench receipt). Downgraded 2026-10-27: cite as
+    illustration only, never as a receipt. **NOT SAFE-TO-CITE.**
 - **Hash kernels competitive with reference crates** (md5 / sha1 / sha3 /
   crc32 / blake3 digests, paired median ratios with ranges)
   - Receipt: `docs/benchmarks/hash-comparison-2026-09-28/README.md` plus the
