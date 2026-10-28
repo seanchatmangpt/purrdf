@@ -202,3 +202,17 @@ string.
   gts/rfc3339); gts/authoring.rs:265 declares Throughput::Elements(1)
   on a multi-frame loop (meaningless rate); sql has no benches at all.
   All sample_size values >=10 (compliant).
+
+## wave-9 last lanes (rdf-wasm, rdf-capi)
+
+- rdf-capi rowcursor: post-exhaustion `_term` reads serve the stale
+  last row instead of InvalidArgument (the "no row is current" guard
+  covers only the pre-first-_next state).
+- rdf-capi serialize.rs: the C-callback panic-abort path (extern "C"
+  ABI; ffi_try cannot intercept) is undocumented; purrdf.h uses
+  Rust-qualified names (PurrdfStatus::*) in C-facing doc comments
+  instead of PURRDF_STATUS_*.
+- rdf-wasm: cloudflare.d.ts documents none of the async job surface
+  (scoped or gap — undecided); OPT-71 residue confirmed live.
+- iri lane: outstanding (not reported); audit surface otherwise
+  complete across all 52 crates.
