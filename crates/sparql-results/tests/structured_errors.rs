@@ -167,12 +167,49 @@ fn egress_refusals_preserve_requested_form_and_full_width_counts() {
     ));
 }
 
-fn canon_arrow_refusals_visit_through_the_same_structured_error_surface() {
-    // The refusal: CanonArrow defines only SELECT frames, so ASK is refused —
-    // through the same Error visit mechanism as the CSV/TSV/XML arms above.
+fn canon_arrow_errors_visit_through_the_same_structured_error_surface() {
+    // Happy path: a canon-empty frame for the kinds the format admits, with
+    // the exit gate reporting that nothing was dropped (empty provenance).
+    // The visit surface for success is the outcome, not an error.
+    for result in [
+        SparqlResult::Boolean(true),
+        SparqlResult::Graph(RdfDatasetBuilder::new().freeze().unwrap().into()),
+    ] {
+        let mut sink: Vec<u8> = Vec::new();
+        let outcome = serialize_into(
+            &result,
+            SparqlResultsFormat::CanonArrow,
+            &ResultProvenance::default(),
+            None,
+            &mut sink,
+        )
+        .expect("CanonArrow admits ASK/GRAPH kinds as canon-empty frames");
+        assert_eq!(outcome.bytes_written, 192, "one canon-empty frame");
+        assert!(!outcome.provenance_dropped);
+        assert_eq!(sink.len(), 192);
+    }
+
+    // The real refusal: a triple term with a non-IRI predicate is malformed
+    // RDF and is rejected before any byte reaches the sink — through the same
+    // Error visit mechanism as the CSV/TSV/XML arms above.
+    let bad = TermValue::Triple {
+        s: purrdf_core::TermBox::new(TermValue::Iri("http://example.org/s".to_string())),
+        p: purrdf_core::TermBox::new(TermValue::Literal {
+            lexical_form: "not-a-predicate".to_string(),
+            datatype: "http://www.w3.org/2001/XMLSchema#string".to_string(),
+            language: None,
+            direction: None,
+        }),
+        o: purrdf_core::TermBox::new(TermValue::Iri("http://example.org/o".to_string())),
+    };
+    let result = SparqlResult::Solutions {
+        variables: vec!["s".into()],
+        rows: vec![vec![Some(bad)]],
+        aux: RdfDatasetBuilder::new().freeze().unwrap().into(),
+    };
     let mut sink: Vec<u8> = Vec::new();
     let error = serialize_into(
-        &SparqlResult::Boolean(true),
+        &result,
         SparqlResultsFormat::CanonArrow,
         &ResultProvenance::default(),
         None,
@@ -180,30 +217,9 @@ fn canon_arrow_refusals_visit_through_the_same_structured_error_surface() {
     )
     .unwrap_err();
     let fields = Capture::read(&error);
-    assert_eq!(fields.code, "sparql-results-unsupported-form");
-    assert!(matches!(fields.field("ask"), ErrorValue::Boolean(true)));
-    assert_eq!(
-        fields.child("format").code,
-        "sparql-results-format-canon-arrow"
-    );
+    assert_eq!(fields.code, "sparql-results-malformed-term");
+    assert_eq!(fields.child("cause").code, "results-predicate");
     assert!(sink.is_empty(), "the refusal must precede the first byte");
-    assert!(
-        std::error::Error::source(&error).is_none(),
-        "a kind-level refusal is structural; it carries no I/O cause"
-    );
-
-    // The neighbour: the SELECT frame the format exists for serializes through
-    // the same entry point without error.
-    let mut sink: Vec<u8> = Vec::new();
-    serialize_into(
-        &one_literal("admitted"),
-        SparqlResultsFormat::CanonArrow,
-        &ResultProvenance::default(),
-        None,
-        &mut sink,
-    )
-    .expect("CanonArrow admits a SELECT solution set");
-    assert!(!sink.is_empty());
 }
 
 struct RefusingWriter;
@@ -286,7 +302,7 @@ purrdf_testkit::harness_main!(
     semantic_tokens_and_language_tags_keep_original_values,
     namespace_refusals_keep_spelling_and_original_iri_causes,
     egress_refusals_preserve_requested_form_and_full_width_counts,
-    canon_arrow_refusals_visit_through_the_same_structured_error_surface,
+    canon_arrow_errors_visit_through_the_same_structured_error_surface,
     native_writer_causes_cross_serialization_without_formatting,
     utf8_and_xml_scalars_keep_exact_native_positions,
 );

@@ -89,6 +89,15 @@
   landed: `Implemented in purrdf::branchless::packing` (packing.rs:253-289).
   LEB128 home is landed and wired (rdf-core pack/bits per OPT-57 status note).
 
+  u128-accumulator wasm caveat: u128 is available on wasm32 but
+  emulated (compiler-rt); the kernel must treat any tail as two u64
+  windows plus a u32 tail load OR-accumulated into the same u64
+  accumulator for portable codegen. Correctness is unaffected — perf
+  note only (branchless is not in the `make wasm` allowlist today, so
+  the gate is unaffected). Landed: swar.rs:325 (slice form, const fn,
+  u128 tail-shifted accumulator) + oracle suite; unwired into
+  arrow/header.rs by layer decision (arrow stays purrdf-hash-only).
+
 ## 4. VERIFICATION INVARIANT & ACCEPTANCE CRITERIA
 - **Branchless Assertion:** `region_is_zero` constant-time, no early exit;
   `validity_run_words` returns the run length, single caller-side branch;
