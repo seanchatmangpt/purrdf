@@ -1339,3 +1339,21 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   (:190) and zero-length words stored but exact(b"") always None
   (:137-183) — CONFIRMED edge-case bugs; unvalidated sorted-offsets
   precondition noted.
+
+- mutable.rs holds_rows: REFUTED — mut_id_of is base-first and the
+  base interner is immutable, so a base-known graph value can never
+  acquire a Delta key; the claimed collision scenario cannot arise.
+  (The W10 verifier missed the id-assignment invariant.)
+- entail rules.rs: CLEAN — all 6 OWL-RL tables match the independent
+  SPEC_RL_78 transcription rule-for-rule (78 correct), 17 false-headed
+  rules verified.
+- jsonschema registry.rs: draft-07 fragment-only $id skips
+  $schema re-declaration (dialect silently ignored, :596-599);
+  non-boolean $vocabulary coerced to required=true (:362);
+  absolute_without_fragment returns the raw caller URI not the parsed
+  form (:493-497) — normalization-differing registrations both pass
+  DuplicateResource.
+- gts sign1 (sig_structure + payload framing): CLEAN for GTS
+  production; 3 interner-strictness divergences vs RFC 9052 on the
+  receive path (empty crit refused, IV+PartialIV coexistence refused,
+  kid always emitted unprotected).
