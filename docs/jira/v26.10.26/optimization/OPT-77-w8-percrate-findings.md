@@ -485,3 +485,20 @@ string.
   lower_bound_eytzinger oracle ignores sizes (untestable n/n+1 trap,
   eytzinger.rs:182); jaccard f32 double-rounding parity leans on the
   53>=2*24+2 theorem (bitset.rs:187).
+
+## wave-11 semantic additions (xsd temporal — 4 findings)
+
+- temporal.rs:1219 — leap seconds (second = 60, legal per XSD 1.1
+  Part 2) refused outright by parse_hms: `2016-12-31T23:59:60Z` can
+  never reach the comparator.
+- rfc3339.rs:508-513 — LeapSecond::MonthEnd accepts :60 on the last
+  day of ANY month (over-accepts March 31); the cited appendix allows
+  only June 30 / December 31.
+- temporal.rs:2317 vs :1781 — internal tz inconsistency:
+  cmp_timeline_admitted returns an order for mixed-tz pairs beyond
+  ±14h while instant_diff_admitted refuses the same pair — `a > b`
+  can hold while `a - b` is Indeterminate.
+- temporal.rs:1784-1791 — the ±14h indeterminacy window assumes xsd
+  bounds, but the rfc3339 parser admits ±23:59 offsets: an
+  RFC-3339-sourced instant can fall outside the assumed bound and
+  yield a WRONG determinate order.
