@@ -840,12 +840,16 @@ impl Parser<'_> {
                 .iter()
                 .take_while(|&&b| b == b' ')
                 .count();
-            // A tab in the continuation's indentation is separation, not
-            // indentation: the line cannot continue the scalar.
+            // A tab in a continuation's indentation is separation, not
+            // indentation: such a line cannot continue the scalar. One that
+            // would otherwise continue (its spaces pass the block's) is a
+            // tab-indented block, which is refused.
             let tabbed = self.bytes[self.line_start(self.pos)..self.pos].contains(&b'\t');
+            if tabbed && spaces as isize > owner {
+                return Err(self.error(ErrorKind::Tab, self.pos));
+            }
             if self.pos >= self.bytes.len()
                 || self.at_marker()
-                || tabbed
                 || spaces as isize <= owner
                 || self.at_comment()
             {

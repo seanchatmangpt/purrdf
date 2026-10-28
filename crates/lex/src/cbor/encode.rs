@@ -224,6 +224,10 @@ fn run<W: Write + ?Sized>(mut jobs: Vec<Job<'_>>, out: &mut W, canonical: bool) 
 /// The deterministic encoding of `root`, built bottom-up: each container's
 /// encoding is assembled from its children's once they are complete, so a map
 /// nested inside a map KEY is sorted without a recursive call.
+///
+/// # Errors
+///
+/// The refusal of a reserved simple value (24..=31).
 fn canonical_bottom_up(root: &Value) -> io::Result<Vec<u8>> {
     enum Step<'v> {
         Enter(&'v Value),
@@ -291,8 +295,10 @@ fn canonical_bottom_up(root: &Value) -> io::Result<Vec<u8>> {
             }
         }
     }
-    done.pop().expect("the root's encoding is assembled last")
-}/// Write `value` to `out` as-is: shortest heads, shortest exact floats,
+    Ok(done.pop().expect("the root's encoding is assembled last"))
+}
+
+/// Write `value` to `out` as-is: shortest heads, shortest exact floats,
 /// definite lengths, map entries in the order the value holds them.
 ///
 /// # Errors
@@ -347,13 +353,14 @@ pub fn canonical_into(value: &Value, out: &mut Vec<u8>) {
 ///
 /// # Errors
 ///
-/// The writer's error.
+/// The writer's error, or the refusal of a reserved simple value (24..=31)
+/// appearing as a key.
 pub fn write_canonical_map<W: Write + ?Sized>(
     entries: &[(Value, Value)],
     excluded: &[&str],
     out: &mut W,
 ) -> io::Result<()> {
-    let sorted = sorted_entries(entries, excluded);
+    let sorted = sorted_entries(entries, excluded)?;
     head::write_head(out, MAP, sorted.len() as u64)?;
     let mut jobs = Vec::with_capacity(sorted.len() * 2);
     for (key, value) in sorted.into_iter().rev() {
@@ -382,5 +389,5 @@ pub fn encoded_len(value: &Value) -> usize {
 
 #[cfg(test)]
 pub(super) fn bottom_up(value: &Value) -> Vec<u8> {
-    canonical_bottom_up(value)
+    canonical_bottom_up(value).expect("a test value is encodable")
 }
