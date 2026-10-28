@@ -348,3 +348,24 @@ string.
 - Core check chain verified sound (round-trip compare, storage
   cross-check, service×host exhaustive, negative-verdict coverage,
   consumer-side recomputation).
+
+## wave-10 semantic additions (datalog seminaive delta iteration — SUBSTANTIVE)
+
+- commit.rs:368-399 — withdrawn-row restoration re-admits at the
+  ORIGINAL index, but the next round's delta span is [round_lo,
+  row_count): a restored row can land below round_lo and is invisible
+  to both the Delta scan and OldOnly — MISSED DERIVATIONS after any
+  maintenance withdrawal mid-stratum.
+- stratum.rs:181-195 vs :103 — evidence commit resets Delta::all but
+  leaves first_round false, so zero-positive-body rules are excluded
+  from the re-seeded round their own comment says depend on it; the
+  differential oracle has the identical asymmetry (cannot catch it).
+- stratum.rs:167-171 — an empty round ends the stratum even right
+  after a Delta::all re-seed; sound only if evidence commit implies no
+  new head facts, which Capture::commit_native does not guarantee.
+- commit.rs:425 — committed_facts incremented on the re-proof path
+  (telemetry skew, not soundness).
+- seminaive.rs:4115-4178 — present_row probes with only
+  positions[0]/[2] bound; sound iff partition_for's known_key
+  partitions on predicate+graph with unique (subject,object) — needs
+  one confirming look at Arity::KEY_POSITIONS.
