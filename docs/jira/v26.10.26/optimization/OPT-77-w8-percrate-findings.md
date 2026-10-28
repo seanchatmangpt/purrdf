@@ -793,3 +793,24 @@ n3 printing.rs round-trip (5):
   only, safe direction).
 - geo hierarchy.rs:230-243 — descendant_range count shift unguarded
   (safe via validate_level cap; downstream multi-cell sums unchecked).
+
+## wave-13 additions (xpath_regex, csvw projections)
+
+- validate xpath_regex.rs:149-154 — refusal-code dispatch is
+  string-equality on the diagnostic code: a SHACL query legitimately
+  failing with a resource-coded diagnostic is misreported as a limit
+  refusal. RESOURCES (:121-130) is an 8-element hand-mirror of the
+  non_exhaustive Resource enum — new variants silently missed (the
+  test guards Limits size, not Resource exhaustiveness).
+- csvw terms.rs:1203-1210 — selector_matches uses raw
+  starts_with(prefix) with no IRI-boundary check:
+  https://example.org/vocab also selects vocabulary#x subjects.
+- terms.rs:1104-1115 — an unselected-graph reifier row is recorded
+  TWICE (GRAPH_UNSELECTED + REIFIER_DROPPED) for one source record
+  (ledger double-count candidate).
+- terms.rs:1276-1288 — language tag matched byte-exactly: a
+  non-lowercase source tag (@EN) silently reclassified
+  OBJECT_UNREPRESENTABLE.
+- terms.rs:982-989 — per-cell limit checked only on representable
+  values post-filter_map: unrepresentable-heavy cells bypass the
+  limit via the ledger.
