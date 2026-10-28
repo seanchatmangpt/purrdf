@@ -301,6 +301,64 @@ fn parse_mix(c: &mut Bench) {
 /// is printed in the report rather than inferred.
 fn fixpoint(c: &mut Bench) {
     let mut group = c.benchmark_group("n3_fixpoint");
-    // chain/256 derives ~32k facts per iteration (multi-100ms class);
-    // keep the row honest inside the 30s ceiling.
+    // chain/256 derives ~32k facts per iteration; stay inside the 30s ceiling
     group.sample_size(20);
+    for n in [64_usize, 256] {
+        let chain = chain_program(n);
+        let peer = peer_program(n);
+        let chain_closure = reason_fixture(&chain).closure.len();
+        let peer_closure = reason_fixture(&peer).closure.len();
+        for (name, program, closure) in [
+            ("chain", chain, chain_closure),
+            ("numeric_peer", peer, peer_closure),
+        ] {
+            group.throughput(Throughput::Elements(closure as u64));
+            group.bench_with_input(BenchmarkId::new(name, n), &program, |bch, program| {
+                bch.iter(|| black_box(reason_fixture(black_box(program))));
+            });
+            let _ = black_box(closure);
+        }
+    }
+    group.finish();
+}
+
+/// Proof generation + `proof_to_n3` + `check_proof` verification as one
+/// operation over the same fixpoint fixture.
+fn proof(c: &mut Bench) {
+    let mut group = c.benchmark_group("n3_proof");
+    for n in [64_usize, 256] {
+        let program = chain_program(n);
+        group.throughput(Throughput::Elements(n as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(n), &program, |bch, program| {
+            bch.iter(|| proof_fixture(black_box(program)));
+        });
+    }
+    group.finish();
+}
+
+/// `check_proof` alone, ns/op: the written proof is built once per size and
+/// the routine verifies it against the source text — `check_proof` re-parses
+/// the source, so the row costs what the public API costs. No throughput is
+/// declared; the row reads as time per verification.
+fn proof_check(c: &mut Bench) {
+    let mut group = c.benchmark_group("n3_proof_check");
+    for n in [64_usize, 256] {
+        let program = chain_program(n);
+        let proof = build_proof(&program);
+        group.bench_with_input(BenchmarkId::from_parameter(n), &proof, |bch, proof| {
+            bch.iter(|| {
+                let report = check_proof(black_box(program.as_str()), proof, "bench-reasoner")
+                    .expect("the fixture proof reads back");
+                assert!(
+                    report.valid(),
+                    "the fixture's proof verifies: {}",
+                    report.verdict()
+                );
+            });
+        });
+    }
+    group.finish();
+}
+
+bench_group!(benches, parse, parse_mix, fixpoint, proof, proof_check);
+bench_main!(benches);
