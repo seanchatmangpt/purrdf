@@ -576,7 +576,7 @@ pub fn run(
                 None => engine.query_with_options_view(&*dataset, request, options),
             }
             .map_err(|e| format!("evaluate {}: {e}", case.iri))?;
-            let ordered = query_eval_is_ordered(&query_text);
+            let ordered = query_eval_is_ordered_with_base(&query_text, &case.base);
             Ok(RunOutcome::Eval { result, ordered })
         }
         TestKind::UpdateEval => {
@@ -773,7 +773,15 @@ pub fn query_eval_env(
 /// hands the comparer.
 #[must_use]
 pub fn query_eval_is_ordered(query_text: &str) -> bool {
-    query_is_top_level_ordered(query_text, &query_eval_parser_options())
+    query_is_top_level_ordered(query_text, &query_eval_parser_options(), None)
+}
+
+/// The same probe against a specific base IRI: a relative IRI inside the
+/// query can change the parse (and thus whether an ORDER BY is at the top
+/// level), so the probe must read the query exactly as [`run`] will.
+#[must_use]
+pub fn query_eval_is_ordered_with_base(query_text: &str, base: &str) -> bool {
+    query_is_top_level_ordered(query_text, &query_eval_parser_options(), Some(base))
 }
 
 /// The extension environment an `UpdateEvaluationTest` is read against:
@@ -837,10 +845,16 @@ impl purrdf_sparql_eval::GraphResolver for OfflineLoadResolver {
 /// A parse failure (or a non-`SELECT` form) yields `false`: an unordered
 /// comparison is the conservative default, and a query the harness could not
 /// parse would already have failed evaluation before reaching the comparer.
-fn query_is_top_level_ordered(query_text: &str, options: &ParserOptions) -> bool {
-    let Ok(Query::Select { pattern, .. }) =
-        SparqlParser::new().parse_query_with(query_text, options)
-    else {
+fn query_is_top_level_ordered(
+    query_text: &str,
+    options: &ParserOptions,
+    base: Option<&str>,
+) -> bool {
+    let mut parser = SparqlParser::new();
+    if let Some(base) = base {
+        parser = parser.with_base_iri(base);
+    }
+    let Ok(Query::Select { pattern, .. }) = parser.parse_query_with(query_text, options) else {
         return false;
     };
     let mut node = &pattern;

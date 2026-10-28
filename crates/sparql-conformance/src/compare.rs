@@ -348,7 +348,7 @@ fn compare_eval(
                     EvalRef::Solutions {
                         variables, rows, ..
                     },
-                ) => compare_case_solutions(case, variables, rows, &solutions, indexed),
+                ) => compare_case_solutions(case, variables, rows, &solutions, ordered || indexed),
                 _ => Err("DAWG RDF result kind differs from the query result"
                     .to_owned()
                     .into()),
