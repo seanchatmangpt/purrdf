@@ -1117,3 +1117,9 @@ n3 printing.rs round-trip (5):
   builder.rs:3080, unasserted (one upstream reorder = silent missed
   rows). read.rs:505-511 — cardinality estimate takes size_hint on a
   FILTERED iterator (over-count when both ends bound).
+
+## wave-15 verification verdicts
+
+- CONFIRMED: text analysis.rs shattering (adversarial lane re-read
+  the fallback loop — whole-word grapheme split, Han is ALetter under
+  UAX#29 so "abc漢字def" is one word).
