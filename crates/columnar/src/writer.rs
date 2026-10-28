@@ -136,6 +136,11 @@ impl<Id: purrdf_core::ViewTermId> SourceRows<Id> {
         }
         for quad in &self.reifiers {
             resolver.resolve(quad.s)?;
+            // The reifier binding's predicate is part of the term closure: it is
+            // checked against `rdf:reifies` in `build_reifiers_table`, and a
+            // backend that violates the `reifier_quads` partition must not have
+            // its predicate term silently dropped from the dictionary.
+            resolver.resolve(quad.p)?;
             resolver.resolve(quad.o)?;
             resolve_graph(resolver, quad.g)?;
         }
@@ -523,6 +528,21 @@ fn build_reifiers_table<D: DatasetView>(
 ) -> Result<TableData, ColumnarError> {
     let mut rows = BTreeSet::new();
     for quad in &source.reifiers {
+        // `reifier_quads()` contractually yields `(reifier, rdf:reifies,
+        // triple-term)` rows; the native Reifiers table schema carries no
+        // predicate column precisely because that predicate is fixed. A row
+        // whose predicate is anything else is a backend contract violation and
+        // has no lawful projection — refuse it loudly rather than dropping the
+        // term from the dictionary and the output.
+        match resolver.get(quad.p)? {
+            TermValue::Iri(iri) if iri == purrdf_core::vocab::rdf::REIFIES => {}
+            _ => {
+                return Err(ColumnarError::projection(
+                    "reifier binding",
+                    ProjectionReason::ReifierPredicate,
+                ));
+            }
+        }
         let TermValue::Triple { s, p, o } = resolver.get(quad.o)? else {
             return Err(ColumnarError::projection(
                 "reifier binding",

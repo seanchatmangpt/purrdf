@@ -21,6 +21,8 @@ pub enum ProjectionReason {
     UnresolvedSource,
     /// A resolved value has no entry in the canonical dictionary.
     MissingTerm,
+    /// A reifier binding's predicate is not `rdf:reifies`.
+    ReifierPredicate,
     /// A reifier binding's object is not a triple term.
     ReifierObject,
 }
@@ -33,6 +35,7 @@ impl purrdf_hash::error::StructuredError for ProjectionReason {
         },
         UnresolvedSource => "columnar-projection-unresolved-source" {},
         MissingTerm => "columnar-projection-missing-term" {},
+        ReifierPredicate => "columnar-projection-reifier-predicate" {},
         ReifierObject => "columnar-projection-reifier-object" {},
     }
 }
@@ -46,6 +49,7 @@ impl fmt::Display for ProjectionReason {
             }
             Self::UnresolvedSource => output.write_str("source id was not resolved"),
             Self::MissingTerm => output.write_str("value is absent from dictionary"),
+            Self::ReifierPredicate => output.write_str("predicate is not rdf:reifies"),
             Self::ReifierObject => output.write_str("object is not a triple term"),
         }
     }

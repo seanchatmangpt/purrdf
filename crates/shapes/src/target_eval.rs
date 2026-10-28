@@ -172,6 +172,12 @@ pub(crate) fn node_expression_targets(
 ///   instances;
 /// * `sh:hasValue v` at node level — the focus node must be `v`;
 /// * `sh:in (…)` at node level — the focus node must be a member;
+///
+/// The first three are NODE-level narrowings only: on a property shape (an
+/// `sh:path`-bearing shape reached through `sh:targetWhere`'s reference
+/// resolution) `sh:class` / `sh:hasValue` / `sh:in` bind VALUE nodes, not focus
+/// nodes, so they narrow nothing and are skipped (see the `is_property_shape`
+/// guard in [`narrowing`]).
 /// * a property shape on a predicate path `p` (or its inverse) with `sh:minCount`
 ///   at least 1 and no computed value nodes (`sh:values`, `sh:defaultValue`) —
 ///   the node must be a subject (object) of `p`;
