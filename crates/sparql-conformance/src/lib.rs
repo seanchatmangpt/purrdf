@@ -21,7 +21,7 @@
 //! The crate also hosts two further, unrelated corpora, both cut from the same
 //! upstream W3C OWL 2 manifest and each grading a different reasoning lane:
 //!
-//! * [`owl2`] grades `entailment-suite/w3c-owl2/` — 261 *consistency*-shaped
+//! * [`owl2`] grades `entailment-suite/w3c-owl2/` — 262 *consistency*-shaped
 //!   cases — against PurRDF's `OWL-Direct` SHOIQ(D) tableau. It validates the DL
 //!   lane's satisfiability verdicts and says nothing about the OWL 2 RL rule
 //!   table.

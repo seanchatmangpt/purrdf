@@ -455,9 +455,10 @@ pub const LEDGER: &[LedgerEntry] = &[
     //     than smuggled into a count that says W3C's.
     //
     //     Every other entry below is a structural limit of the OWL 2 RL profile
-    //     rather than something PurRDF withholds: `RlGap::is_actionable` is now
-    //     false for all of them, and `only_missing_rules_are_actionable` pins that
-    //     the actionable set is EMPTY.
+    //     rather than something PurRDF withholds: every ledger entry's
+    //     `RlGap::is_actionable` reads false, and the replacement halves in
+    //     tests/owl2_rl_conformance.rs pin that the actionable set is EMPTY
+    //     (the old only_missing_rules_are_actionable name is retired).
     // --- NO NEGATIVE CONCLUSION EITHER. That block is CLOSED, all six of it. ---
     //     Each of the six concluded a negative fact — an `owl:differentFrom`, or
     //     membership in an anonymous `owl:complementOf` class — and each was

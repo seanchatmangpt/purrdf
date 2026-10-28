@@ -244,6 +244,11 @@ impl ClauseTerm {
     /// here, so clause constants and stored data are always compared as the same bytes —
     /// which is precisely what lets one variable bind a predicate in one atom and a
     /// subject in another.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the clause's storage is not resident — the same invariant
+    /// the fallible [`ClauseTerm::surface_in`] refuses on.
     pub fn surface(&self) -> Option<String> {
         self.surface_in(&mut purrdf_lex::allocation::Memory::new(
             &mut purrdf_lex::allocation::Resident,

@@ -71,3 +71,42 @@ passes.
 Each item closes with the named refusal/test landing; the toml error
 texts close with a round-trip test asserting the corrected `expected`
 string.
+
+## gts (wave-8 lane, appended)
+
+- README.md:84-88 vs manifests vs GTS-CONFORMANCE.md:242 — three-way
+  disagreement on the vector manifests' `generated_by` (README says a
+  never-built local generator; manifests say
+  scripts/check_vector_manifest.py; the script exists nowhere). One
+  truth needed.
+- Fuzz gap: the fuzz target exercises only reader::read;
+  read_with_options + the whole read_to_sink streaming machinery have
+  zero fuzz coverage.
+- cose.rs:171-175 — Encrypt0 kid decoded as UTF-8-only while Sign1
+  treats kid as opaque bytes (RFC 9052 says opaque); same-crate
+  contract split.
+- reader.rs:2296-2310 — dead branch with a misleading diagnostic
+  (copy-paste of the first-item branch).
+- cose.rs:89-113 — expect on AES-GCM encrypt: a panic on the
+  production encrypt0 path if the crate ever errors.
+- reader.rs:1742-1761/2256-2274 — expected_head silently unevaluated
+  for multi-segment files with allow_segments=false (docs don't state
+  the interaction).
+
+## conformance crates (appended)
+
+- owl2_rl.rs:458-460 + lib.rs:24 — stale comment (retired test name)
+  and 261-vs-262 case count: FIXED in-tree.
+- datalog: evidence.rs absense/found_path/aggregate are dead pub API;
+  ClauseTerm::surface Panics doc: FIXED in-tree; bench header counts
+  annotated.
+- envelope-probe main.rs:74-78 — a negative allocator peak is clamped
+  to 0 and PASSES the roundtrip acceptance criterion (counter defect
+  converts to quiet pass); --groups override is judged against the
+  canonical-scale ceiling; --groups 0 admitted.
+- LUBM_PROFILE.md:8 — the documented draw order omits two draws (head
+  index, ResearchGroup count); a faithful reimplementation from prose
+  yields a different stream.
+- geo-kernel: hilbert_path parity test covers levels 0..=16 while the
+  production caller uses MAX_LEVEL=30 (coverage gap at the clamp
+  boundary; branchless-side tests do cover 30).

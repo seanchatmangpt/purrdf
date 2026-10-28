@@ -15,6 +15,9 @@
 //! Each isolates a different axis of the per-solution cost, because a join's price
 //! is not one number:
 //!
+//! (The header's `three` predates the fourth group,
+//! seminaive_facts_per_second, which drives the same engines per-rate.)
+//!
 //! * `fanout` — a two-atom body over a dense middle column. The intermediate relation
 //!   is `|p| * |q| / |m|` solutions wide, so this is the fan-out the binary join
 //!   materializes and the only one of the three whose cost is dominated by the count
