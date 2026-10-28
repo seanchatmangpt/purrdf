@@ -514,6 +514,12 @@ impl<P: CorpusProfile> DictionaryMatches<P> {
         }
         let selected =
             purrdf_sparql_eval::shapes::spans::longest_first_indices(&geometries, workspace)?;
+        // longest_first_indices returns selection order (domain, length
+        // desc, ...), NOT ascending ordinal: sort before the merge walk, or
+        // every selected row whose ordinal is out of sequence is silently
+        // dropped.
+        let mut selected = selected;
+        selected.sort_unstable();
         let mut result = self;
         let mut keep = selected.into_iter().peekable();
         let mut rows = AdmittedVec::new(workspace);
