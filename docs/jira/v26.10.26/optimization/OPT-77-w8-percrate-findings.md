@@ -1306,3 +1306,13 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   row, never WHERE-bound, deletes nothing) — but fresh-mint is what
   SPARQL 1.1 prescribes for template blanks, so spec-conformant;
   the gate asymmetry at :675 (insert-only) is the factual residue.
+
+- gts segment_index reuse: CONFIRMED (invalid header leaves
+  valid_header=false, finish_into_result skips the push, next segment
+  reuses the index; no sink event distinguishes them).
+- EXISTS primitives disagreement: CONFIRMED (mechanism + reachability
+  via evidence_exec undecided rows; both primitives selected on the
+  same entry state by evidence-mode alone). Caveat: probe_evidence's
+  gate looks semi-intentional (interned.rs established_rows filters
+  undecided as non-members) — the unguarded probe_has_match boolean
+  is the side ignoring that model. No test covers the case.
