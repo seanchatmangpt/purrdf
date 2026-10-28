@@ -560,3 +560,17 @@ string.
 - Empty-ledger-to-first-insert cost model inconsistent with
   admitted's actual allocation (slight over-charge case).
 - Precedence-rank blocking and boundedness tests verified correct.
+
+## wave-12 semantic additions (turtle stream)
+
+- stream.rs:122 — base_iri validated EAGERLY for line formats whose
+  grammar ignores base (N-Triples/N-Quads/HexTuples): an invalid base
+  + valid bytes fails streaming where the buffered path parses fine
+  (lane precedence divergence vs the doc's "ignores it").
+- stream.rs:163 — the non-HexTuples arm's "incremental fold" is
+  end-of-document: parser.finish() re-serializes and re-parses the
+  whole accumulated set; failure surfaces only after full consumption
+  (framing drift, not wrong data).
+- stream.rs:299 — a per-line UTF-8 error leaves the failing bytes
+  resident with offset advanced (harmless on abort; a resume consumer
+  would double-count).
