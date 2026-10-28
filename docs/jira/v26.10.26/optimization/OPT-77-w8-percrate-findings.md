@@ -1483,3 +1483,18 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   treats Unknown as not-below: on an incomplete matrix an i⊑j edge
   can be emitted "direct" despite a derived path; Certified::direct
   gates on session completeness, not matrix-wide absence of Unknown.
+
+## wave-17 additions (aggregates clean, jsonschema unevaluated REFUTED, regime rest)
+
+- sparql-eval aggregates/HAVING: CLEAN (empty-group synthesis, SUM/AVG
+  empty-bag, distinct carriers, key cells, HAVING placement all
+  verified).
+- jsonschema UnevaluatedItems fill: REFUTED as a bug — with
+  output=true the loop continues past a failure so every remaining
+  index IS attempted before the fill; the fill can only affect
+  annotations, never turn an invalid instance valid.
+- regime.rs (beyond W12): repeated @input/@program directives silently
+  reset slots (@case refuses — asymmetric); proof_body_bytes maps all
+  non-InvalidDigit hex errors to "odd number of digits";
+  render_dl_certificate emits a fourth completeness value
+  (storage-refused) absent from the documented grammar.
