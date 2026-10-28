@@ -1598,3 +1598,5 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   carry the same filter).
 
 - shapes eval_closed AnyGraph: REFUTED — Core data graph is dataset-wide by design (data.rs:68-77: projected IR flattens all quads into default, AnyGraph ≡ DefaultGraph); sibling Core probes use the same scope.
+
+- csvw One-cardinality on filtered list: CONFIRMED (2 matching objects, 1 representable → no integrity error, row emits one value; the dropped object is only a ledger loss, no cardinality recheck downstream).
