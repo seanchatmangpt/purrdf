@@ -282,7 +282,31 @@ fn object_term(
                 direction: None,
             }))
         }
+        // A language tag with an EMPTY datatype sentinel is still a language
+        // literal: the `""` arm must check the lang field before assuming a
+        // plain literal, or `{"value":..,"datatype":"","lang":"en"}` silently
+        // drops @en and round-trips as a different term.
+        "" | XSD_STRING if !language.is_empty() => {
+            validate_language_tag(language, lineno)?;
+            Ok(ClassicTerm::Literal(RdfLiteral {
+                lexical_form: value.to_owned(),
+                datatype: None,
+                language: Some(language.to_owned()),
+                direction: None,
+            }))
+        }
         "" | XSD_STRING => Ok(ClassicTerm::Literal(RdfLiteral::simple(value.to_owned()))),
+        // rdf:langString with an empty lang field is the shape the freeze
+        // layer refuses ("a language-string datatype requires a language
+        // tag"); refuse here, where the row's line number is still in scope,
+        // instead of surfacing a position-less shape error later.
+        RDF_LANG_STRING => Err(RdfDiagnostic::error(
+            "hextuples-langstring-without-language",
+            format!(
+                "HexTuples: line {lineno}: rdf:langString requires a language \
+                 field; the empty sentinel carries no language"
+            ),
+        )),
         datatype => {
             validate_iri(datatype, base)?;
             Ok(ClassicTerm::Literal(RdfLiteral::typed(value, datatype)))
