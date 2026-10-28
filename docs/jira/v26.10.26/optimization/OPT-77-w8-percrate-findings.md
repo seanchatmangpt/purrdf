@@ -157,3 +157,14 @@ string.
   (layering inversion / drift risk).
 - ~197 hardcoded graphlaw.org/sql# literals across compiler.rs + ast.rs
   (no vocab module; extends OPT-72's class into sql's own namespace).
+
+## wave-9 additions
+
+- deflate kernels.rs <16-byte comment: FIXED in-tree (byte-loop case
+  named); bench sample-gate triplication noted, harmless.
+- jsonschema: the 2019-09 hyper-schema metaschema fixture is absent
+  (6 meta + root vs 2020-12's 9) — a 2019-09 schema pointing at it
+  fails MissingMetaschema; `MatchLimits` "shared budget" wording is
+  misleading (fresh per call).
+- sql: see prior append (memo-after-validation, triple reparse,
+  clear-on-overflow, ast/serializer inversion, graphlaw literals).
