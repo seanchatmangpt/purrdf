@@ -82,10 +82,13 @@ fn bench_chase(c: &mut Bench) {
     // wall clock instead of criterion's default 100. The 16/64 rungs stay cheap
     // either way. Report-only.
     group.sample_size(30);
-    // The 10_000 row is a scale probe, not a regression point: the
-    // subClassOf-transitivity + instance-typing rules are quadratic here, so this
-    // row materializes on the order of on the order of n^2 inferred triples (the original 10_000 row was ~10^8 and exceeded this machine's RAM; lowered to 1_000) and exists to show
-    // where the semi-naive fixpoint stops being interactive. Report-only.
+    // The 1_000 top rung is a scale probe, not a regression point: the
+    // subClassOf-transitivity + instance-typing rules are quadratic here, so a
+    // rung materializes on the order of n^2 inferred triples (the original
+    // 10_000 row was ~10^8 and exceeded this machine's RAM; the ladder was
+    // lowered to 2_000, then to 1_000 — the 2_000 rung OOMs solo, e88d78ea)
+    // and exists to show where the semi-naive fixpoint stops being
+    // interactive. Report-only.
     for &n in &[16usize, 64, 1_000] {
         let ds = hierarchy(n);
         group.bench_with_input(BenchmarkId::from_parameter(n), &ds, |bch, ds| {

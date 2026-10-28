@@ -1136,10 +1136,11 @@ def xsd_normalize_whitespace(lexical: str, datatype: str) -> str | None: ...
 
 # ── SPARQL Results serialization / parsing (bindings/python/src/py_store/results.rs) ──
 #
-# The four W3C SPARQL Results formats plus the write-only canon-arrow frame format are keyed by
-# the short id `"json"` / `"xml"`
-# / `"csv"` / `"tsv"`. Serialization is byte-deterministic; parsing supports
-# JSON and XML only (CSV/TSV have no native reader).
+# The four W3C SPARQL Results formats plus the write-only canon-arrow frame
+# format are keyed by the short id `"json"` / `"xml"` / `"csv"` / `"tsv"` /
+# `"canon-arrow"`. Serialization is byte-deterministic; parsing supports
+# JSON and XML only (CSV/TSV have no native reader; canon-arrow is
+# write-only and always drops provenance).
 
 #: A SELECT row: one cell per projected variable, `None` for an unbound binding.
 _ResultRow = list[_Term | None]
@@ -1162,6 +1163,9 @@ type SparqlResultsFormat = TypingLiteral[
     "text/csv",
     "tsv",
     "text/tab-separated-values",
+    "canon-arrow",
+    "canonarrow",
+    "application/x-purrdf-canon-arrow",
 ]
 
 def serialize_sparql_solutions(
@@ -1667,8 +1671,9 @@ class _Shapes:
         shacl_profile: str | None = None,
     ) -> None: ...
     # `xpath_regex` (here, on `validate_store`, on `PreparedShapes.validate_nt` and
-    # `validate_store_changes`, and on `shapes.validate`) selects the dated XPath law sh:pattern and every SHACL-SPARQL
-    # REGEX evaluate under — see `XPATH_REGEX_PROFILES`.
+    # `validate_store_changes`, and on `shapes.validate`) selects the dated XPath law
+    # sh:pattern and every SHACL-SPARQL REGEX evaluate under — see
+    # `XPATH_REGEX_PROFILES`.
     def validate_nt(
         self, data_nt: str, *, xpath_regex: str | None = None
     ) -> _ValidationReport: ...

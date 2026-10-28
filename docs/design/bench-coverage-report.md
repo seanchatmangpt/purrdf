@@ -534,21 +534,27 @@ its log does not show.
   40 + 4 = 44 measured / 0 failed, footers at
   `/tmp/bench-logs/purrdf.phase2.log:420,442`; register row
   (`purrdf.phase2.log`); pipeline_alloc fix: `Arc<RdfDataset>` annotation |
-| purrdf-rdf | all 9 bench files | **GREEN** — rc=0, 1903s, register row
-  (`purrdf-rdf.phase2.log`). Footer recount from the log: **122 testkit (criterion-style) benches
-  measured / 0 failed across 6 binaries** (footers at
-  `:675` flat_view_canon 10, `:708` gts_ingest 12, `:727` gts_selected_blobs
-  6, `:880` native_codecs 46, `:1058` projections 45, `:1083` turtle_chains
-  3; total 10+12+6+46+45+3 = 122). Two further binaries are alloc/report-only,
-  no criterion rows: `jsonld_alloc` (12 `[jsonld_alloc]` report lines) and
-  `stream_parse_alloc` (report-only, carries its own not-constant-memory
-  caveat in-log). The earlier "7 measured binaries" and "123" readings are
-  corrected: 6 measured binaries, 122 rows. |
-| purrdf-shapes | validate + alloc bins | **GREEN** (register row, footer
-  recount) — register rc=0, footer **36 = 2+2+2+30 measured / 0 failed**
-  (`/tmp/bench-logs/purrdf-shapes.log`). `pydantic_package` still cut off
-  mid-run in the phase-1 log — **FQ-06** re-queued for a phase-4
-  `--bench pydantic_package` run. |
+| purrdf-rdf | 8 of 9 bench files inventoried | **GREEN** — rc=0, 1903s,
+  register row (`purrdf-rdf.phase2.log`). Footer recount from the log:
+  **122 testkit (criterion-style) benches measured / 0 failed across 6
+  binaries** (footers at `:675` flat_view_canon 10, `:708` gts_ingest 12,
+  `:727` gts_selected_blobs 6, `:880` native_codecs 46, `:1058` projections
+  45, `:1083` turtle_chains 3; total = 122). Two further binaries are
+  alloc/report-only, no criterion rows: `jsonld_alloc` (12 `[jsonld_alloc]`
+  report lines) and `stream_parse_alloc` (report-only, carries its own
+  not-constant-memory caveat in-log). **Gap: `viz_layout`** (the crate's
+  9th target, `crates/rdf/benches/viz_layout.rs`) has no disposition in any
+  log — its row is MISSING, not measured and not report-only; the earlier
+  "7 measured binaries" and "123" readings are corrected: 6 measured
+  binaries, 122 rows. |
+| purrdf-shapes | 4 of 13 bench targets inventoried | **GREEN-PARTIAL**
+  (register row, footer recount) — register rc=0, footer **36 = 2+2+2+30
+  measured / 0 failed** (`/tmp/bench-logs/purrdf-shapes.log`). The footer
+  inventories 4 binaries of the crate's 13 targets; 9 targets carry no
+  stated disposition. `pydantic_package` still cut off mid-run in the
+  phase-1 log — **FQ-06** re-queued for a phase-4 `--bench
+  pydantic_package` run (phase-4b conditional tail covers it if phase-4's
+  own row is red). |
 | purrdf-columnar | codec.rs (TOUCHED) | **GREEN** — rc=0, 234s, footer
   `12 benchmarks measured; 0 failed` (`/tmp/bench-logs/
   purrdf-columnar.phase2.log` tail; register row). Sampled medians: plain
@@ -629,7 +635,8 @@ sparql-algebra 140 + sparql-results 14 + columnar 12 + lex 22 + cdt 12 +
 toml 7 + mime 3 + glob 4 + geo-kernel 109 + shex 18 + retrieval 18 +
 text 299 = **862 measured / 0 failed**, plus 12 green sparql-eval rows inside
 an otherwise-red crate run. Includes 26 geo-kernel rows measured at the
-pre-shrink batch4096 ladder (see §6.3 geo-kernel row) — the total spans two
+pre-shrink batch4096 ladder (see section 4's geo-kernel register narration
+and the wave-report FQ-02 row) — the total spans two
 ladder series and is not a single homogeneous run. Report-only rows (e.g. the hnsw build/recall
 tables, section 4) carry no measured count and are excluded.
 
@@ -767,7 +774,10 @@ rc=0 1903s, `/tmp/bench-logs/purrdf-rdf.phase2.log` (register rc=0) |
 | MIME decode throughput | `crates/mime/benches/decode.rs` (NEW) | REFRESH-PENDING |
 | Glob execute rate | `crates/glob/benches/execute.rs` (NEW) | REFRESH-PENDING |
 | Datalog seminaive, 1M facts | `crates/datalog/benches/seminaive.rs` (PRE) | REFRESH-PENDING |
-| Entail chase/classify/consistency, 10^4 | `entail/benches/` (PRE, 3 files) | REFRESH-PENDING |
+| Entail chase/classify/consistency, up to 10^4 | `entail/benches/` (PRE, 3
+  files) | REFRESH-PENDING — classify tops at 10^4; chase is now capped at
+  1_000 (the 2_000 rung OOMs solo, e88d78ea), so the blanket 10^4 applies
+  to classify/consistency only |
 | RDF-core primitives + arena | `crates/rdf-core/benches/` (PRE) | REFRESH-PENDING |
 | SHACL focus_1m refresh | `shapes/benches/` (PRE; phase-1b) | GREEN-PARTIAL
 — 30 measured / 0 failed footer on disk (`/tmp/bench-logs/purrdf-shapes.log`);
@@ -793,9 +803,11 @@ the phase-4b rerun post-612bba89 carries a green register rc |
 lib-test repair, all fixes applied) — phase-4 reruns pending; zero measured
 rows |
 | n3 | phase-2 rc=101, 185s — SIGKILL mid-run, diagnosis owner needed |
-| hnsw / text / retrieval / geo-kernel | `--locked` refusals, never started;
-phase-3 re-run in progress (FQ-02..05) — geo-kernel measuring now, others
-| hnsw / text / retrieval / geo-kernel | RESOLVED per register: geo-kernel rc=0 2220s (109/0), retrieval rc=0 455s (18/0), text rc=0 1365s (299/0); hnsw phase-3 rc=101 + phase-4 rc=124 with content-complete report tables (excluded from totals) |
+| hnsw / text / retrieval / geo-kernel | RESOLVED per register: geo-kernel
+rc=0 2220s (109/0), retrieval rc=0 455s (18/0), text rc=0 1365s (299/0);
+hnsw phase-3 rc=101 + phase-4 rc=124 with content-complete report tables
+(excluded from totals). Supersedes the earlier "never started / re-run in
+progress" row — FQ-02..05 |
 
 Note (iri / sparql-algebra / sparql-results): phase-1 rc=0 (section 1). iri and
 sparql-algebra sell as log receipts (section 6.0); sparql-results' 14 rows have

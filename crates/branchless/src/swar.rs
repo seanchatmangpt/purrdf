@@ -320,6 +320,12 @@ pub fn is_all_ascii(bytes: &[u8]) -> bool {
 /// 128-bit accumulator so tail bytes cannot alias into a false zero lane.
 /// Const so header-sized fixed regions (e.g. 24-byte reserved fields) can be
 /// checked at compile time.
+///
+/// wasm32 note: `u128` is available there but emulated (compiler-rt), so the
+/// tail path costs library calls. If this kernel ever joins a wasm-hot path,
+/// split the tail into two u64 windows plus a u32 load OR-accumulated into a
+/// u64 accumulator (the `bitset.rs` funnel-shift pattern). Correctness is
+/// unaffected either way — perf note only. See OPT-67.
 #[inline]
 #[must_use]
 pub const fn region_is_zero(bytes: &[u8]) -> bool {

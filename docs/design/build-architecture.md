@@ -16,13 +16,13 @@ appends a register row.
 
 - **5s SLA, hard kill.** Every local command runs under `scripts/bounded`
   (killed exit-124 at 5.0s wall; witnessed exit-124 at 5.024s with typed
-  `BOUNDED-TIMEOUT[5s]` diagnosis — overnight receipt §5, W1, ALIVE). The
+  `BOUNDED-TIMEOUT[5s]` diagnosis — overnight receipt §4 (wave ledger), W1, ALIVE). The
   PreToolUse hook (`.claude/hooks/bounded_build_guard.py`) classifies and
   blocks build verbs; its corpus receipts 30 fire / 15 allow with a positive
   control (W3, rc 0).
 - **CI-only gates.** `make check` / `make test` / clippy / conformance are
   CI-only (`.github/workflows/`); every Rust-executed result is UNVERIFIED
-  locally until the remote CI run receipts it (overnight receipt §5).
+  locally until the remote CI run receipts it (overnight receipt §4, wave ledger).
 - **RAM ceiling 48GB.** The host has 48GB; the fast lane's concurrency
   classes (jobs=8 compile, 4-way measurement) are chosen under this ceiling.
   A `rustc` OOM surfaces as SIGKILL — see §6.
@@ -111,7 +111,7 @@ re-fingerprints the tree under the runners — §3.2 plus fingerprint churn,
 
 - **jobs 3-4x (3→8)** — basis: parallelism under the 48GB ceiling. Receipt:
   UNVERIFIED — no register-fast row yet.
-- **warm target** — basis: warm link-class 0.11s (overnight receipt §3).
+- **warm target** — basis: warm link-class 0.11s (overnight receipt §3.1, measured precedence).
   Receipt: ALIVE class, lane-measured.
 - **sccache 70-90% hit rate** — basis: sccache's published hit-rate class.
   Receipt: UNVERIFIED; ESTIMATE, never locally measured.
@@ -120,7 +120,8 @@ re-fingerprints the tree under the runners — §3.2 plus fingerprint churn,
   UNVERIFIED wave.
 - **duckdb path patch (frozen, not source)** — basis: source DuckDB is a
   15-40 min banned class; frozen is download + ~0.11s link. Receipt: LANDED
-  (`frozen-duckdb 2.0.2`, checksum-pinned, overnight receipt §3).
+  (`frozen-duckdb 2.0.2`, checksum-pinned, overnight receipt §3.1, measured
+  precedence).
 - **shard split (7 shards vs 1 job)** — basis: the one-job form compiled
   25 min and was cancelled at timeout (`ci.yaml:306-314`). Receipt: LANDED (CI).
 
@@ -192,8 +193,11 @@ purrdf-rdf miscount came from exactly this class — cross-file mixing, not
 arithmetic).
 
 - **`register.txt`** (serial lane, phase runners) — one row per phase-runner
-  execution: `CRATE rc=R Ns=S log=PATH`. Receipts:
-  `docs/design/bench-coverage-report.md` §1d (rows re-read verbatim).
+  execution: `CRATE rc=R S s [cap=C] [note] log=PATH` (bare seconds, not
+  `Ns=S`; some rc=0 rows carry a parenthesized `(footer N benchmarks
+  measured; 0 failed)` field instead of seconds). Receipts:
+  `docs/design/bench-coverage-report.md` §1d (rows summarized into a
+  markdown table, not copied verbatim).
 - **`register-fast.txt`** (fast lane, `scripts/run_benches_fast.py`) — one
   row per bench attempt, `CRATE BENCH=NAME rc=R SECS=S log=PATH`, appended
   under flock in a single `O_APPEND` write; `--resume` skips a crate only
@@ -240,17 +244,28 @@ Two member shapes:
   print, they are receipts for behavior (alloc shape, recall at a build
   config), never for a count of greens.
 - **Capacity-probe rungs.** The geo-kernel geodesic / transforms / covers
-  benches gated behind `GEO_*_LARGE` environment gates, default OFF, checked
-  strict (`=="1"`). With the gate unset they exit early; with the gate set
-  they run their probe rungs (`batch4096`, `radius-400000`), which exist to
-  answer "does this fit in capacity at all", not to produce a comparable
-  measurement. Explicit run:
+  benches gated behind `GEO_GEODESIC_LARGE_BATCH` /
+  `GEO_TRANSFORMS_LARGE_BATCH` / `GEO_COVERS_LARGE_RADIUS` environment
+  gates, default OFF, checked strict (`=="1"`). With the gate unset they
+  exit early; with the gate set they run their probe rungs (`batch4096`,
+  `radius-400000`), which exist to answer "does this fit in capacity at
+  all", not to produce a comparable measurement. Explicit run:
 
   ```sh
-  GEO_GEODESIC_LARGE=1 cargo bench -p purrdf-geo-kernel -- geodesic
-  GEO_TRANSFORMS_LARGE=1 cargo bench -p purrdf-geo-kernel -- transforms
-  GEO_COVERS_LARGE=1 cargo bench -p purrdf-geo-kernel -- covers
+  GEO_GEODESIC_LARGE_BATCH=1 cargo bench -p purrdf-geo-kernel -- geodesic
+  GEO_TRANSFORMS_LARGE_BATCH=1 cargo bench -p purrdf-geo-kernel -- transforms
+  GEO_COVERS_LARGE_RADIUS=1 cargo bench -p purrdf-geo-kernel -- covers
   ```
+
+  The hnsw scale knob is the narrowing counterpart:
+  `PURRDF_HNSW_BENCH_SCALES` replaces the default ladder with a subset of
+  the declared rungs (5k/50k/200k/1M rows × 4096 dims) — it can only take
+  rungs away, never add them; a non-ladder value hard-fails
+  (`crates/hnsw/tests/support/corpus.rs:156-185`,
+  `crates/hnsw/README.md` §scales). Note: the geo-kernel `cells.rs`
+  `assignment_batch` ladder still reaches batch4096 unconditionally —
+  measured green in-phase (cheap grid assignment, unlike the projection
+  math the gates protect), but it is the one ungated 4096 rung left.
 
 **Exclusion-from-totals rule.** Tier members are never counted: not in the
 serial register totals, not in fast-lane totals, not in any documented sum.

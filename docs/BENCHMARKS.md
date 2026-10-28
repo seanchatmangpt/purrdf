@@ -53,7 +53,9 @@ SPDX-License-Identifier: CC-BY-4.0
 >   opt-in capacity probe via env). Rows measured at batch4096 are not
 >   comparable to current-ladder rows — cite them with this provenance.
 >
-> **TERMINAL GREEN (footer confirmations closed 2026-10-27)**:
+> **TERMINAL GREEN (footer confirmations closed 2026-10-27)** - the rc=0
+> rows only. The hnsw/core bullets below are REPORT-ONLY PARTIALS
+> (rc=124 cap): tables complete, zero measured-count standing.
 >
 > - `purrdf-toml` — register rc=0, 391s, 7 measured / 0 failed
 >   (`/tmp/bench-logs/purrdf-toml.phase2.log`).
@@ -238,7 +240,7 @@ under `make bench` like any other target and are simply not narrated here:
   (`materialize(ds, Regime::Rdfs)` end to end, so the declared clause program and
   `purrdf-datalog`'s semi-naive fixpoint are both inside the timed loop).
 - `crates/entail/benches/classify.rs` — OWL-Direct classification latency over
-  a synthetic `EL` terminology at three signature sizes, since classification
+  a synthetic `EL` terminology at four signature sizes, since classification
   cost is superlinear in the signature rather than in the axiom count.
 - `crates/gts/benches/authoring.rs` — GTS container authoring.
 - `crates/rdf-wasm/benches/query_engine_reuse.rs` — package-root
@@ -547,7 +549,7 @@ target whether or not it has a row here.
 | `crates/shapes/benches/shacl_product_alloc.rs` | Allocation calls, requested bytes, retained-byte deltas, and live-byte high-water deltas for those same prepared-shapes-product phases, plus the encoded artifact's byte length. |
 | `crates/shapes/benches/shared_views.rs` | Native/shared view validation and named-graph view construction; matched compatibility/complete Core and SELECT cold binding and warm reporting over 128 focus nodes, with product restoration outside cold-bind timing. |
 | `crates/entail/benches/chase.rs` | RDFS materialization scaling on subclass chains, measured through the whole `materialize` path: clause-program lowering plus `purrdf-datalog`'s semi-naive fixpoint. |
-| `crates/entail/benches/classify.rs` | OWL-Direct classification latency over a synthetic `EL` terminology at three signature sizes; classification cost is superlinear in the signature rather than the axiom count. |
+| `crates/entail/benches/classify.rs` | OWL-Direct classification latency over a synthetic `EL` terminology at four signature sizes; classification cost is superlinear in the signature rather than the axiom count. |
 | `crates/gts/benches/authoring.rs` | GTS container authoring: append, hash, and CBOR-log construction throughput. |
 | `crates/rdf-wasm/benches/query_engine_reuse.rs` | Binding-level SELECT overhead for reused package-root `QueryEngine` instances vs. fresh construction. |
 | `crates/iri/benches/parse.rs` | `purrdf_iri::parse` component validation across scheme, authority, path, query, and fragment classes. |
@@ -1843,7 +1845,7 @@ One line per suite: what it measures, and the sellable claim it backs.
 - **duckdb `sql_rdf_e2e`** (`crates/duckdb/benches/sql_rdf_e2e.rs`) — the
   full compile-turtle → five-table Parquet views → SQL → RDF triple
   projection path, per-triple throughput. Sells: SQL-in-RDF end to end is
-  measured, not inferred from raw-SQL rows.
+  measured, not inferred from raw-SQL rows. STATUS: UNVERIFIED - no measured row exists yet (register rc=101; phase-4b rerun queued); do not cite numbers for this bench until its register row lands.
 - **duckdb `sieve_bench` narration fix** (`crates/duckdb/benches/sieve_bench.rs`) —
   doc-level fix: the suite header now says it measures raw SQL on in-memory
   DuckDB tables, not the SQL-in-RDF pipeline. Sells: no reader mistakes a
@@ -1866,12 +1868,12 @@ One line per suite: what it measures, and the sellable claim it backs.
   five groups: Eytzinger vs. binary search over 64k keys, sorting networks
   (sort8, Batcher 16) vs. `std` sort, wyhash-64, SWAR delimiter find, and
   Morton 2D encode. Sells: the constant-time kernels are timed against their
-  branchy `std` counterparts, not asserted.
+  branchy `std` counterparts, not asserted. STATUS: UNVERIFIED - no measured row exists yet (register rc=101; phase-4b rerun queued); do not cite numbers for this bench until its register row lands.
 - **n3 numeric-heavy + fixpoint** (`crates/n3/benches/reasoner.rs`) —
   numeric-literal-heavy parse rows (GB/s over digit-run input), a
   prose-heavy contrast row, fixpoint over closure iterations, plus proof and
   proof-check rows. Sells: the lexer's digit-run fast path is measured end to
-  end and the fixpoint rate is in elements/s, not wall clock.
+  end and the fixpoint rate is in elements/s, not wall clock. STATUS: UNVERIFIED - no measured row exists yet (register rc=101; phase-4b rerun queued); do not cite numbers for this bench until its register row lands.
 - **lex JSON/YAML/CBOR/Unicode GB/s** (`crates/lex/benches/scan.rs`) —
   scanner rows over JSON/YAML/CBOR fixtures and Unicode normalization runs,
   each with `Throughput::Bytes` (GB/s), plus JSON escape and reader rows.
@@ -1880,7 +1882,9 @@ One line per suite: what it measures, and the sellable claim it backs.
 - **hash fnv/splitmix/multiset/frame** (`crates/hash-conformance/benches/digests.rs`) —
   BLAKE3 (three sizes, backends), FNV-1a-64, splitmix64, multiset hashing,
   frame hashing, and hex encode/decode rows. Sells: the hash layer's cost per
-  kernel is on the same harness as the codecs, at 64B/1KiB/1MiB sizes.
+  kernel is on the same harness as the codecs, at 64B/1KiB/1MiB sizes. STATUS:
+  UNVERIFIED - no register row exists (crate was missing from early runner
+  queues; in flight phase-4); do not cite numbers until its row lands.
 - **cdt `parse_render`** (`crates/cdt/benches/parse_render.rs`) — list and
   map canonical datatype literals at 128/2k/32k entries, scan and render with
   lexical-length throughput. Sells: structured-literal parse/render scales
@@ -1898,14 +1902,16 @@ One line per suite: what it measures, and the sellable claim it backs.
 - **datalog `facts_per_second` 1M** (`crates/datalog/benches/seminaive.rs`) —
   `derive_1m_facts`: ~10^6-fact EDB, ~10^6 derived facts at fixpoint,
   elements/s. Sells: the semi-naive engine's derive rate at the million-fact
-  scale the name claims, not a smaller proxy.
+  scale the name claims, not a smaller proxy. STATUS: UNVERIFIED - no measured row exists yet (register rc=101; phase-4b rerun queued); do not cite numbers for this bench until its register row lands.
 - **entail 10^4 rows** (`crates/entail/benches/chase.rs`,
   `classify.rs`, `consistency.rs`) — chase over 2,000 triples (measured at
   the 2,000-node chain before the ladder shrank; the current default chase
   chain ladder is 16/64/1,000 — the 2,000 rung OOMs solo, e88d78ea), ontology
   classification at 10,000 classes, consistency at the widened case-split
   ladder. Sells: the reasoner stays measured (report-only) at the scale
-  where saturation stops being interactive.
+  where saturation stops being interactive. STATUS: UNVERIFIED - register
+  rc=101 both phases (chase ladder OOMs); phase-4b rerun queued; do not
+  cite numbers until its register row lands.
 - **rdf-core `primitives_table` + arena**
   (`crates/rdf-core/benches/primitives_table.rs`,
   `intern_absoluteness.rs`) — ns/op rows for the SWAR delimiter, branchless

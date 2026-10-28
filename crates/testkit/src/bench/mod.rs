@@ -511,9 +511,12 @@ impl Bench {
     ///
     /// # Contract
     ///
-    /// No benchmark this run measures may run longer than [`MAX_BENCH_WALL`]
-    /// (30 s) of wall clock, whatever `warm_up_time` and `measurement_time`
-    /// ask for — those shape the run inside the ceiling, the ceiling wins.
+    /// Whatever `warm_up_time` and `measurement_time` ask for, the ceiling
+    /// shapes the run: sampling stops once the budget is spent (or a
+    /// projected sample would overrun it), so overshoot past
+    /// [`MAX_BENCH_WALL`] (30 s) is bounded by one sample's duration, not
+    /// by the requested budgets — the ceiling wins, but it is checked
+    /// between samples, never preempts a running one.
     #[must_use]
     pub fn wall_max(mut self, duration: Duration) -> Self {
         assert!(!duration.is_zero(), "the wall-clock ceiling must be longer than zero");

@@ -1,5 +1,12 @@
 # [OPT-42] Branchless Migration Handoff — Session Restart Continuation
 
+> STATUS (2026-10-27): SUPERSEDED as the authoritative remaining-work
+> list. Most of section 3 has landed via the OPT-43..68 ticket series
+> (`docs/jira/v26.10.26/optimization/`); the five specialist agent files
+> exist in `.claude/agents/`; region_is_zero landed (OPT-67,
+> swar.rs:325). Read the optimization/ tickets for live scope. This file
+> is a session-restart record, not a live queue.
+
 ## 1. TARGET CONTEXT
 - **Crate & File:** `crates/branchless/` (18 modules), `docs/jira/v26.10.26/optimization/` (41 tickets + README)
 - **Subsystem:** All

@@ -28,7 +28,7 @@ mixed targets on WASM or extend them with ordinary native tests.
 
 Never dispatch the built-in generic agents (`general-purpose`, `claude`) — the
 `ban_generic_agents` PreToolUse hook refuses them. Use read-only Explore/Plan;
-specialist agents live in `.claude/agents/` (none defined yet). Subagent
+specialist agents live in `.claude/agents/` (five defined). Subagent
 prompts always carry the absolute repo path (`/Users/sac/purrdf`) and disjoint
 lane file-ownership when fanning out. Enforced: `.claude/settings.json`.
 
