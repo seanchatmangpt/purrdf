@@ -221,7 +221,9 @@ impl Walker {
     /// will find them.
     fn line(&mut self, text: &str, start: usize, end: usize) {
         let line = &text[start..end];
-        if !trim_leading(without_line_ending(line)).starts_with('|') {
+        let is_row =
+            after_indent(without_line_ending(line)).is_some_and(|rest| rest.starts_with('|'));
+        if !is_row {
             // A table ended, so the next one starts its rows afresh.
             self.table_header_is_previous = false;
         }
@@ -241,7 +243,7 @@ impl Walker {
             self.open_section(start, end, level, name, true);
         } else if is_blank_line(line) || is_rule(line) {
             self.close_unit();
-        } else if trim_leading(without_line_ending(line)).starts_with('|') {
+        } else if is_row {
             self.close_unit();
             self.table_row(line, start, end);
         } else if let Some(number) = verse_number(line) {
@@ -1021,5 +1023,61 @@ mod tests {
             None,
             "U+00A0 is not a digit"
         );
+    }
+
+    /// A lone-CR document ends every line the way its LF twin does, so it
+    /// slices into the same line spans and the same units.
+    #[test]
+    fn a_cr_only_document_reads_as_its_lf_twin() {
+        let lf = "# T\n1. first\nsecond\n2. third\n";
+        let cr = "# T\r1. first\rsecond\r2. third\r";
+        assert_eq!(lines(cr), lines(lf), "CR alone is a line ending");
+        let unit = |r: &Reading| {
+            r.units
+                .iter()
+                .map(|u| (u.start, u.end, u.verse))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(unit(&read(cr)), unit(&read(lf)));
+    }
+
+    /// Four or more spaces of indent is ordinary content: the line opens
+    /// no row, so it lifts no citation out of the concordance table.
+    #[test]
+    fn an_indented_row_past_the_marker_indent_lifts_no_citation() {
+        let reading = read(concat!(
+            "## Concordance\n",
+            "| Verses | Canon source | Anchors |\n",
+            "|---|---|---|\n",
+            "    | 2\u{2013}5 | `x.ttl` | `y.ttl` |\n"
+        ));
+        assert!(
+            reading.rows.is_empty(),
+            "an indented code row is no citation"
+        );
+    }
+
+    /// A blank line ends a table's row run, so a malformed row arriving
+    /// after one is a reported defect and never a silent frame.
+    #[test]
+    fn a_blank_line_inside_a_table_makes_a_later_bad_row_a_defect() {
+        let reading = read(concat!(
+            "## Concordance\n",
+            "| Verses | Canon source | Anchors |\n",
+            "|---|---|---|\n",
+            "| 1\u{2013}2 | `a.ttl` | `b.ttl` |\n",
+            "\n",
+            "| oops |\n"
+        ));
+        assert_eq!(reading.rows.len(), 1);
+        assert_eq!(reading.defective_rows.len(), 1, "the row after the blank");
+    }
+
+    /// `*a_` is not a matched emphasis pair, so the asterisk is the
+    /// movement name's own content and stays.
+    #[test]
+    fn a_movement_name_keeps_an_unmatched_asterisk() {
+        assert_eq!(movement("\u{2042} *a_"), Some("*a_".to_owned()));
+        assert_eq!(movement("\u{2042} *a*"), Some("a".to_owned()));
     }
 }
