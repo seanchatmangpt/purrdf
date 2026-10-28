@@ -32,6 +32,12 @@
 //! | [`xsd`] | [`purrdf_xsd`] |
 //! | [`iri`] | [`purrdf_iri`] |
 //! | [`events`] | [`purrdf_events`] |
+//! | [`sql`] | [`purrdf_sql`] |
+//! | [`duckdb`] | [`purrdf_duckdb`] |
+//! | [`arrow`] | [`purrdf_arrow`] |
+//! | [`branchless`] | [`purrdf_branchless`] |
+//! | [`mime`] | [`purrdf_mime`] |
+//! | [`toml`] | [`purrdf_toml`] |
 //!
 //! Consumer-config types are surfaced at the root ([`SliceVocab`],
 //! [`Namespaces`], [`StatementMetadataVocab`]) and unified behind a single

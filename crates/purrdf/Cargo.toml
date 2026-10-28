@@ -120,6 +120,8 @@ purrdf-hash = { workspace = true }
 # lookup, timed in isolation. Report-only: the deterministic counterparts are
 # asserted in `tests/multimodal_exclusion_lookup.rs` and in
 # `purrdf-retrieval`'s `tests/text_exclusion_lookup.rs`.
+# (This comment describes the `multimodal_on_demand_read` BENCH below;
+# the `reasoning_inspection` TEST that follows is unrelated.)
 [[test]]
 name = "reasoning_inspection"
 harness = false
