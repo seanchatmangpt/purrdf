@@ -1205,3 +1205,32 @@ n3 printing.rs round-trip (5):
   resolution; both plan-time and VM paths drop FILTER("x"@en) rows.
   Confirmed against SPARQL 1.1 §17.2.2 (Jena/Virtuoso give true).
 - V2 EXISTS-disagreement verification: 429 rate-limit, not yet run.
+
+## wave-15 additions (text index delta, n3 reasoner backward chaining)
+
+text delta.rs:
+- :152 vs :186-194 — dataset_holds_statements computed from
+  whole-source count on the incremental path but selected-predicate
+  sum on the fallback (coverage bit path-dependent).
+- :166-191 — resolve(None) skips the loop silently: a non-empty
+  source records as empty; surfaces later as misleading
+  SourceMismatch blaming the caller.
+- :455-461 — a delta listing the same row in added AND removed is
+  accepted as a fingerprint-equal no-op (contradiction silently
+  laundered).
+- :74-79 — fingerprint-equal early return advances coverage/version
+  but keeps the stale source_digest (permanent drift on collision).
+
+n3 reasoner.rs (backward chaining — SERIOUS):
+- :3254-3260 — log:notEqualTo definitively-false guard uses resolve,
+  not resolve_pattern: a compound with unresolved inner vars compares
+  two identical unresolved lists → branch killed, valid solutions
+  lost.
+- :3588-3590 + :5596-5701 — the backward cycle guard shares its
+  stack with negation-as-failure: a cycle-cut proof reads as "no
+  derivation" → UNSOUND notIncludes success under recursion.
+- :3655-3674 — the unsound empty set is then MEMOIZED in
+  completed_backward_goals and replayed for every later caller
+  (permanently poisoned answers).
+- :3274-3284 — list:notMember definitive-failure evaluates eagerly
+  on a stale partial list, contradicting the delay discipline.
