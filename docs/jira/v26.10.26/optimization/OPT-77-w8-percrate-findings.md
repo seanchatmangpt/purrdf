@@ -878,3 +878,19 @@ n3 printing.rs round-trip (5):
   only).
 - Three-valued logic, XPath substring window, NaN compare,
   lang_matches all verified correct.
+
+## wave-13 additions (retrieval fusion_stream)
+
+- :3849 — observe_exclusions re-checks is_final/may_still_name at ask
+  time but not the U(x) > T budget condition: a candidate whose
+  ceiling dropped to/below threshold still gets pending-stream
+  lookups (contradicts the never-looked-up claim at :3843).
+- :3379/:3449 — count_collision and last_contribution advance on
+  declared-duplicate rows that fetch then DISCARDS: duplicate rows
+  inflate collisions_observed vs the doc's adjacent-emitted-rank
+  definition.
+- :4394 — the indexed ceiling uses >= not >: an unfinished rival with
+  U exactly equal to the best final score blocks emission permanently
+  under a zero plateau (flag in case equality was meant to be >).
+- Rank-contribution ordering, threshold block sums, probe ordering,
+  tie-break agreement, ceiling bounds all verified clean.
