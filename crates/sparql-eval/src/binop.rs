@@ -4292,8 +4292,7 @@ mod tests {
             rows: builder.finish().expect("resident row bag"),
         };
         let rows = &inner.rows;
-        let (keyed, wild) =
-            build_index(&inner, &shared, &workspace).expect("resident index");
+        let (keyed, wild) = build_index(&inner, &shared, &workspace).expect("resident index");
 
         // Bound probe x=2: the keyed bucket row carries undecided evidence —
         // the boolean shortcut must agree with `probe_evidence`'s
@@ -4327,8 +4326,7 @@ mod tests {
             rows: solo.finish().expect("resident row bag"),
         };
         let rows2 = &inner2.rows;
-        let (k2, w2) =
-            build_index(&inner2, &shared, &workspace).expect("resident index");
+        let (k2, w2) = build_index(&inner2, &shared, &workspace).expect("resident index");
         assert!(
             !probe_has_match(&[t(2), None], &shared, &k2, &w2, rows2, &workspace)
                 .expect("resident probe"),
