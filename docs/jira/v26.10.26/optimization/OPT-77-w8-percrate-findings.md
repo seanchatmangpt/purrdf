@@ -1749,3 +1749,21 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   passes, recursive path gated identically.
 - F2 EXISTS alignment: landed with regression test
   (probe_has_match_treats_undecided_evidence_rows_as_non_members).
+
+## wave-19 repair verification + bench-prep findings
+
+- n3 lexer: PARTIAL — keyword-position fix landed (exact token match);
+  dot-break/backslash/colon-split still open (B6).
+- yaml reader fixes (F12): CORRECT — all four verified against
+  neighbors (:721/:1716/:2300/:840).
+- csvw One-cardinality: CONFIRMED + fix shape (B9) — check raw matches
+  pre-filter, loss entries for cell_value Nones (terms.rs:983-1004).
+- duckdb eval.rs projection (B19, extends OPT-76): Timestamp lexical
+  form "N (Microsecond)" invalid xsd:dateTime (:342); f32/f64 Rust
+  "inf"/"NaN" invalid xsd lexical (:315-330); Blob/Decimal/Date/etc.
+  silently dropped (:348); NULL = triple omission (:266).
+- n3 proof_writer (B15): used_prefixes never scans generated-rule
+  terms (:819-846 — unparseable N3); premise resolution picks FIRST
+  differing derivation not the used one (:327-334); RuleNumbering
+  (label,line) collision (:536-560); unsubstituted Vars in emitted
+  bindings (:463-507).

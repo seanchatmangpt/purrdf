@@ -309,8 +309,24 @@ fn fixpoint(c: &mut Bench) {
     for n in if large { [64_usize, 256] } else { [64_usize, 128] } {
         let chain = chain_program(n);
         let peer = peer_program(n);
-        let chain_closure = reason_fixture(&chain).closure.len();
-        let peer_closure = reason_fixture(&peer).closure.len();
+        // Analytic closure sizes, computed without running the reasoner: a
+        // fixture-build-time `reason_fixture(..).closure.len()` here
+        // materializes the full closure twice per size purely to count it,
+        // which OOM-killed the 48 GB box (SIGKILL during fixture
+        // construction, OPT-74). `closure` holds explicit plus derived facts
+        // (reasoner.rs:1223), so the counts are exact by the fixture
+        // construction itself:
+        //
+        // * chain — the program writes `2n` explicit `p` facts (the path in
+        //   both directions); the two rules close `anc` to every ordered pair
+        //   of the `n + 1` path nodes except the reflexive ones (the path has
+        //   no cycle, so `?s anc ?s` is never derivable): `n * (n + 1)`
+        //   derived, `n * n + 3 * n` total.
+        // * numeric_peer — `2n` explicit `val` facts, `n` values with two
+        //   holders each; the one join rule derives both self- and cross-
+        //   pairings, `4` per value: `4 * n` derived, `6 * n` total.
+        let chain_closure = n * n + 3 * n;
+        let peer_closure = 6 * n;
         for (name, program, closure) in [
             ("chain", chain, chain_closure),
             ("numeric_peer", peer, peer_closure),
