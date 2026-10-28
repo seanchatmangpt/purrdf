@@ -2450,3 +2450,67 @@ reader fixes, from_turtle RdfTerm extension, python __len__ fix.
   canon.rs expect/unreachable! pair breaks the promised ValueError
   contract.
 
+---
+
+## wave-28 status (2026-10-28, apply wave)
+
+### Fixed (in-tree, UNVERIFIED)
+
+- entail classify: union-find representatives (min-root union) +
+  ClaimBasis::SaturatedIncomplete (tag 8; all match/encode/decode/trust
+  sites updated) + the derives-branch basis gate. The plan's corrections
+  from the verify lane applied (new current.rs site covered by wildcard).
+- shapes report: the_report_node() single-node law; conforms_from_dataset
+  -> Result; tuples_from_dataset refuses absent severity (kept
+  Severity::Other preservation — the verify lane's ok_or_else would have
+  ALSO dropped Other, beyond the stated finding; change withheld).
+  Callers: conforms_from_ntriples, tuples_from_ntriples, in-file tests,
+  recursive_fixed_points.rs.
+- shapes components: severity_of_node() at both free-fn sites (validator
+  + component), mirroring Parser::severity_of.
+- CI: scripts/bounded-tier.sh landed; bounded-gates.yml's 4 inline
+  bounded() bodies deleted, 7 call lines rewired (byte-identical receipt
+  format; python-verified 4-body match + 7-line rewrite). gate-parity
+  table extension still queued.
+- python: QuerySolutions.__len__ = remaining (len - pos).
+- layers.toml: purrdf-core external = [] — structural PyO3 ring-fence via
+  check-layers --ring-fence (optional deps included). Makefile cargo-tree
+  grep deletion queued.
+
+### Verified plans banked, not yet applied (exact diffs in lane receipts)
+
+- COSE Encrypt0 kid -> bytes: full 25-site diff list verified against the
+  tree (incl. writer Encrypt0Options.kid decision + recipient map Value
+  ::Bytes). One API decision recorded: kid stays String vs Vec<u8> —
+  plan recommends Vec<u8> (RFC 9052 bstr both sides).
+- hnsw RankedSearchRefusal seams: verified; narrow version recommended
+  (Scan fn-pointer keeps work: 0; widening Scan is optional).
+- duckdb B19: verified with corrections (Date32 -> Option; new error
+  variant needs source()-arm note; unsigned family typed as
+  unsignedByte/Short/Int/Long). ~160-line diff ready.
+- agent_memory B18: verified (EmptySuccessor + revise trim-guard as ONE
+  edit at :539; known_iri cross-segment union; ID_SCHEME v1 + frozen hex
+  regen).
+- sql from_turtle RdfTerm extension: verified (4 sites; direction type
+  path purrdf_core::RdfTextDirection; data stops at RdfTerm — future-
+  consumer preservation only).
+- probe_evidence mirror test: already in-tree in corrected form (landed
+  by an earlier wave) — CLOSED, no edit.
+- OPT-72 completion map: sql compiler.rs XSD swaps need purrdf-xsd dep
+  (dep-decision); agent_memory XSD consts swappable (DATE_TIME spelling);
+  RDF consts dep-decision; 102/71/63/47 remaining hits in
+  sparql-eval/shapes/rdf/rdf-core = per-crate follow-up lanes.
+
+### Verdicts
+
+- doc sync: sales-benchmarks.md vs receipts — ZERO drift through waves
+  21-27; both red markers intact.
+- book getting-started: all commands check out (0 wrong commands).
+- columnar schema/compact/projection sweep: CLEAN (triple-layer identity
+  enforcement; compact bounds sound; projection round-trip consistent).
+- cdt sweep: 1 defect — "a"^^rdf:langString accepted as a plain typed
+  literal (parse.rs:722-731) violating CdtLiteral's documented invariants;
+  fix = refuse langString/dirLangString in the ^^ branch + CdtLiteral::
+  typed. Banked.
+- csvw/gts test-writing lanes died on rate limits — requeued.
+
