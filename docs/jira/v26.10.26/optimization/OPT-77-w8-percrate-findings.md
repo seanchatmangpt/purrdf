@@ -3100,3 +3100,15 @@ direction).
 - FILED: sparql-conformance trio + serviceData grading bypass;
   conformance-kit scoreboard closure (4 findings).
 
+### wave-37 addendum
+
+- LANDED: sparql-conformance REDUCED-cardinality order fix (the third
+  PASS-silencing seam of the trio). Items 1-2 (base-threaded ordered
+  probe at run.rs:840; ResultSetRdf ordered||indexed at compare.rs:343)
+  have verified shapes from the lane, not yet applied.
+- CONFORMANCE-KIT fix plan banked verbatim (scoreboard unfinished count
+  byte-identical at zero; case_closure against the declared count;
+  inventory check_case_closure hoisted out of the review-gated path;
+  three tests drafted). Not yet applied — the kit's Report struct needs
+  an owners-field read the lane sketched but the writer must verify.
+
