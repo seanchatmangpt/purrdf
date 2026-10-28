@@ -20,7 +20,9 @@
 //! * **`rss_delta_kb`** — the change in the process resident set
 //!   (`/proc/self/statm`), which DOES include memory-mapped pages the allocator
 //!   never sees, and which is read here because it is an OS figure no allocator
-//!   ledger can supply.
+//!   ledger can supply. On non-Linux hosts `resident_kib` is Linux-only
+//!   and returns a constant 0, so `rss_delta_kb=0` rows are platform
+//!   absences, not measurements.
 //!
 //! The two together tell the real story: one parse into the interned store has
 //! a large *allocated* peak, while the serialized answer's peak is the writer's
