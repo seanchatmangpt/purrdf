@@ -393,7 +393,7 @@ fn assert_language_refusal(
             None,
         )
         .unwrap();
-        purrdf_shex::resolve_imports(root, &|_| parse_shexj(&json, None)).unwrap_err()
+        purrdf_shex::resolve_imports(root, None, &|_| parse_shexj(&json, None)).unwrap_err()
     });
     drop(json);
     let error = original.clone();

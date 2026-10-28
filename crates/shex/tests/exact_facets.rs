@@ -319,7 +319,7 @@ fn import_both(first: &str, second: &str) -> Result<ExactSchema, ShexError> {
         None,
     )
     .expect("root parses");
-    root.resolve_imports(&|iri| match iri.strip_prefix(EX) {
+    root.resolve_imports(None, &|iri| match iri.strip_prefix(EX) {
         Some("lib1") => library(first),
         Some("lib2") => library(second),
         _ => Err(ShexError::shexj(format!("unexpected import {iri}"))),

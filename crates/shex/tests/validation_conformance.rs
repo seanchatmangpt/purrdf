@@ -285,7 +285,7 @@ fn read_schema(url: &str) -> Result<ExactSchema, ShexError> {
 /// unresolved-import message.
 fn load_schema(url: &str) -> Result<ExactSchema, String> {
     let root = read_schema(url).map_err(|e| e.to_string())?;
-    root.resolve_imports(&|iri| read_schema(iri))
+    root.resolve_imports(None, &|iri| read_schema(iri))
         .map_err(|e| e.to_string())
 }
 

@@ -59,7 +59,11 @@ pub type ImportResolver<'a> = dyn Fn(&str) -> Result<Schema> + 'a;
 /// Returns [`ShexError::Import`] when the resolver cannot supply an imported
 /// IRI, or [`ShexError::ImportConflict`] when two schemas declare the same
 /// shape label with different definitions.
-pub fn resolve_imports(root: Schema, resolver: &ImportResolver<'_>) -> Result<Schema> {
+pub fn resolve_imports(
+    root: Schema,
+    root_iri: Option<&str>,
+    resolver: &ImportResolver<'_>,
+) -> Result<Schema> {
     let mut merged = Schema {
         imports: Vec::new(),
         start_acts: root.start_acts,
@@ -75,6 +79,12 @@ pub fn resolve_imports(root: Schema, resolver: &ImportResolver<'_>) -> Result<Sc
 
     // Breadth-first over import IRIs; `visited` bounds cycles/self-imports.
     let mut visited: FastSet<String> = FastSet::default();
+    // A cycle back to the ROOT absorbs here: the root is already the document
+    // being built, so re-resolving it would re-merge its own declarations and
+    // turn a benign self-import into a spurious ImportConflict.
+    if let Some(iri) = root_iri {
+        visited.insert(iri.to_string());
+    }
     let mut queue: VecDeque<String> = root.imports.into_iter().collect();
     while let Some(iri) = queue.pop_front() {
         if !visited.insert(iri.clone()) {

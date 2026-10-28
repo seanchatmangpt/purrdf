@@ -54,7 +54,7 @@ fn transitive_import_merges_and_validates() {
     // Root S1 references S2, which lives in the imported document.
     let root = schema("IMPORT <http://a.example/imported>\n<S1> { <p1> @<http://a.example/S2> }");
     let docs = resolver_map(&[("http://a.example/imported", "<S2> { <p2> . }")]);
-    let merged = resolve_imports(root, &|iri| {
+    let merged = resolve_imports(root, None, &|iri| {
         missing_or(docs.get(iri).map(|s| schema(s)), iri)
     })
     .expect("imports resolve");
@@ -87,7 +87,7 @@ fn cyclic_imports_terminate() {
         "http://a.example/a".to_owned(),
         "IMPORT <http://a.example/b>\n<S1> { <p1> @<http://a.example/S2> }".to_owned(),
     );
-    let merged = resolve_imports(root, &|iri| {
+    let merged = resolve_imports(root, None, &|iri| {
         missing_or(docs.get(iri).map(|s| schema(s)), iri)
     })
     .expect("cycle terminates");
@@ -98,7 +98,7 @@ fn cyclic_imports_terminate() {
 fn self_import_dedups() {
     let root = schema("IMPORT <http://a.example/self>\n<S1> { <p1> . }");
     let docs = resolver_map(&[("http://a.example/self", "<S1> { <p1> . }")]);
-    let merged = resolve_imports(root, &|iri| {
+    let merged = resolve_imports(root, None, &|iri| {
         missing_or(docs.get(iri).map(|s| schema(s)), iri)
     })
     .expect("self-import ok");
@@ -112,7 +112,7 @@ fn root_start_wins_over_import() {
         "http://a.example/i",
         "start=@<http://a.example/S2>\n<S2> { <p2> . }",
     )]);
-    let merged = resolve_imports(root, &|iri| {
+    let merged = resolve_imports(root, None, &|iri| {
         missing_or(docs.get(iri).map(|s| schema(s)), iri)
     })
     .expect("resolves");
@@ -127,7 +127,7 @@ fn root_start_wins_over_import() {
 fn conflicting_redefinition_errors() {
     let root = schema("IMPORT <http://a.example/i>\n<S1> { <p1> . }");
     let docs = resolver_map(&[("http://a.example/i", "<S1> { <p2> . }")]);
-    let err = resolve_imports(root, &|iri| {
+    let err = resolve_imports(root, None, &|iri| {
         missing_or(docs.get(iri).map(|s| schema(s)), iri)
     })
     .expect_err("conflicting S1 rejected");
@@ -145,8 +145,8 @@ fn conflicting_redefinition_errors() {
 #[test]
 fn unresolved_import_errors() {
     let root = schema("IMPORT <http://a.example/missing>\n<S1> { <p1> . }");
-    let err =
-        resolve_imports(root, &|iri| missing_or(None, iri)).expect_err("missing import rejected");
+    let err = resolve_imports(root, None, &|iri| missing_or(None, iri))
+        .expect_err("missing import rejected");
     assert!(
         matches!(err, ShexError::Import { .. }),
         "typed unresolved variant: {err:?}"

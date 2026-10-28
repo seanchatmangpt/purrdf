@@ -380,12 +380,16 @@ impl ExactSchema {
     /// schemas declare one label with the same AST but exact bounds of different
     /// values (`MAXINCLUSIVE 5` and `MAXINCLUSIVE 5.0000000000000000001`, one `5` in
     /// the AST). Bounds spelled differently with one value (`5` and `5.0`) merge.
-    pub fn resolve_imports(self, resolver: &dyn Fn(&str) -> Result<Self>) -> Result<Self> {
+    pub fn resolve_imports(
+        self,
+        root_iri: Option<&str>,
+        resolver: &dyn Fn(&str) -> Result<Self>,
+    ) -> Result<Self> {
         // Every source's declarations with their bounds, root first, then imports in
         // the order `resolve_imports` asks for them.
         let sources: RefCell<Vec<(Schema, ExactTable)>> =
             RefCell::new(vec![(self.schema.clone(), self.table.clone())]);
-        let merged = crate::imports::resolve_imports(self.schema, &|iri| {
+        let merged = crate::imports::resolve_imports(self.schema, root_iri, &|iri| {
             let imported = resolver(iri)?;
             sources
                 .borrow_mut()

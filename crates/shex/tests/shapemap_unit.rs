@@ -523,7 +523,7 @@ fn a_label_from_the_import_closure_counts_as_declared() {
     )
     .expect("root schema");
     let imported = parse_shexc("<http://a.example/Inherited> {}", None).expect("imported schema");
-    let folded = resolve_imports(root, &|_| Ok(imported.clone())).expect("import folds");
+    let folded = resolve_imports(root, None, &|_| Ok(imported.clone())).expect("import folds");
 
     let ok = validate_shape_map(
         &folded,

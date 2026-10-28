@@ -527,7 +527,7 @@ fn fold_imports(
                 // the flag the operator has to write.
                 .ok_or_else(|| ShexError::shexj("no --import pair resolves this IRI"))
         };
-        schema.resolve_imports(&resolver)
+        schema.resolve_imports(None, &resolver)
     };
 
     let resolved = resolved.map_err(|error| match error {

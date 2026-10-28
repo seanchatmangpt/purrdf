@@ -387,7 +387,7 @@ fn lexical_native_causes_survive_source_disposal_and_imports() {
         assert!(tokenize(valid).is_ok(), "{valid:?}");
     }
     let root = parse_shexc("IMPORT <https://example.org/import>", None).unwrap();
-    let imported = purrdf_shex::resolve_imports(root, &|_| Err(error.clone())).unwrap_err();
+    let imported = purrdf_shex::resolve_imports(root, None, &|_| Err(error.clone())).unwrap_err();
     let fields = Capture::read(&imported);
     assert_eq!(fields.code, "shex-import");
     assert_eq!(
@@ -533,7 +533,8 @@ fn shexj_ingress_retains_original_json_causes_and_precedence() {
     )
     .unwrap();
     let malformed = String::from("{");
-    let first = purrdf_shex::resolve_imports(root, &|_| parse_shexj(&malformed, None)).unwrap_err();
+    let first =
+        purrdf_shex::resolve_imports(root, None, &|_| parse_shexj(&malformed, None)).unwrap_err();
     drop(malformed);
     let imported = first.clone();
     drop(first);
@@ -553,7 +554,7 @@ fn shexj_ingress_retains_original_json_causes_and_precedence() {
         None,
     )
     .unwrap();
-    assert!(purrdf_shex::resolve_imports(root, &|_| parse_shexj(valid_json, None)).is_ok());
+    assert!(purrdf_shex::resolve_imports(root, None, &|_| parse_shexj(valid_json, None)).is_ok());
 }
 
 fn shape_map_positions_are_bytes_after_unicode() {
@@ -1340,7 +1341,8 @@ fn schema_grammar_placement_and_rich_operands_survive_input_disposal() {
     }
     let root = parse_shexc("IMPORT <urn:import>", None).unwrap();
     let imported =
-        purrdf_shex::resolve_imports(root, &|_| parse_shexc("<urn:S> [ ? ]", None)).unwrap_err();
+        purrdf_shex::resolve_imports(root, None, &|_| parse_shexc("<urn:S> [ ? ]", None))
+            .unwrap_err();
     let fields = inspect_without_allocation(&imported);
     assert_eq!(fields.child("cause").code, "shex-syntax");
     assert!(
@@ -1750,8 +1752,9 @@ fn facet_admission_keeps_native_causes_datatypes_and_first_fault() {
         assert!(ExactSchema::parse_shexc(input, None).is_ok(), "{input}");
     }
     let root = parse_shexc("IMPORT <urn:import>", None).unwrap();
-    let imported = purrdf_shex::resolve_imports(root, &|_| parse_shexc("<urn:S> LENGTH -1", None))
-        .unwrap_err();
+    let imported =
+        purrdf_shex::resolve_imports(root, None, &|_| parse_shexc("<urn:S> LENGTH -1", None))
+            .unwrap_err();
     let fields = inspect_without_allocation(&imported);
     assert_eq!(fields.child("cause").code, "shex-syntax");
     assert!(
@@ -2121,7 +2124,7 @@ fn shexj_rejected_values_keep_depth_spelling_priority_and_numeric_profiles() {
     // Unknown value-set types are literal datatype IRIs, not unknown tags.
     assert!(purrdf_shex::parse_shexj(r#"{"type":"Schema","start":{"type":"NodeConstraint","values":[{"value":"v","type":"urn:datatype"}]}}"#, None).is_ok());
     let root = parse_shexc("IMPORT <urn:import>", None).unwrap();
-    let imported = purrdf_shex::resolve_imports(root, &|_| {
+    let imported = purrdf_shex::resolve_imports(root, None, &|_| {
         purrdf_shex::parse_shexj(r#"{"type":"Schema","shapes":null}"#, None)
     })
     .unwrap_err();
