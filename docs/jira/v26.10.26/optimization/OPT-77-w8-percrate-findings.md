@@ -1402,3 +1402,16 @@ n3 reasoner.rs (backward chaining — SERIOUS):
 - cli format.rs: transport-strip error-text misattribution +
   resolve_target precedence asymmetry + Pack/Gts consumes_base
   question (recorded earlier this wave).
+
+## wave-16 additions (columnar writer rest)
+
+- Resolver never prunes active on error exits (:272-278): later reuse
+  of the same resolver misreports unrelated terms as CyclicTriple.
+- Reifier quads: resolve_all skips the predicate AND build_reifiers
+  drops quad.p without checking it is rdf:reifies (:137-140, :525-538)
+  — a non-reifies predicate term silently vanishes from dictionary
+  and output.
+- BTreeSet row dedup discards duplicate multiplicity with no
+  LossLedger entry, contradicting write's documented lossless
+  contract (:515/:559 vs :24-33).
+- Dictionary i32::MAX cap vs i64 ids (W12 finding, cross-confirmed).
