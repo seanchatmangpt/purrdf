@@ -1017,3 +1017,22 @@ n3 printing.rs round-trip (5):
 - relation.rs:875-883 — the neighbour-bound branch cannot distinguish
   KNN_MEMBERSHIP_MODE from KNN_MODE: any position-0-bound pattern
   returns rows.min(1) regardless of the admitted mode.
+
+## wave-14 additions (validate entail, hnsw relation, capi handles)
+
+- validate entail.rs:259 — the binding-facing entry hardcodes
+  RulesHost::Rust: rule-limit refusals across Python/Wasm/C name Rust
+  knobs, contradicting the per-host contract.
+- entail.rs:112-122 — with Some(xpath profile), EntailRequest limits
+  still route through RuleLimits while the doc promises
+  Limits::new()-bounded runs (bounded-differently UNVERIFIED).
+- entail.rs:140-150 — imported documents merge into the root shapes
+  graph's rule table (no RuleSource dispatch; possibly intended).
+- entail.rs:134-135 — multiple parse errors flattened via join("\n"),
+  losing structured positions.
+- hnsw relation.rs:967-974/:875-883 — scope/mode bound asymmetries
+  (recorded earlier this wave).
+- rdf-capi handles.rs:51-61 — PurrdfDataset::handle returns an
+  unbounded caller-chosen lifetime from a raw pointer (no tie to the
+  originating handle: dangling-borrow trap for future callers);
+  division const accessor skips the null check every sibling has.
