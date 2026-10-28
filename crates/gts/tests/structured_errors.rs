@@ -932,7 +932,8 @@ fn reader_layout_findings_keep_counts_heads_and_roots() {
         writer::Writer,
     };
     use purrdf_lex::cbor::Value;
-    let mut valid = Writer::with_layout("generic", Some("streamable"));
+    let mut valid = Writer::with_layout("generic", Some("streamable"))
+        .expect("streamable is the defined layout");
     valid.add_terms(&[Term::iri("http://example.org/s")]);
     valid.add_index_with_mmr();
     let valid = valid.into_bytes();
@@ -953,7 +954,8 @@ fn reader_layout_findings_keep_counts_heads_and_roots() {
         "gts-layout-blob-order",
     ];
     for code in cases {
-        let mut writer = Writer::with_layout("generic", Some("streamable"));
+        let mut writer = Writer::with_layout("generic", Some("streamable"))
+            .expect("streamable is the defined layout");
         let head = writer.add_terms(&[Term::iri("http://example.org/s")]);
         if code == "gts-layout-blob-order" {
             writer.add_blob(b"undescribed", None, None);

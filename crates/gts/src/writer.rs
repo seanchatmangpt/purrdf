@@ -706,7 +706,9 @@ fn is_dict_capable(name: &str) -> bool {
 impl Writer {
     /// Create a writer and emit the Header (the chain genesis).
     pub fn new(profile: &str) -> Self {
-        Self::with_layout(profile, None)
+        // The default options carry no layout claim, so this cannot fail;
+        // the expect names the invariant rather than a caller judgment.
+        Self::with_layout(profile, None).expect("the default options claim no layout")
     }
 
     /// Build a deterministic single-segment writer from folded graph state.
@@ -838,12 +840,15 @@ impl Writer {
 
     /// Create a writer with a header layout-state claim (§3.3;
     /// `"streamable"` is the only value this revision defines).
-    pub fn with_layout(profile: &str, layout: Option<&str>) -> Self {
+    pub fn with_layout(profile: &str, layout: Option<&str>) -> Result<Self, WriterError> {
         let options = WriterOptions {
             layout: layout.map(str::to_string),
             ..WriterOptions::default()
         };
-        Self::with_options(profile, options).expect("unsupported layout claim")
+        // A typo'd or mis-cased layout claim is caller input: the typed
+        // FrameError::Layout refusal, never a panic (every other constructor
+        // in this file is fallible).
+        Self::with_options(profile, options)
     }
 
     /// Create a writer with explicit header options.
