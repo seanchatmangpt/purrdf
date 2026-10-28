@@ -39,3 +39,6 @@ scripts/.bounded.swp
 rustc-ice-*.txt
 texput.log
 .DS_Store
+
+# Session-local overnight receipts (never committed)
+docs/jira/**/OVERNIGHT_RECEIPT.md
