@@ -2579,3 +2579,59 @@ RankedSearchRefusal, duckdb B19, agent_memory B18, cdt langString
 refusal, bounded-tier gate-parity extension, Makefile cargo-tree grep
 deletion, csvw/gts/alloc-probe test writers.
 
+---
+
+## wave-30 status (2026-10-28)
+
+### Fixed (in-tree, UNVERIFIED)
+
+- cdt parse: ^^rdf:langString / ^^dirLangString on non-language-tagged
+  literals refuse (over-acceptance closed; CdtLiteral::typed guard still
+  open — signature change). cdt parse.rs.
+- cli convert: --canonical applies refuse_transport_target (the lane
+  bypassed resolve_target entirely). convert.rs canonical arm.
+
+### New findings filed (plans needed)
+
+- iri resolve.rs:253 + :39-47: base fragment DROPPED whenever the
+  reference has none (RFC 3986 §5.2.2: else T.fragment = Base.fragment) —
+  identity-changing; same-document shortcut also builds fragment None.
+  HIGH. The equivalence oracle test uses a fragment-less base, so it
+  cannot catch this.
+- iri curie.rs: contract emits CURIEs curie_prefix refuses (local
+  starting //) — broken contract/expand round-trip, resolve returns a
+  non-IRI verbatim; resolve/expand_curie treat an absolute IRI whose
+  scheme collides with a declared prefix (doi:10.1234/x, urn:uuid:...)
+  as a CURIE and silently rewrite it. Both should consult
+  is_absolute/absolute_verdict.
+- sparql-results json.rs/xml.rs: blank-node envelope encode has NO decode
+  counterpart — enveloped labels read back as literal label text
+  (injective write, non-surjective read); non-langString datatype
+  silently dropped on language-tagged literals (json.rs:401-410,
+  xml.rs:318-327) — round-trip not identity for that class; duplicate
+  projected variable writes a duplicate-key JSON object third-party
+  parsers collapse (json.rs:159-192).
+- shapes sparql ext: parameterized target's sh:ask runs WITHOUT the
+  parameter pre-bindings (engine.rs:441-459 + sparql.rs:129-146 —
+  disagreement refusal on conforming data); eval_sparql_constraint
+  public door drops ?failure/?message mapping (sparql.rs:174-201 vs
+  :292-294 — door-dependent verdicts); {$b} message substitution renders
+  internal minted bnode labels (components.rs:446-449 — nondeterministic
+  report content).
+- gts_write: silent i128->i64 clamp on metadata integers (:362-367);
+  suppression `by` positional display-match collision (:349-354);
+  capture_sparql_goldens stale sibling markers on reclassification.
+
+### Verdicts
+
+- lex yaml writer: CLEAN (shared resolver = writer output always
+  re-parses as intended; closed style-fallback chain; escaping matches
+  the reader's decoder exactly).
+- sparql-results escaping/sink/stream paths: CLEAN (CSV/TSV quoting,
+  TextSink stickiness, BOM, NCName gating all verified).
+
+### Requeued (rate-limit losses)
+
+text analysis, rdflib-shadow, OPT-70 generated coverage, csvw/gts/alloc
+test writers, COSE/hnsw/duckdb/agent_memory application.
+
