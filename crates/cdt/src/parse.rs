@@ -61,7 +61,10 @@ use alloc::vec::Vec;
 
 use purrdf_iri::{langtag, terminals};
 
-use crate::datatype::{CdtDatatype, XSD_BOOLEAN, XSD_DECIMAL, XSD_DOUBLE, XSD_INTEGER};
+use crate::datatype::{
+    CdtDatatype, RDF_DIR_LANG_STRING, RDF_LANG_STRING, XSD_BOOLEAN, XSD_DECIMAL, XSD_DOUBLE,
+    XSD_INTEGER,
+};
 use crate::error::CdtError;
 use crate::limits::{MAX_ELEMENTS, MAX_LEXICAL_BYTES, try_list_extent, try_map_extent};
 use crate::memory::{CdtMemory, Memory, ReadError, Resident, Storage};

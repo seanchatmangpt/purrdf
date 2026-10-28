@@ -680,7 +680,7 @@ fn diagnostic_location(
         });
         PhysicalLocation {
             artifact_location: ArtifactLocation {
-                uri: uri.into_owned(),
+                uri: uri.clone().into_owned(),
                 // SARIF §3.4.2: `uriBaseId` is meaningless on an absolute URI.
                 uri_base_id: base_id_for(&uri, base_id),
             },

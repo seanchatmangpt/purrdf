@@ -348,6 +348,8 @@ fn apply_lookaside(
     // through `graph.blobs` is blocked until purrdf-gts grows a reference-only blob
     // entry — see `docs/design/819-rdf-ir-dataflow.md` Appendix Z.
     let _ = lookaside.blobs;
+
+    Ok(())
 }
 
 /// Resolve a suppression `by` display label to a term id. The label is a

@@ -143,7 +143,8 @@ impl std::error::Error for TextDeltaError {
             | Self::SourceOverlap { .. }
             | Self::MissingAddition { .. }
             | Self::CoverageMismatch { .. }
-            | Self::SourceMismatch { .. } => None,
+            | Self::SourceMismatch { .. }
+            | Self::ContradictoryDelta { .. } => None,
         }
     }
 }

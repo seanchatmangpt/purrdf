@@ -2020,6 +2020,9 @@ fn proof_body_bytes(text: &str) -> Result<Vec<u8>, String> {
         purrdf_hash::hex::HexError::OutputTooShort { needed, available } => format!(
             "a proof body decode needed {needed} output bytes but {available} were available"
         ),
+        // `HexError` is `#[non_exhaustive]`; future variants refuse here rather
+        // than breaking this boundary's grammar.
+        _ => "a proof body line refused canonical hex decode".to_owned(),
     })
 }
 

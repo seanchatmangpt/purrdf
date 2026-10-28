@@ -2044,6 +2044,7 @@ dependencies = [
  "purrdf-rdf",
  "purrdf-sql",
  "purrdf-testkit",
+ "purrdf-xsd",
 ]
 
 [[package]]

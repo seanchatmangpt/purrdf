@@ -23,25 +23,6 @@ pub const DEFAULT_ROW_ENVELOPE: usize = 64;
 /// ResourceLimit name carried by [`EvaluatorError::RowEnvelopeExceeded`].
 pub const ROW_ENVELOPE_LIMIT: &str = "duckdb_result_rows";
 
-/// A projected cell classified during row-to-triple conversion.
-#[derive(Debug, Clone, PartialEq)]
-enum LexicalCell {
-    /// SQL NULL cell: counted, never projected.
-    Null,
-    /// A cell with a representable RDF literal term.
-    Literal(TermValue),
-}
-
-impl LexicalCell {
-    /// Returns the RDF literal to project, if any.
-    fn literal(self) -> Option<TermValue> {
-        match self {
-            Self::Null => None,
-            Self::Literal(object) => Some(object),
-        }
-    }
-}
-
 /// Renders a DuckDB timestamp as a canonical `xsd:dateTime` lexical form,
 /// honoring the value's time unit instead of Debug-printing it.
 fn timestamp_lexical(unit: TimeUnit, value: i64) -> String {
@@ -352,7 +333,7 @@ impl PurRdfDuckDB {
                 let term: Option<TermValue> = match row.get_ref(col_idx) {
                     Ok(frozen_duckdb::duckdb::types::ValueRef::Null) => {
                         null_cells += 1;
-                        LexicalCell::Null
+                        None
                     }
                     Ok(frozen_duckdb::duckdb::types::ValueRef::Boolean(b)) => {
                         Some(TermValue::Literal {
@@ -428,7 +409,7 @@ impl PurRdfDuckDB {
                         })
                     }
                     Ok(frozen_duckdb::duckdb::types::ValueRef::Timestamp(unit, val)) => {
-                        LexicalCell::Literal(TermValue::Literal {
+                        Some(TermValue::Literal {
                             lexical_form: timestamp_lexical(unit, val),
                             datatype: "http://www.w3.org/2001/XMLSchema#dateTime".to_string(),
                             language: None,
@@ -436,7 +417,7 @@ impl PurRdfDuckDB {
                         })
                     }
                     Ok(frozen_duckdb::duckdb::types::ValueRef::Date32(days)) => {
-                        LexicalCell::Literal(TermValue::Literal {
+                        Some(TermValue::Literal {
                             lexical_form: date_lexical(i64::from(days)),
                             datatype: "http://www.w3.org/2001/XMLSchema#date".to_string(),
                             language: None,
@@ -444,7 +425,7 @@ impl PurRdfDuckDB {
                         })
                     }
                     Ok(frozen_duckdb::duckdb::types::ValueRef::Blob(bytes)) => {
-                        LexicalCell::Literal(TermValue::Literal {
+                        Some(TermValue::Literal {
                             lexical_form: purrdf_xsd::canonical_hex(bytes),
                             datatype: "http://www.w3.org/2001/XMLSchema#hexBinary".to_string(),
                             language: None,
@@ -456,15 +437,15 @@ impl PurRdfDuckDB {
                     // yet: counted, never silently dropped.
                     Ok(_) => {
                         unrepresentable_cells += 1;
-                        LexicalCell::Null
+                        None
                     }
                     Err(_) => {
                         unrepresentable_cells += 1;
-                        LexicalCell::Null
+                        None
                     }
                 };
 
-                if let Some(object) = cell.literal() {
+                if let Some(object) = term {
                     result_triples.push(RdfTriple {
                         subject: row_subject.clone(),
                         predicate,

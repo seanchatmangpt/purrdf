@@ -459,7 +459,7 @@ fn resolve_term_record(
 fn decode_quad_rows(
     data: &TableData,
     named_graphs: &[bool],
-    order_context: &str,
+    order_context: &'static str,
 ) -> Result<Vec<QuadRow>, ColumnarError> {
     let mut first = int_column(data, 0)?.rows();
     let mut second = int_column(data, 1)?.rows();
