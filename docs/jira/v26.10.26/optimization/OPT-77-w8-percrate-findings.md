@@ -2400,3 +2400,53 @@ SelectStatement move, check-gate-parity bounded-tier extension, hnsw
 RankedSearchRefusal seams, probe_evidence mirror test, shapes report
 reader fixes, from_turtle RdfTerm extension, python __len__ fix.
 
+---
+
+## wave-27 addendum (2026-10-28)
+
+### Fixed (in-tree, UNVERIFIED)
+
+- datalog schedule.rs: stratify_rules no longer refuses every model-reading
+  rule (closed self-edge + shortest_path(from==to) = always a cycle). The
+  evaluation path was reachable only via a hand-built Schedule.
+- rdf hextuples: empty sentinel + non-empty lang yields the language
+  literal (was: @en silently dropped, exit 0); rdf:langString + empty lang
+  refused at the reader with the row's line number (was: position-less
+  freeze error later).
+
+### New findings filed (plans needed)
+
+- rdf/xml reader: rdf:datatype silently beats xml:lang/its:dir (parse
+  accepts, freeze refuses with a position-less error; equivalent
+  N-Triples docs are rejected at parse — cross-codec asymmetry);
+  its:dir without xml:lang silently dropped (plain literal instead of
+  typed refusal). rdfxml.rs:509/:792-810. Fix plan: consult
+  language/direction before the datatype arm; refuse
+  langString-without-language at the reader.
+- jsonld: scoped-context validation resolves against base_url while
+  expansion uses scoped_context_base (accept/reject divergence for
+  relative scoped refs). compiler.rs:627-652 vs :158-176.
+- jsonld: expand_iri requires the prefix flag for compact-IRI expansion;
+  a simple term whose mapping lacks a trailing delimiter gets prefix:false
+  and "ex:foo" wrongly fails. compiler.rs:1769-1776/:873-874.
+- shex: reference-only shape cycles refused by check_structure while the
+  engine implements coinductive semantics for exactly them (over-refusal
+  of spec-valid schemas, structure.rs:251-278); dangling shape reference
+  classified as Violation -> NOT makes any node conformant
+  (validate.rs:713 — should be Operational); duplicate labels silently
+  last-wins in validate (check_structure never called);
+  negative-cardinality ShExJ fields silently clamped (matcher.rs:47-53 —
+  should be typed refusal; -1 max = unbounded is legit, -2/min<0 is not);
+  cyclic triple-expr inclusion passes structure but always fails at
+  validate (misclassified class).
+- datalog plan-vs-rules stratifier divergence on variable-predicate
+  negation (documented disagreement missing) + untested repeated-unbound
+  existential NAF semantics (seminaive.rs:2686-2692 doc vs probe).
+- python bindings: check-layers does NOT enforce the purrdf-core PyO3
+  ring-fence (no `external` key on the core row; only a Makefile
+  cargo-tree grep that misses optional deps); QuerySolutions.__len__
+  stale after iteration (mem::take vs rows.len(), query.rs:738/:743);
+  project_artifacts holds the GIL across the whole projection loop;
+  canon.rs expect/unreachable! pair breaks the promised ValueError
+  contract.
+
