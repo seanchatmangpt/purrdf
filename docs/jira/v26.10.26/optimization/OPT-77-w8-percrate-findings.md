@@ -836,3 +836,22 @@ n3 printing.rs round-trip (5):
   tests pin it today).
 
 - gts composite.rs: 0 logic bugs (offsets/lengths verified; 3 minor robustness notes: hardcoded 32 seed split, implicit empty-context zero-init, verify diagnostic collapse).
+
+## wave-13 additions (projections lpg)
+
+- mapping.rs:316-352 — an rdf_type quad with Blank/Triple object
+  falls through label and property branches into an EDGE whose
+  edge_type is rdf_type itself, governed by includes_edge_type
+  instead of node-type scope (unlike every other type statement).
+- mapping.rs:194 — reifier rows are scope-checked against the
+  REIFIER row's graph, not the reified statement's graph(s): a
+  cross-graph reifier passes/fails on the wrong side.
+- mapping.rs:222-228 — annotation rows filter only on
+  includes_predicate, skipping includes_node_types gating; untyped
+  nodes excluded from the statement projection are re-introduced via
+  annotation sidebands.
+- mapping.rs:129-146 — node_types index admits rdf:type quads by
+  graph scope even when the predicate allow-list excludes rdf_type:
+  node-type membership derives from statements absent from the
+  projected model (documented intent, but couples scoping layers).
+- Sink emission order (cypher/GraphML/CSV) verified clean.
