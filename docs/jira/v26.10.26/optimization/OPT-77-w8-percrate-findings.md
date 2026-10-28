@@ -1600,3 +1600,24 @@ n3 reasoner.rs (backward chaining — SERIOUS):
 - shapes eval_closed AnyGraph: REFUTED — Core data graph is dataset-wide by design (data.rs:68-77: projected IR flattens all quads into default, AnyGraph ≡ DefaultGraph); sibling Core probes use the same scope.
 
 - csvw One-cardinality on filtered list: CONFIRMED (2 matching objects, 1 representable → no integrity error, row emits one value; the dropped object is only a ledger loss, no cardinality recheck downstream).
+
+## wave-18 additions (entail chase region — 5 findings)
+
+- engine.rs:587-593/:855-858 — chase routing keys on existential-head
+  presence but the chased path never runs first_clash: a program
+  mixing an existential clause with a clash clause routes to
+  chase_graph and silently returns a closure instead of an
+  inconsistency witness.
+- engine.rs:842 — chase_graph bypasses
+  chase_with_declarations' declarations.admit(program) NeverDerive
+  gate: the documented protected/undecidable-head admission never
+  runs on the chase path.
+- engine.rs:849-877 — the witness filter compares fact.graph too: a
+  conclusion whose only witness occurrence is the GRAPH position is
+  dropped (surrogate_drops) though its s/p/o is representable.
+- chase.rs:596 vs :590 — reaches() evaluated after add_subsumption
+  widens adjacency, but special edges were collected pre-widening:
+  the certificate can under-report violations.
+- engine.rs:862/report.rs:132 — Unbounded termination would surface
+  as termination: None (indistinguishable from semi-naive no-
+  obligation); soundness rests on chase.rs:1591 refusing first.
