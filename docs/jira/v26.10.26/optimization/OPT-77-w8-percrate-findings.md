@@ -2716,3 +2716,64 @@ nodes at layers > 0 while repair covers layer 0 only (builder.rs:201-203)
 — a declared recall-degradation mode; worth a doc note if recall SLOs are
 ever published.
 
+---
+
+## wave-31 status (2026-10-28)
+
+### Fixed (in-tree, UNVERIFIED)
+
+- iri resolve.rs:253: RFC 3986 §5.2.2 fragment inheritance (base fragment
+  kept when the reference omits one; covers same-document "").
+- n3 proof_writer: pe: forced to PE_NS (caller hijack closed).
+- sparql-eval knn invocation.rs: the scoped-licence semantics documented
+  at pull (undecided rows follow the Slice law — DELIBERATE per the
+  lane's evidence; the wave-30 "licence bypass" finding is withdrawn as
+  by-design).
+- sparql update.rs: batched delete/insert doc comments corrected (spec
+  lane verdict: KEEP batched application — mainstream-engine behavior,
+  preserves governor all-or-nothing staging, no W3C case distinguishes).
+- Gate floors (all fail-closed now, live-verified the cliff flip):
+  changelog-handwritten (CHANGELOG_ALLOW_MISSING_GIT_CLIFF opt-out + os
+  import fix), serializer-rewinds (missing-scope + empty-scan refusal),
+  toolchain-pin (zero-workflow refusal), shared-helpers (zero-job /
+  zero-enforced refusal), conformance-matrix (--from-results skips the
+  build).
+- iri curie.rs contract_where: "//-local" guard added per the lane's
+  exact diff (round-trip break closed); the absolute-first expansion
+  proposal REFUTED by the lane (every well-formed CURIE is itself an
+  absolute IRI — absolute-first would disable expansion; prefix
+  shadowing documented as the SSSOM contract).
+
+### New findings filed (plans needed)
+
+- n3 printing round-trip (4 defects): proof-writer omits the xsd prefix
+  when a numeric lexical is non-canonical (proofs its own checker
+  refuses); sanitize_blank is lossy/colliding (_:a.b -> _:a_b merges
+  distinct blanks); empty formula in object position prints `true` and
+  reparses as xsd:boolean.
+- sparql-results: envelope encode with no decode (labels renamed);
+  datatype dropped on langtagged literals (writer side json+xml);
+  duplicate projected variable -> duplicate-key JSON object.
+- shapes sparql ext: parameterized target's sh:ask runs without
+  parameter pre-bindings (AskTarget lacks substitutions; 3-signature fix
+  plan banked with full caller enumeration).
+- rdf-wasm: canon-arrow slips past the async-lane refusal under
+  alias/case spellings (wrong-result divergence from the sync lane);
+  sync governor refusals codeless (typed-error contract); abandoned
+  AsyncJob permanently locks the dataset's update claim + leaks the
+  stack region (no Drop deregistration); JobError presentation record
+  swallowed where diagnostic throws.
+- markdown: table rows ignore the leading-indent bound (indented-code
+  bytes lifted as citations); bare CR line ending unrecognized;
+  concordance header lifted as citation when cell 1 parses as a range
+  (design tension flagged); MIME empty preamble span synthesized;
+  MIME quoted params admit escaped CR/LF; TOML dotted-key descent into
+  array-of-tables refused (spec-revision question).
+- alloc-probe: piecewise dropped-ledger charge + zero-window-fallback
+  readers — final code banked from the lane, not yet applied.
+
+### Requeued (rate limits)
+
+text analysis, rdflib-shadow, OPT-70 generated coverage, duckdb/agent_
+memory/COSE application lanes.
+
