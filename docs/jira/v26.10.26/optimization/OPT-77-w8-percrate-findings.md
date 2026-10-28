@@ -1814,3 +1814,19 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   dataset scale points. THE BAR IS THIRD-PARTY MEASUREMENT, not
   vendor claims — a publishable purrdf number needs only to beat
   45k-150k triples/s on comparable hardware.
+
+## wave-20 additions (C3 RDFLib research, B11 gts wire, B17 xpath clean)
+
+- C3 COMPETITIVE RESEARCH (RDFLib): no official suite; parse rate
+  ~13k t/s Turtle / ~21k t/s N-Triples (3.1M-triple WordNet, issue
+  #1261); 20-50x slower than C rapper (~265k t/s). Community range
+  10k-100k t/s. PyO3 comparison methodology: per-syntax parse rate +
+  serialize + store round-trip + memory/triple + BATCHED FFI (per-
+  triple crossings erase Rust's advantage). Reference:
+  dice-group/triplestore-benchmarks (SP2Bench/BSBM/LUBM).
+- gts wire.rs (B11): decode_sequence refuses on ANY error, so
+  corrupt/bounded files report identically to torn appends — callers
+  folding the "intact prefix" accept corruption as a partial write;
+  the returned offset is the refused item's start, not proven torn;
+  Limits refusals mislabeled TornAppendError.
+- validate xpath_regex: CLEAN.
