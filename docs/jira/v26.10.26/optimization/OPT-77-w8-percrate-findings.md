@@ -816,3 +816,21 @@ n3 printing.rs round-trip (5):
   limit via the ledger.
 
 - ed25519 keys.rs signing path: CLEAN (RFC 8032 clamp, nonce derivation, challenge domain separation, key acceptance, s-composition all verified).
+
+## wave-13 additions (wasm shacl, iri base/curie)
+
+- wasm shacl.rs: From<ShapesProductRefusal> hard-sets code:None
+  (:1024-1034) — the same refusal surfaces with vs without a matchable
+  code depending on path; to_js_string hides Some(code) when
+  dimension is None (:1014); import-failure priority wholesale
+  replaces an admission dimension (:1098) contrary to the doc's
+  never-dropped claim; validate_to_sarif test bridge flattens coded
+  refusals to prose (:255).
+- iri curie.rs:100-110 — opaque absolute IRIs (urn:, mailto:) whose
+  prefix matches a declared CURIE prefix are misclassified as CURIEs
+  and rewritten (term silently changed).
+- iri base.rs:210-220 — an absolute @base directive keeps its
+  fragment (the empty-directive path strips one): a fragment-bearing
+  base leaks #frag into every resolved reference.
+- base.rs:837-842 — classify-vs-parse fast-path drift risk (property
+  tests pin it today).
