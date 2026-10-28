@@ -680,3 +680,19 @@ n3 printing.rs round-trip (5):
 - xsd numeric: promotion hierarchy (single-rounding fast paths),
   NaN compare/cast handling, and cast facet checking all verified
   conformant.
+
+## wave-12 semantic additions (rdf-wasm query.rs)
+
+- :1765-1767 — entailment closure limits take Option<u64> at the wasm
+  boundary: a JS negative bigint (-1n) wraps to u64::MAX (silent
+  "no limit"), the exact wrap decode_ceiling_message refuses for the
+  six governor ceilings (which use Option<i64>).
+- :2312-2329 — partial-answers Unknown maps to certainty "unknown"
+  but forwards into_result() rows unconditionally: the "unknown ⇒ no
+  row handed over" contract is enforced nowhere here (relies on the
+  kernel returning None).
+- :1869-1880 — update_governed validates maxAnswers on a DROPPED copy
+  and stores the raw unvalidated args; enforcement depends entirely
+  on the runner re-deriving via from_update_parts (if from_parts, the
+  answer cap slips through).
+- Row conversion order + consume-once bookkeeping verified correct.
