@@ -1036,3 +1036,12 @@ n3 printing.rs round-trip (5):
   unbounded caller-chosen lifetime from a raw pointer (no tie to the
   originating handle: dangling-borrow trap for future callers);
   division const accessor skips the null check every sibling has.
+
+## wave-14 additions (geo chart)
+
+- chart.rs:101/:116 — Interval::compare returns PrecisionExhausted on
+  mere overlap: the pole clamp and full-wrap fallback can abort
+  (fail-loud, safe direction) instead of conservatively taking
+  Bands::One; math_for_sources retry behavior UNVERIFIED. Band
+  rounding direction, wrap widening, and normalization idempotence
+  all verified safe.
