@@ -98,6 +98,12 @@ Crate map (all under `crates/`, published names in `Cargo.toml`):
 | `purrdf-wasm`, `purrdf-capi`, `bindings/python` | WASM, C-ABI, and PyO3 bindings |
 | `purrdf-cli` (`crates/cli`) | The `purrdf` command-line surface (`publish = false`) |
 | `purrdf-envelope-probe` (`crates/envelope-probe`) | The micro-hardware envelope capture tool (`publish = false`) |
+| `purrdf-arrow` (`crates/arrow`) | The 128-byte canon-arrow frame header, digests and `fits_in` capacity law shared by the egress codecs |
+| `purrdf-branchless` (`crates/branchless`) | The branchless kernel library (SWAR, sorting networks, packing, saturation, wide arithmetic), Chicago-oracled in `crates/branchless/oracles/` |
+| `purrdf-duckdb` (`crates/duckdb`) | DuckDB-carried SQL-over-RDF end to end lane over frozen-duckdb |
+| `purrdf-hnsw` (`crates/hnsw`) | The HNSW graph index for embedding retrieval, shared corpus ladder in `tests/support/corpus.rs` |
+| `purrdf-n3` (`crates/n3`) | The N3 reasoner: parser, forward/backward chaining, proof writer |
+| `purrdf-sql` (`crates/sql`) | The SQL-over-RDF compiler front end (parse, plan, memoized compile) |
 | `purrdf-alloc-probe` (`crates/alloc-probe`) | The shared counting allocator + per-thread/whole-process measurement windows every allocation test and bench measures with (`publish = false`, `[dev-dependencies]` only, path-only with no `version`) |
 | `purrdf-bench` (`crates/bench`) | Benchmark tooling: the scale-corpus generator (`publish = false`) |
 | `purrdf-testkit` (`crates/testkit`) | Shared test support: byte-exact goldens (`assert_golden!`, `golden`), the workspace root and Rust-source walks for tests and generators (`paths`), seeded test draws over `purrdf_hash::mix` (`rng`), an exact rational oracle that rounds an integer, a decimal or a float's binary value to `f64`, `f32` or a fixed decimal scale with integer arithmetic only (`exact`), temporary paths under the target directory (`temp_dir!`, `temp_file!`, `for_unit_test`), self-hashing frozen differential vectors, the libtest-compatible `harness = false` runner, the property harness (`prop_test!`: choice-sequence shrinking, regex string generators, stateful model testing, a deterministic seed per property), and the micro-benchmark harness every bench target runs on (`purrdf_testkit::bench`, `bench_group!`/`bench_main!`: warm-up, flat sampling, median with MAD and a seeded bootstrap interval, throughput, saved baselines compared with a bootstrapped change, a fixed-schema `estimates.json` per benchmark, natively and on wasm32); its one first-party dependency is `purrdf-hash`, the root, whose own tests do not use testkit, so no member's tests close a cycle through it (`publish = false`, `[dev-dependencies]` only, path-only with no `version`) |
@@ -336,7 +342,7 @@ makes it removable).
   emphasis flanking, while its blank line (§2.1), ATX heading, thematic break
   and GFM table cell all name space-or-tab; citing "CommonMark" alone settles
   nothing, and doing so once put a false exemption into this file.
-* **Everything is wasm-able.** Every release crate (all 35 publishable crates,
+* **Everything is wasm-able.** Every release crate (all 40 publishable crates,
   `purrdf-wasm` included) must build for `wasm32-unknown-unknown` — CI
   hard-fails otherwise (`make wasm` locally). Never add a dependency that
   drags in threads, the filesystem, C toolchains, or wall-clock/RNG syscalls
@@ -409,7 +415,7 @@ the laws that make their numbers evidence — `scripts/lane-common.sh` — so a
 repair to one is a repair to all three. `docs/BENCHMARKS.md` owns the
 parameters, the knobs and the comparison rules.
 
-Read [Rust guidelines](docs/RUST_GUIDELINES.md) before writing or reviewing Rust.
+Read [Rust guidelines](docs/agents/RUST_GUIDELINES.md) before writing or reviewing Rust.
 
 Toolchain: `rust-toolchain.toml` names a **floating nightly** for development and
 for every CI gate. That is an analysis decision, not a licence: nightly clippy
@@ -537,7 +543,7 @@ black-cat family system — `#cat-head-core` is shared verbatim; only the
 
 ## 7. Releases
 
-Tag-driven trusted publishing: `rust-v*` → crates.io (35 crates, ordered),
+Tag-driven trusted publishing: `rust-v*` → crates.io (40 crates, ordered),
 `py-v*` → PyPI (`purrdf`). See [`docs/RELEASE.md`](./docs/RELEASE.md). Version
 is single-sourced in `[workspace.package]`. Twelve members never reach
 crates.io: `purrdf-capi`, `purrdf-sparql-conformance`,
