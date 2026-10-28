@@ -2929,3 +2929,14 @@ loop, single-slot backtracking monotone, set bookkeeping consistent.
   pub(crate) div-ceil citation, lint-block levels, nextest
   recommendation).
 
+### wave-33 addendum 2 — datalog cache/stop/admission/maintenance sweep: CLEAN
+
+Zero real defects: the quad read_source hash skip is provably constant
+(from_base is ClauseAtom<3>-only, private field); guard-barrier and
+negation placement defaults match construction exactly; the LRU
+saturating clock stays deterministic past 2^64; admission's protected-
+root and heads indexing are unreachable-missing; maintenance
+consolidation invariants hold. Two asymptotic notes recorded (use-stamp
+saturation; scheduled_contract_hash over-invalidation — the safe
+direction).
+
