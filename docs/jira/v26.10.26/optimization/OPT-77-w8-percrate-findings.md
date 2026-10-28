@@ -528,3 +528,21 @@ string.
   malleability gap) — security-critical surface verified.
 - cdt ops/functions: clean (2 invariant-maintenance observations
   recorded earlier).
+
+## wave-11 semantic additions (text index — 4 findings)
+
+- index.rs:2606-2614 — postings sorted (graph, language, subject) but
+  the contract documents (partition, document-id-ascending): any
+  partition mixing languages across subjects breaks id order;
+  merge/intersect consumers can mis-order rows.
+- index.rs:782-790 — with_ranking_profile assigns `self.ranking`
+  BEFORE validation and consumes self: on Err the caller's index is
+  destroyed with partitions cleared, contradicting "returned only
+  after validation".
+- delta.rs:80-88 — with_delta's changed-set derives from the caller's
+  operands, not the observed source; an omitted removal leaves a
+  stale posting while digests still reconcile (removals never checked
+  to exist).
+- index.rs:921-951 — phrase_row_bound keys positions without the
+  graph coordinate: cross-graph position coincidences inflate the
+  bound (possibly intended per the comment, but a bag-of-rows bound).
