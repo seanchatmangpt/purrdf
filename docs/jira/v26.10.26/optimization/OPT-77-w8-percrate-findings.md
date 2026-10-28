@@ -434,3 +434,21 @@ string.
   recomputation un-cross-checked (:219/:571).
 - cdt ops/functions: clean (2 invariant-maintenance observations);
   markdown/slice/… lanes still landing.
+
+## wave-11 semantic additions (sparql-eval path.rs — 2 REAL bugs)
+
+- path.rs:675 — `?` is folded into the set-semantics `reach` lane:
+  a path whose ONLY repetition is `?` drops the duplicate rows
+  SPARQL 1.1 §18.4 bag-union requires (eval(P?) = eval(P) ∪
+  {(x,x)}); `*`/`+` need ALP, `?` alone does not.
+- path.rs:2752-2766 — negated property sets with mixed directions
+  evaluate as UNION of directional scans instead of per-pair
+  complement (`x !elts y ⟺ ∀i ¬(x elti y)`): pairs checked against
+  only one list, direction-neutral complement endpoints never
+  returned.
+- Minor: ClosureFrame marks visited before the stop check then breaks
+  without inserting (:1865-1875) — inconsistent with the evidence
+  branch; Accumulate grew-exit keeps the walk alive on
+  evidence-only churn (perf).
+- Termination verified sound across Star/Plus/Range on cycles
+  (visited-guarded BFS, per-level union, binary-power composition).
