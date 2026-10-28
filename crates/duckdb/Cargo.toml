@@ -24,6 +24,7 @@ purrdf-core = { workspace = true }
 purrdf-hash = { workspace = true }
 purrdf-rdf = { workspace = true }
 purrdf-sql = { workspace = true }
+purrdf-xsd = { workspace = true }
 
 [dev-dependencies]
 purrdf-arrow = { workspace = true }

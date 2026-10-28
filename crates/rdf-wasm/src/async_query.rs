@@ -2438,6 +2438,24 @@ impl fmt::Debug for JobInner {
     }
 }
 
+impl Drop for JobInner {
+    fn drop(&mut self) {
+        // A job whose frames are suspended is owned by the run standing on
+        // its region, so it cannot be dropped while Running: this would
+        // deallocate the stack the frames are on. The registry holds only a
+        // Weak, so the handle's own drop is what lands here.
+        debug_assert!(
+            self.state.get() != JobState::Running,
+            "job {} dropped while its run is standing on its stack region",
+            self.id
+        );
+        // Release an update's claim on its dataset even when the host drops
+        // the handle without calling `finish` — no other asynchronous update
+        // of the dataset may stay blocked by an abandoned job.
+        self.update_claim.borrow_mut().take();
+    }
+}
+
 impl JobInner {
     fn run(&self) -> RunStatus {
         if self.state.get() != JobState::Pending {

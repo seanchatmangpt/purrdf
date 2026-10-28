@@ -11,14 +11,70 @@ use std::fmt;
 use std::path::Path;
 use std::time::Instant;
 
+use frozen_duckdb::duckdb::types::TimeUnit;
 use purrdf_core::TermValue;
 use purrdf_sql::{CompiledQuery, SqlLiteral};
+use purrdf_xsd::numeric::{xpath_double_text, xpath_float_text};
+use purrdf_xsd::temporal::{civil_from_days, datetime_from_unix_seconds};
 
 /// Default maximum number of result rows an evaluation materializes (Candidate Envelope Bound).
 pub const DEFAULT_ROW_ENVELOPE: usize = 64;
 
 /// ResourceLimit name carried by [`EvaluatorError::RowEnvelopeExceeded`].
 pub const ROW_ENVELOPE_LIMIT: &str = "duckdb_result_rows";
+
+/// A projected cell classified during row-to-triple conversion.
+#[derive(Debug, Clone, PartialEq)]
+enum LexicalCell {
+    /// SQL NULL cell: counted, never projected.
+    Null,
+    /// A cell with a representable RDF literal term.
+    Literal(TermValue),
+}
+
+impl LexicalCell {
+    /// Returns the RDF literal to project, if any.
+    fn literal(self) -> Option<TermValue> {
+        match self {
+            Self::Null => None,
+            Self::Literal(object) => Some(object),
+        }
+    }
+}
+
+/// Renders a DuckDB timestamp as a canonical `xsd:dateTime` lexical form,
+/// honoring the value's time unit instead of Debug-printing it.
+fn timestamp_lexical(unit: TimeUnit, value: i64) -> String {
+    let (secs, nanos) = match unit {
+        TimeUnit::Second => (value, 0),
+        TimeUnit::Millisecond => (value.div_euclid(1_000), value.rem_euclid(1_000) * 1_000_000),
+        TimeUnit::Microsecond => (
+            value.div_euclid(1_000_000),
+            value.rem_euclid(1_000_000) * 1_000,
+        ),
+        TimeUnit::Nanosecond => (
+            value.div_euclid(1_000_000_000),
+            value.rem_euclid(1_000_000_000),
+        ),
+    };
+    let base = datetime_from_unix_seconds(secs).canonical_lexical();
+    if nanos == 0 {
+        return base;
+    }
+    let frac = format!("{nanos:09}");
+    let frac = frac.trim_end_matches('0');
+    match base.strip_suffix('Z') {
+        Some(stripped) => format!("{stripped}.{frac}Z"),
+        None => format!("{base}.{frac}"),
+    }
+}
+
+/// Renders a DuckDB date (days since 1970-01-01) as a canonical `xsd:date`
+/// lexical form via Howard Hinnant's civil-from-days algorithm.
+fn date_lexical(days: i64) -> String {
+    let (y, m, d) = civil_from_days(i128::from(days));
+    format!("{y:04}-{m:02}-{d:02}")
+}
 
 /// Projected RDF triple from a tabular relational row.
 #[derive(Debug, Clone, PartialEq)]
@@ -40,6 +96,10 @@ pub struct ExecutionResult {
     pub triples: Vec<RdfTriple>,
     /// Execution duration in nanoseconds.
     pub elapsed_ns: u64,
+    /// Cells skipped because the value was SQL NULL.
+    pub null_cells: usize,
+    /// Cells skipped because the value had no representable RDF term.
+    pub unrepresentable_cells: usize,
 }
 
 /// Typed evaluator errors.
@@ -58,6 +118,12 @@ pub enum EvaluatorError {
     },
     /// Path conversion or IO error.
     PathError(String),
+    /// The projected row carried a duplicated column name, making per-column
+    /// predicate IRIs ambiguous.
+    DuplicateColumn {
+        /// The duplicated column name.
+        column: String,
+    },
 }
 
 impl fmt::Display for EvaluatorError {
@@ -73,6 +139,9 @@ impl fmt::Display for EvaluatorError {
                 "candidate envelope exceeded for {limit}: observed {observed} rows, ceiling is {max}"
             ),
             Self::PathError(msg) => write!(f, "path error: {msg}"),
+            Self::DuplicateColumn { column } => {
+                write!(f, "duplicate column in projection: {column}")
+            }
         }
     }
 }
@@ -127,6 +196,13 @@ impl purrdf_hash::error::StructuredError for EvaluatorError {
                 visitor.value(
                     Some("message"),
                     purrdf_hash::error::ErrorValue::Message(msg.as_str()),
+                );
+            }
+            Self::DuplicateColumn { column } => {
+                visitor.variant("duckdb-duplicate-column");
+                visitor.value(
+                    Some("column"),
+                    purrdf_hash::error::ErrorValue::Message(column.as_str()),
                 );
             }
         }
@@ -243,8 +319,19 @@ impl PurRdfDuckDB {
             })
             .collect();
 
+        let mut seen = std::collections::BTreeSet::<&str>::new();
+        for name in &column_names {
+            if !seen.insert(name.as_str()) {
+                return Err(EvaluatorError::DuplicateColumn {
+                    column: name.clone(),
+                });
+            }
+        }
+
         let mut result_triples = Vec::new();
         let mut row_index = 0;
+        let mut null_cells = 0usize;
+        let mut unrepresentable_cells = 0usize;
 
         while let Some(row) = rows.next()? {
             row_index += 1;
@@ -263,7 +350,10 @@ impl PurRdfDuckDB {
                 let predicate = format!("{}/{}", predicate_iri_prefix, col_name);
 
                 let term: Option<TermValue> = match row.get_ref(col_idx) {
-                    Ok(frozen_duckdb::duckdb::types::ValueRef::Null) => None,
+                    Ok(frozen_duckdb::duckdb::types::ValueRef::Null) => {
+                        null_cells += 1;
+                        LexicalCell::Null
+                    }
                     Ok(frozen_duckdb::duckdb::types::ValueRef::Boolean(b)) => {
                         Some(TermValue::Literal {
                             lexical_form: b.to_string(),
@@ -314,7 +404,7 @@ impl PurRdfDuckDB {
                     }
                     Ok(frozen_duckdb::duckdb::types::ValueRef::Float(f)) => {
                         Some(TermValue::Literal {
-                            lexical_form: f.to_string(),
+                            lexical_form: xpath_float_text(f).as_str().to_string(),
                             datatype: "http://www.w3.org/2001/XMLSchema#float".to_string(),
                             language: None,
                             direction: None,
@@ -322,7 +412,7 @@ impl PurRdfDuckDB {
                     }
                     Ok(frozen_duckdb::duckdb::types::ValueRef::Double(d)) => {
                         Some(TermValue::Literal {
-                            lexical_form: d.to_string(),
+                            lexical_form: xpath_double_text(d).as_str().to_string(),
                             datatype: "http://www.w3.org/2001/XMLSchema#double".to_string(),
                             language: None,
                             direction: None,
@@ -338,17 +428,43 @@ impl PurRdfDuckDB {
                         })
                     }
                     Ok(frozen_duckdb::duckdb::types::ValueRef::Timestamp(unit, val)) => {
-                        Some(TermValue::Literal {
-                            lexical_form: format!("{val} ({unit:?})"),
+                        LexicalCell::Literal(TermValue::Literal {
+                            lexical_form: timestamp_lexical(unit, val),
                             datatype: "http://www.w3.org/2001/XMLSchema#dateTime".to_string(),
                             language: None,
                             direction: None,
                         })
                     }
-                    _ => None,
+                    Ok(frozen_duckdb::duckdb::types::ValueRef::Date32(days)) => {
+                        LexicalCell::Literal(TermValue::Literal {
+                            lexical_form: date_lexical(i64::from(days)),
+                            datatype: "http://www.w3.org/2001/XMLSchema#date".to_string(),
+                            language: None,
+                            direction: None,
+                        })
+                    }
+                    Ok(frozen_duckdb::duckdb::types::ValueRef::Blob(bytes)) => {
+                        LexicalCell::Literal(TermValue::Literal {
+                            lexical_form: purrdf_xsd::canonical_hex(bytes),
+                            datatype: "http://www.w3.org/2001/XMLSchema#hexBinary".to_string(),
+                            language: None,
+                            direction: None,
+                        })
+                    }
+                    // Every remaining structural value (Interval, List, Struct,
+                    // Decimal, ...) has no faithful xsd mapping on this path
+                    // yet: counted, never silently dropped.
+                    Ok(_) => {
+                        unrepresentable_cells += 1;
+                        LexicalCell::Null
+                    }
+                    Err(_) => {
+                        unrepresentable_cells += 1;
+                        LexicalCell::Null
+                    }
                 };
 
-                if let Some(object) = term {
+                if let Some(object) = cell.literal() {
                     result_triples.push(RdfTriple {
                         subject: row_subject.clone(),
                         predicate,
@@ -362,6 +478,8 @@ impl PurRdfDuckDB {
             rows_emitted: row_index,
             triples: result_triples,
             elapsed_ns: start.elapsed().as_nanos() as u64,
+            null_cells,
+            unrepresentable_cells,
         })
     }
 }
