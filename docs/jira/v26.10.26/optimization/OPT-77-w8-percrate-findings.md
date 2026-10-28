@@ -1551,3 +1551,16 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   sibling helper returns.
 - metadata.rs:338-345 — column numbering by columns.len() shifts
   derived _col.N names after any skipped non-object description.
+
+## wave-18 verdicts + findings
+
+- columnar reifier drop: RESOLVED at HEAD — resolve_all now resolves
+  quad.p; build_reifiers_table refuses non-reifies predicates via
+  ProjectionReason::ReifierPredicate (verified independently). The
+  production fix + refusal corpus landed in 6a7ff794. OPEN RUNG:
+  golden_bytes.rs PINNED digests are stale for reifier-bearing
+  datasets (8 of 10 must move) — regeneration needs cargo on a build
+  box; the red test target is the only known surface of this fix.
+- csvw ustar: CLEAN on framing/padding/LongLink/truncation; latent:
+  write_octal silently truncates >8GiB sizes; b'L'-then-EOF drops
+  the pending name silently.
