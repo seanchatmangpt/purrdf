@@ -1234,3 +1234,16 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   (permanently poisoned answers).
 - :3274-3284 — list:notMember definitive-failure evaluates eagerly
   on a stale partial list, contradicting the delay discipline.
+
+## wave-15 additions (lex percent + callers)
+
+- percent.rs core: CLEAN (char-boundary guards, checked length math,
+  %2E-to-dot per RFC 3986 §6.2.2.2).
+- CONFIRMED caller bug: csvw rdf.rs:478 — {#var} encodes with
+  URI_TEMPLATE_RESERVED whose keep-set includes # and ?: a value
+  containing # breaks out of the fragment instead of becoming %23
+  (RFC 6570 {#} requires the fragment set).
+- jsonschema registry.rs:261/compile.rs:501 — percent::decode errors
+  silently swallowed (.ok()? ): a malformed fragment degrades to
+  "unresolvable" instead of surfacing NotUtf8/Malformed (inconsistent
+  with registry.rs:810).
