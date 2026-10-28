@@ -977,3 +977,19 @@ n3 printing.rs round-trip (5):
   silently dropped, :72); match_pattern drops declared-empty graphs
   from the source's graph-existence state (:903); abandoned
   generation reservation on the IRI-error path untested (:828).
+
+## wave-14 additions (cli query.rs)
+
+- :271 vs :234/:917 — --division threaded into evaluation options but
+  NOT into either prepare_query_with_options call: parse-time
+  constant-folding of `/`/AVG runs under the default policy.
+- :428/:461 — --jsonld-options and --provenance-namespace refusals
+  fire inside emit_result AFTER full evaluation (governed: after the
+  trip report), missing from refuse_unenforceable_combinations — the
+  module's own stated pre-flight doctrine.
+- :441/:448 — canon-arrow is refused by the provenance check but the
+  error text/comment describe the family without noting it
+  (doc drift).
+- :344 vs :942 — governor construction timing asymmetric between
+  GovernedQueryOp (view-op) and EntailedQueryOp (run): latent
+  two-site drift.
