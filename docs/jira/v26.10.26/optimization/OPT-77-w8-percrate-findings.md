@@ -723,3 +723,20 @@ n3 printing.rs round-trip (5):
   scratch reuse safe (HRTB sink + error-path swap). Latent notes:
   reserve_for_query gated on dictionary while scratch consumers
   aren't; GraphFree::ID hard-coded literal vs the shared constant.
+
+## wave-12 semantic additions (lex xml reader — 4 findings)
+
+- dtd.rs:529-532 — entity_value decodes char refs INTO the stored
+  replacement text: `<!ENTITY x '&#60;b/'>` expands to a live `<`
+  that next() re-scans as markup; XML 1.0 §4.4 says char-ref-produced
+  </& are literal data.
+- Same flaw on the PE path: `<!ENTITY % p '%q;'>` stores a literal %
+  but dtd_item re-scans it as a live PE reference (:259-267).
+- reader.rs:1392-1397/:671-679 — end_tag forbids closing only at-or-
+  below the ENTITY frame's entry depth: an entity closing an element
+  opened BEFORE the reference is accepted (§4.3.2 well-formedness).
+- reader.rs:844-854 — the char-ref `;` scan is unbounded: `&#` with
+  no semicolon swallows to EOF/attribute end with a misleading
+  offset instead of failing at the markup boundary.
+- Namespace stack verified clean (resolve/mark truncation, reserved
+  prefixes, attribute-vs-element order).
