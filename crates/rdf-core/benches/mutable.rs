@@ -222,6 +222,7 @@ fn bench_freeze(c: &mut Bench) {
     }
 
     let mut group = c.benchmark_group("mut_freeze");
+    group.sample_size(10); // freeze over 100k statements is multi-100ms per iter
     group.bench_function("cow_freeze", |b| {
         b.iter(|| {
             std::hint::black_box(
@@ -286,6 +287,7 @@ fn bench_snapshot_graphs(c: &mut Bench) {
     let dropped = after_large_drop();
 
     let mut group = c.benchmark_group("mut_snapshot_graphs");
+    group.sample_size(10); // snapshot enumeration over 100k statements
     for (name, mutation) in [
         ("snapshot_and_enumerate", &cow),
         ("annotated_base_small_drop", &annotated),

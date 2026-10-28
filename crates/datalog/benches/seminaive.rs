@@ -185,6 +185,10 @@ fn recursion(c: &mut Bench) {
 /// to assert.
 fn facts_per_second(c: &mut Bench) {
     let mut group = c.benchmark_group("seminaive_facts_per_second");
+    // ~10^6-fact EDB clone + fixpoint per iteration is multi-second per
+    // sample; a low explicit sample count keeps the row inside the 30s
+    // ceiling with an honest named sample count instead of a 30s early-stop.
+    group.sample_size(10);
 
     // derive_1m_facts — the recursive closure program over the dense fanout EDB
     // at width 707: 707 * 707 = 499,849 `p` facts and the same `q` facts, so the

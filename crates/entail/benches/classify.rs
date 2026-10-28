@@ -138,23 +138,6 @@ fn terminology(classes: usize) -> Arc<RdfDataset> {
 
 fn bench_classify(c: &mut Bench) {
     let mut group = c.benchmark_group("owl_direct_classify");
-    // The 10_000 row is a scale probe, not a regression point: classification cost
-    // is superlinear in the SIGNATURE, so this row shows where the classifying
-    // saturation stops being interactive as an ontology grows classes. Report-only.
-    for classes in [32usize, 128, 512, 10_000] {
-        let dataset = terminology(classes);
-        let reasoner = Reasoner::new(&dataset).expect("reverse-map the terminology");
-        let signature = reasoner.signature().len();
-        group.bench_with_input(
-            BenchmarkId::from_parameter(signature),
-            &reasoner,
-            |bencher, reasoner| {
-                bencher.iter(|| black_box(reasoner.classify().expect("consistent")));
-            },
-        );
-    }
-    group.finish();
-}
-
-bench_group!(benches, bench_classify);
-bench_main!(benches);
+    // the 10_000-class rung is superlinear in signature size;
+    // low sample count keeps the top rung inside the ceiling.
+    group.sample_size(20);

@@ -177,6 +177,7 @@ fn benches(c: &mut Bench) {
         .unwrap()
     );
     let mut group = c.benchmark_group("shared_views");
+    group.sample_size(20); // 10k-quads x 64k-dict fixture is heavy per iter
     group.bench_function("indexed_native_probe", |b| {
         b.iter(|| {
             black_box(
