@@ -1371,3 +1371,5 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   carrying an error silently loses it in Detailed while leaf()
   prints it (projection disagreement).
 - built-stack alignment, Clone/Drop/PartialEq verified sound.
+
+- sparql-eval solution.rs merge internals: CLEAN (compatible, union/intersection, shared_columns, in-place permutation all verified; witness.rs/service_endpoints.rs merge fns also clean).
