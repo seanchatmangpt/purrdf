@@ -1564,3 +1564,21 @@ n3 reasoner.rs (backward chaining — SERIOUS):
 - csvw ustar: CLEAN on framing/padding/LongLink/truncation; latent:
   write_octal silently truncates >8GiB sizes; b'L'-then-EOF drops
   the pending name silently.
+
+## wave-18 additions (batch 2)
+
+- jsonschema dynamicRef degradation: CONFIRMED (compile.rs:503-517 —
+  percent::decode failure/registry miss/JSON-pointer fragment all
+  yield anchor: None with no Err; validate treats it as plain $ref).
+- gts replication.rs (4): id/prev chain advances through INVALID
+  frames — corrupt mid-chain frames validate as heads/resume points
+  (:216-233); aggregate_digest filter_maps away None heads (damage
+  hidden from digest+count, :326-338); file_head nulls when the LAST
+  segment is non-foldable (:410-413); unreadable-id frame validates
+  prev:"" against a fabricated genesis (:185-187).
+- validate build.rs SARIF (5): text_carries_all ignores direction()
+  (:415-418 — directional message loses PROP_SHACL_MESSAGES+bag);
+  region only built when line is Some — column dropped (:655-659);
+  uriBaseId stamped on absolute URIs (SARIF §3.4.2 violation,
+  :650-653/:754-756); invocation notifications clobbered (:288-289);
+  O(results×rules) position scan (:742-744).
