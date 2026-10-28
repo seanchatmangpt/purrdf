@@ -1197,6 +1197,7 @@ msgstr ""
 "能。"
 
 #: src/reference/python-api.md:10
+#, fuzzy
 msgid ""
 "The [Python API chapter](python-api.md) records the canonical surface for "
 "both the main package and `purrdf.geo`, including "
@@ -3052,6 +3053,7 @@ msgstr ""
 "境。公开调用直接通过 `purrdf`，不要使用内部 `purrdf_native` 扩展模块。"
 
 #: src/reference/python-api-signatures.md:6
+#, fuzzy
 msgid ""
 "This reference records every declaration in the canonical Python stubs, "
 "including classes, properties, overloads, type aliases and namespace "
@@ -3064,6 +3066,7 @@ msgstr ""
 "类型的构造器可以单独导入。"
 
 #: src/reference/python-api-signatures.md:11
+#, fuzzy
 msgid ""
 "The installed-package signature test compares both complete inventories "
 "using Python syntax trees. Parameter kinds, annotations, defaults, overloads "
@@ -3077,6 +3080,7 @@ msgstr ""
 "一致并不能证明每个原生可调用对象都实现了声明的签名。"
 
 #: src/reference/python-api-signatures.md:17
+#, fuzzy
 msgid ""
 "Read [Getting Started: Python](../getting-started/python.md) for usage and "
 "the linked engine chapters for their semantic contracts. This reference "
@@ -13854,6 +13858,7 @@ msgid "SPARQL: Result Formats"
 msgstr "SPARQL：结果格式"
 
 #: src/sparql/results.md:8
+#, fuzzy
 msgid ""
 "[`purrdf-sparql-results`](https://docs.rs/purrdf-sparql-results) is the "
 "results boundary of the SPARQL stack: the canonical authority for turning a "
@@ -13885,6 +13890,7 @@ msgid "\"emitted JSON parses back\""
 msgstr "\"emitted JSON parses back\""
 
 #: src/sparql/results.md:33
+#, fuzzy
 msgid ""
 "Per-format writers (`to_json`, `to_xml`, `to_csv`, `to_tsv`) and readers "
 "(`from_json`, `from_json_boolean`, `from_xml`, `from_xml_boolean`) are also "
@@ -25435,6 +25441,7 @@ msgid "every workspace crate version must match the tag version."
 msgstr "每个工作区 crate 的版本都必须与标签版本一致。"
 
 #: src/project/releases.md:70
+#, fuzzy
 msgid ""
 "Every functional version of every crate in the 35-crate release set is "
 "published by that lane. Functional publication requires the crate records to "
@@ -25449,6 +25456,7 @@ msgstr ""
 "crate can only be published using Trusted Publishing`。"
 
 #: src/project/releases.md:76
+#, fuzzy
 msgid ""
 "Set up new crate records **before tagging**. A token creates each missing "
 "record by publishing an isolated, empty, dependency-free **0.0.0** package; "

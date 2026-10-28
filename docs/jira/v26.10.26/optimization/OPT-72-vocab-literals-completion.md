@@ -36,3 +36,15 @@ validate/regime.rs + entail.rs Turtle-document strings (low priority).
 `grep -rn "2001/XMLSchema#" crates/*/src` outside cfg(test)/fixtures
 returns only the constants' home (xsd/src/datatype.rs); same for the
 rdf-syntax-ns and owl namespaces outside iri/src/vocab.rs.
+
+---
+
+## Recount (2026-10-28, wave-21 verification lane)
+
+Per-site counts drifted from this ticket's figures: sparql-algebra parser.rs
+now has 8 XSD hits (ticket says 6) and serialize.rs 5 (ticket says 1); lex
+term_syntax.rs 6 (ticket says 1); the workspace-wide grep finds 587
+`2001/XMLSchema#` hits in crates/*/src. Every site this ticket lists was
+verified still open. Direct-fix items remain static/mechanical; dep-decision
+items still need Cargo.lock regeneration on a build box.
+
