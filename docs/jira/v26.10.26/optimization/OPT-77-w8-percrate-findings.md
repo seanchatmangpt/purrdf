@@ -216,3 +216,15 @@ string.
   (scoped or gap — undecided); OPT-71 residue confirmed live.
 - iri lane: outstanding (not reported); audit surface otherwise
   complete across all 52 crates.
+
+## wave-9 last lane (iri) — audit surface now complete across all 52 crates
+
+- lib.rs:6 claims one dependency; purrdf-hash is a second (README is
+  correct). README re-export list omits json_pointer and percent.
+- vocab gap: the SHACL-JS term family (sh:js, sh:jsLibrary,
+  sh:jsFunctionName, sh:jsLibraryURL, sh:JSConstraint, 
+  sh:JSConstraintComponent, sh:JSExecutable, sh:JSLibrary) is used as
+  literals in shapes/src/spec/census.rs with no vocab.rs constants —
+  the one real namespace-coverage hole (extends OPT-72).
+- langtag errors carry no position (fieldless Copy enum) while the
+  crate ships LineIndex/Position for IRIs — rule named, location not.
