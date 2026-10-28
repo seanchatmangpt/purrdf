@@ -761,3 +761,17 @@ n3 printing.rs round-trip (5):
   admission rejection as Workspace/AllocationFailed (:520-530); the
   64/32-bit admission paths share no computed bound (validate_against
   discards the product it overflow-checked).
+
+## wave-13 additions (cli convert)
+
+- convert.rs:351-361 — the canonical lane skips
+  resolve_target/refusals entirely: `purrdf convert in.ttl out.nt.gz
+  --canonical` writes PLAIN N-Quads under a gzip-promising name (the
+  file-lies-about-its-bytes class format.rs:124 exists to prevent).
+- convert.rs:373/:393-405 — the entailment single-source lane never
+  populates read_ledger: parse-side loss entries are silently absent
+  from --loss-ledger on that path (emission asymmetry with the
+  merged/GTS branches).
+- convert.rs:437-441 — ViewCanonError::NotReady arm binds and
+  discards the error (silent-drop shape the file elsewhere refuses).
+- Base-IRI threading verified clean across all three lanes.
