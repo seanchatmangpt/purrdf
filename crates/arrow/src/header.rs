@@ -234,7 +234,7 @@ impl std::fmt::Display for ArrowEgressHeaderError {
             Self::BadFlags(fl) => write!(
                 f,
                 "canonarrow: undefined flag bits 0x{:04x}",
-                fl & !FLAGS_MASK
+                fl & !ArrowEgressHeader::FLAGS_MASK
             ),
             Self::BadPayloadOffset(off) => {
                 write!(f, "canonarrow: expected payload offset 128, got {off}")

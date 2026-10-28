@@ -50,7 +50,7 @@ No source code was modified by the inspection; tickets are engineering specs onl
 | OPT-39 | `OPT-39-bench-and-helpers-receipt.md` | Agent 20 | rdf-core, testkit |
 | OPT-40 | `OPT-40-layout-geometry.md` | Agent 11 | rdf-events, rdf-core, hnsw |
 | OPT-41 | `OPT-41-branchless-reuse-dedupe.md` | reuse-audit lanes | branchless, rdf-core |
-| OPT-43 | `OPT-43-csv-portable-swar-kernel.md` | ticket-writer §3.5 | rdf-core — EXECUTED |
+| OPT-43 | `OPT-43-csv-portable-swar-kernel.md` | ticket-writer §3.5 | rdf-core — LANDED (both halves; wave-5 audit) |
 | OPT-44 | `OPT-44-hnsw-finite-lane-mask.md` | ticket-writer §3.5 | hnsw |
 | OPT-45 | `OPT-45-sparql-small-n-position-scans.md` | ticket-writer §3.5 | sparql-eval — landed, UNVERIFIED |
 | OPT-46 | `OPT-46-n3-lexer-digit-run-swar.md` | ticket-writer §3.5 | n3 |
@@ -60,7 +60,7 @@ No source code was modified by the inspection; tickets are engineering specs onl
 | OPT-50 | `OPT-50-mutable-graph-scan-indices.md` | ticket-writer §3.5 | rdf-core — EXECUTED |
 | OPT-51 | `OPT-51-n3-lexer-digit-run-swar.md` | ticket-writer §3.5 | n3 — superseded → OPT-46 |
 | OPT-52 | `OPT-52-embedding-padding-scan-swar.md` | ticket-writer §3.5 | rdf-core — EXECUTED |
-| OPT-53 | `OPT-53-space-filling-keys.md` | ticket-writer (bcinr) | branchless, geo-kernel — landed, UNVERIFIED |
+| OPT-53 | `OPT-53-space-filling-keys.md` | ticket-writer (bcinr) | branchless, geo-kernel — landed (cites verified, wave-5) |
 | OPT-54 | `OPT-54-bmi-bitop-family.md` | ticket-writer (bcinr) | branchless — landed, UNVERIFIED |
 | OPT-55 | `OPT-55-swar-horizontal-reduce.md` | ticket-writer (bcinr) | branchless — landed, UNVERIFIED |
 | OPT-56 | `OPT-56-branchless-containers.md` | ticket-writer (bcinr) | branchless — landed, UNVERIFIED |
@@ -128,7 +128,7 @@ landed: `swar`, `char_class`, `structural`, `eytzinger`, `search`, `hash`, `sort
   `crates/sparql-eval/src/modifier.rs`; deep `total_order` only on rank ties)
 - OPT-50 → `purrdf_core::FastMap` dense indices (`declared_pos`,
   `crates/rdf-core/src/ir/mutable.rs`)
-- OPT-52 → `branchless::swar` (`first_byte_position`, swar.rs:79 — wired in
+ - OPT-52 → kernel exists (swar.rs:80) but view.rs:4782-4793 uses a LOCAL SWAR expression — borrow-inexact kernel, 2x divergence documented in-ticket; relocation is a coordinator call
   `crates/rdf-core/src/ir/embedding/view.rs:4786`)
 
 Unreferenced-by-ticket modules (`circuit_breaker`, `cost_math`) are the remaining

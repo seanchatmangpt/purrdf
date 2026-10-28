@@ -42,7 +42,7 @@ impl core::fmt::Display for MalformedResult {
         match self {
             Self::Predicate { term, cause } => write!(
                 f,
-                "triple-term predicate is not an IRI (term: {term}; cause: {cause})"
+                "triple-term predicate is not an IRI (term: {term:?}; cause: {cause})"
             ),
             Self::RowWidth {
                 bindings,

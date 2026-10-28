@@ -80,3 +80,9 @@
 > maintained :485-491/:1008-1015, tagged // OPT-50); the blank_index half is
 > NOT landed (visit_blank_identities still walks full term space,
 > mutable.rs:628).
+
+> SECOND CORRECTION (2026-10-27, wave-5 audit): the earlier correction
+> understated the landing - the blank_index half has ALSO landed:
+> base_blanks OnceLock dense index at mutable.rs:333-338, consumed by
+> visit_blank_identities at :626-635 (OPT-50 tag at :623). The walk is no
+> longer a full term-space scan. Ticket scope is now fully landed.

@@ -258,7 +258,8 @@ Historical snapshot (superseded):
   phase-2 stragglers; launches after phase-2/3 drain, warm target dir shared.
 
 REFRESH-PENDING: this section is stale on arrival; read
-`/tmp/bench-logs/register.txt` for live state.
+`/tmp/bench-logs/register.txt` for live state. (Terminal read 2026-10-27:
+register has 44 rows; section 9 terminal block above is authoritative.)
 
 Post-freeze addition (not in the phase-4 queue): the OPT-17 wiring wave adds
 a `canon-arrow` arm to `crates/sparql-results` including a new bench subject
@@ -296,18 +297,22 @@ UNSUBSTANTIATED rows recorded but not executed — read-only lane).
 
 ## 11.x Conflicting totals — adjudication
 
-The wave receipt's earlier "421 measured / 0 failed" and "60 SAFE-TO-CITE /
-121 RED-CLASS / 6 UNSUBSTANTIATED" figures are superseded: the ground-truth
-re-read of in-log footers at 13:08 PDT gives 418 terminal measured / 0 failed
-(§4). The 56/23 close-out counts above are as-bannered, not re-derived;
-refresh both from receipts when the runners drain. A count recalled from
-session memory is stale by default — re-read the receipt at use time.
+**TERMINAL (writer lane, 2026-10-27): the adjudicated total is 1181 measured
+/ 0 failed** (§4-T). Supersession chain: 421 → 418 → 864 → **1181**. The
+56/23 close-out counts above are as-bannered, not re-derived; refresh both
+from receipts before citing. A count recalled from session memory is stale
+by default — re-read the receipt at use time.
+
+Historical: the wave receipt's earlier "421 measured / 0 failed" and "60
+SAFE-TO-CITE / 121 RED-CLASS / 6 UNSUBSTANTIATED" figures are superseded:
+the ground-truth re-read of in-log footers at 13:08 PDT gives 418 terminal
+measured / 0 failed (§4).
 
 ## 12. Receipt index
 
 | artifact | path |
 |---|---|
-| register (terminal rc rows) | `/tmp/bench-logs/register.txt` (19 rc= rows as of 13:08) |
+| register (terminal rc rows) | `/tmp/bench-logs/register.txt` (44 rows as of the terminal sync; FQ-15 banner receipt re-verified) |
 | phase-2 runner log | `/tmp/bench-logs/phase2-runner.log` |
 | phase-3 runner log | `/tmp/bench-logs/phase3-runner.log` |
 | fix queue | `/tmp/bench-fix-queue.md` |
@@ -376,7 +381,7 @@ produced by the pre-fix orchestrator; branchless compile red there is stale
 
 ---
 
-Footer: sections marked REFRESH-PENDING (§1 summary counts, §9 in-flight,
-§10 UNVERIFIED register) stay marked until phase-4 receipts land. As-of:
-2026-10-27 13:08 PDT. All receipts live under `/tmp/bench-logs` (ephemeral —
-persisted copy planned before /tmp reaping).
+Footer: TERMINAL as of the writer-lane sync 2026-10-27 (register 44 rows;
+1181 measured / 0 failed). Sections still marked REFRESH-PENDING above are
+historical snapshots retained on purpose. All receipts live under
+`/tmp/bench-logs` (ephemeral — persisted copy planned before /tmp reaping).
