@@ -959,3 +959,21 @@ n3 printing.rs round-trip (5):
 - RdfLocation Display renders <unknown>:17:9 for pathless positions.
 - retained_bytes (:438-460) silently reports unknown capacity on
   overflow and never charges the cause SharedOwned.
+
+## wave-14 additions (cdt_agg, wasm dataset)
+
+- sparql-eval cdt_agg.rs:258-269 — finish_workspace LAUNDERS a real
+  constructor failure into silent empty "[]"/"{}" for a non-empty
+  fold (only the truly-empty group should yield the literal).
+- cdt_agg.rs:423 vs :250 — DISTINCT dedups by RDF term identity but
+  map_constructor collapses by normalized key (last-wins): FOLD(
+  DISTINCT ?k, ?v) keeps a different value than FOLD(?k, ?v).
+- cdt_agg.rs:383 — split_at_mut(min) silently truncates a short
+  links slice (arity bug laundered into all-null values).
+- cdt_agg.rs:187-195 — MAX_ELEMENTS checked pre-normalization; the
+  constructor re-applies its bound post-dedup (order inconsistency).
+- wasm dataset.rs: roleRules entries wrap built-in roles as Custom
+  (:233); SinkWriter::flush is unconditional Ok (buffered bytes
+  silently dropped, :72); match_pattern drops declared-empty graphs
+  from the source's graph-existence state (:903); abandoned
+  generation reservation on the IRI-error path untested (:828).
