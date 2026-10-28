@@ -233,6 +233,7 @@ fn benchmark(bencher: &mut Bench) {
 
     let mut group = bencher.benchmark_group("purrdf_text");
     group.throughput(Throughput::Elements(u64::from(DOCUMENTS)));
+    group.sample_size(60);
 
     group.bench_function("build_index", |bencher| {
         bencher.iter(|| {

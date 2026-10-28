@@ -184,7 +184,14 @@ fn transforms(bench: &mut Bench) {
                 black_box(operation.apply(black_box(&source), &mut context).unwrap());
             });
         });
-        for count in [1_usize, 4, 16, 256, 4096] {
+        // Default ladder tops out at 1024: batch4096 exceeds the default wall
+        // per iteration (measured-at batch256 (was 4096) — capacity probe at
+        // 4096 via GEO_TRANSFORMS_LARGE_BATCH env).
+        let mut ladder = vec![1_usize, 4, 16, 256, 1024];
+        if std::env::var("GEO_TRANSFORMS_LARGE_BATCH").is_ok_and(|v| v == "1") {
+            ladder.push(4096);
+        }
+        for count in ladder {
             let points = vec![source.clone(); count];
             let mut output = vec![None; count];
             operation

@@ -810,6 +810,7 @@ mod golden_json_escapes {
             universals: BTreeSet::new(),
             existentials: BTreeSet::new(),
             fact_sources: BTreeMap::new(),
+            rules: Vec::new(),
         };
         let json = rdf12_json(&doc);
         let expected = concat!(

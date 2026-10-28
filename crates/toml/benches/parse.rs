@@ -100,6 +100,10 @@ fn bench_analyze(c: &mut Bench) {
 fn bench_codec(c: &mut Bench) {
     let profile = Profile::standard().expect("standard profile builds");
     let mut group = c.benchmark_group("toml_codec");
+    // decode_document/512 (~833ms/iter) and project/512 (~749ms/iter) make the
+    // default 100 samples a ~150s group; 30 samples lands ~25s. The 64-row cases
+    // stay proportionally cheap. Report-only.
+    group.sample_size(30);
     for &tables in &CODEC_TABLES {
         let text = document(tables, DOC_SEED);
         let model = analyze(

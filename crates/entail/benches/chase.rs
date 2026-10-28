@@ -78,6 +78,10 @@ fn dataset_hierarchy(n: usize, graphs: usize) -> Arc<RdfDataset> {
 
 fn bench_chase(c: &mut Bench) {
     let mut group = c.benchmark_group("rdfs_chase");
+    // The 1_000 rung is ~470-530ms/iter; 30 samples keeps the group under ~25s
+    // wall clock instead of criterion's default 100. The 16/64 rungs stay cheap
+    // either way. Report-only.
+    group.sample_size(30);
     // The 10_000 row is a scale probe, not a regression point: the
     // subClassOf-transitivity + instance-typing rules are quadratic here, so this
     // row materializes on the order of on the order of n^2 inferred triples (the original 10_000 row was ~10^8 and exceeded this machine's RAM; lowered to 1_000) and exists to show

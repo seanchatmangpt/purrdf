@@ -85,7 +85,14 @@ fn benchmark(c: &mut Bench) {
         ..ExecutionLimits::GEOMETRY
     })
     .unwrap();
-    for count in [1usize, 4, 16, 256, 4096] {
+    // Default ladder tops out at 1024: inverse/direct batch4096 runs ~13.4s
+    // per iteration (measured-at batch256 (was 4096) — capacity probe at 4096
+    // via GEO_GEODESIC_LARGE_BATCH env).
+    let mut ladder = vec![1usize, 4, 16, 256, 1024];
+    if std::env::var("GEO_GEODESIC_LARGE_BATCH").is_ok_and(|v| v == "1") {
+        ladder.push(4096);
+    }
+    for count in ladder {
         let mut output = vec![None; count];
         let mut inverses = vec![None; count];
         let mut direct = vec![None; count];

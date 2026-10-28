@@ -60,6 +60,10 @@ fn bench_skewed_star(c: &mut Bench) {
         ),
     ] {
         let ds = skewed_star(spec);
+        // `large` runs ~550ms/iter; cap samples to keep the suite bounded.
+        if label == "large" {
+            group.sample_size(40);
+        }
         group.bench_function(label, |bencher| bencher.iter(|| eval(&ds, &parsed)));
     }
     group.finish();

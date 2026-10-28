@@ -25,7 +25,14 @@ fn covers(bench: &mut Bench) {
         .expect("attainable scale");
     assert_eq!(level17, 17);
     for level in [16, level17] {
-        for radius in [1_000, 30_000, 400_000] {
+        // Default radius ladder tops out at 30_000: radius-400000 runs ~7.5s
+        // per iteration (measured-at radius-30000 (was 400000) — capacity
+        // probe at 400000 via GEO_COVERS_LARGE_RADIUS env).
+        let mut radii = vec![1_000, 30_000];
+        if std::env::var("GEO_COVERS_LARGE_RADIUS").is_ok_and(|v| v == "1") {
+            radii.push(400_000);
+        }
+        for radius in radii {
             let radius = Metres::new(Rat::from_i64(radius));
             let levels = CoverLevels::new(0, level).expect("supported");
             let limits = MixedCoverLimits::DEFAULT;

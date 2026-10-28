@@ -53,6 +53,7 @@ fn dictionaries(bench: &mut Bench) {
             );
             let mut group = bench.benchmark_group(format!("dictionary/{name}/{label}"));
             group.throughput(Throughput::Elements(dictionary.len() as u64));
+            group.sample_size(50);
             group.bench_function("construct", |b| {
                 b.iter(|| {
                     black_box(

@@ -91,6 +91,8 @@ fn bench_codec_at(c: &mut Bench, rows: u32) {
             )
         });
     });
+    // read_zstd runs ~450ms/iter at 100k quads; cap samples to keep the suite bounded.
+    group.sample_size(50);
     group.bench_function("read_zstd", |bencher| {
         bencher.iter(|| {
             std::hint::black_box(read(&encoded.files).expect("benchmark fixture decodes"))
