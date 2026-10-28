@@ -301,9 +301,12 @@ fn parse_mix(c: &mut Bench) {
 /// is printed in the report rather than inferred.
 fn fixpoint(c: &mut Bench) {
     let mut group = c.benchmark_group("n3_fixpoint");
-    // chain/256 derives ~32k facts per iteration; stay inside the 30s ceiling
+    // stay inside the 30s ceiling; the top rung is gated off by default
+    // because its fixture construction OOM-killed the 4b run (SIGKILL after
+    // n3_parse rows, before this group printed).
     group.sample_size(20);
-    for n in [64_usize, 256] {
+    let large = std::env::var("N3_FIXPOINT_LARGE").is_ok_and(|v| v == "1");
+    for n in if large { [64_usize, 256] } else { [64_usize, 128] } {
         let chain = chain_program(n);
         let peer = peer_program(n);
         let chain_closure = reason_fixture(&chain).closure.len();
