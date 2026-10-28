@@ -227,9 +227,17 @@ fn narrowing(
                     offer(ids);
                 }
             }
-            Constraint::Class(classes) => offer(instances_of_any(data, classes)),
-            Constraint::HasValue(value) => offer(graph_nodes_among(data, std::iter::once(value))),
-            Constraint::In(members) => offer(graph_nodes_among(data, members.iter())),
+            // Node-level narrowing only: on a property shape these constraints
+            // bind VALUE nodes (see the `is_property_shape` guard above).
+            Constraint::Class(classes) if !is_property_shape => {
+                offer(instances_of_any(data, classes));
+            }
+            Constraint::HasValue(value) if !is_property_shape => {
+                offer(graph_nodes_among(data, std::iter::once(value)));
+            }
+            Constraint::In(members) if !is_property_shape => {
+                offer(graph_nodes_among(data, members.iter()));
+            }
             Constraint::And(operands) => {
                 for operand in operands {
                     if let Some(ids) = narrowing(data, operand, disallows, model, depth + 1)? {
