@@ -925,3 +925,19 @@ n3 printing.rs round-trip (5):
 - :1468-1503 — record_suspension counts Abandoned/Fault round-trips
   as productive wait (metric plumbing).
 - Ticket transitions, expire mapping, run() latch verified coherent.
+
+## wave-13 additions (shapes report.rs, wasm async — prior batch)
+
+- report.rs:829-892 — Complete sort keys FLATTEN nested detail trees:
+  two results with different detail topologies but equal flattened
+  keys compare equal; complete-report bytes are acquisition-order
+  dependent.
+- report.rs:1793-1800 — ResultTuple (dedup key) omits messages and
+  annotations while result_sort_key includes them: results differing
+  only in message text collapse in conformance/equality comparisons.
+- validate build.rs:472-511 — SARIF resultPath built from the
+  RELABELLED term (report-internal _:dg0 labels), not the
+  data-graph label the docs promise callers can join on.
+- report.rs:2210-2217 — collides_with_minted accepts leading-zero
+  indices (r01 == r1): spurious mint prefix, benign.
+- Severity lanes verified clean.
