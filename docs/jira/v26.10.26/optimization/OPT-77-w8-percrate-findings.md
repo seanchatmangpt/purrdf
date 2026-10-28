@@ -3019,3 +3019,14 @@ direction).
 - evidence core: CLEAN; two low-severity API notes (witness_stop
   post-finish, InvalidUndecided one-sided).
 
+### wave-34 addendum 2 — simd.md RE-ANCHORED
+
+- 91 moved anchors repointed, 3 GONE rows rewritten to their replacement
+  writers (escape consolidation into purrdf_lex::iri_escape/literal_escape;
+  entail's write_surface), 9 already current. One of the lane's 92 moved
+  rows did not match its old string exactly (likely a duplicate-target
+  collision during replacement) — a spot re-check of that table against
+  the lane's list is a cheap residual.
+- The simd.md anchor-drift finding (wave-31) is CLOSED as a bulk item;
+  individual residual anchors are cosmetic.
+
