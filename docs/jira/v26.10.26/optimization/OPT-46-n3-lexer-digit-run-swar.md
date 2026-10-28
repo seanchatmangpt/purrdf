@@ -119,3 +119,10 @@
   the resolved n3→branchless (or n3→lex→branchless) edge;
   `make check` green; `make conformance` N3 scoreboard unchanged
   (zero token deltas).
+
+> STATUS CORRECTION (2026-10-27, W4 audit): LANDED - SWAR wiring at
+> crates/n3/src/lexer.rs:476/:532-541 (byte_lane_in_range from
+> purrdf_branchless::swar), layer edge in n3 Cargo.toml:42 + layers.toml:181,
+> differential oracle test at lexer.rs:713. The NOT-yet-implemented status
+> above is stale; alloc-probe/cargo-dependent acceptance items remain
+> CI-verified per machine contract.

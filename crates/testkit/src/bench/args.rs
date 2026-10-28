@@ -200,7 +200,7 @@ impl Arguments {
                     })?;
                     if seconds == 0 {
                         return Err(ArgumentError(
-                            "option `--wall-max` must be longer than zero".to_owned(),
+                            format!("option `--wall-max`: `{seconds}` is not longer than zero"),
                         ));
                     }
                     parsed.wall_max = Duration::from_secs(seconds).min(MAX_BENCH_WALL);
@@ -222,7 +222,7 @@ impl Arguments {
                     };
                     if parsed.baseline.replace(comparison).is_some() {
                         return Err(ArgumentError(
-                            "options `--baseline` and `--baseline-lenient` are given more than once between them".to_owned(),
+                            format!("option `--{name}` is given more than once").to_owned(),
                         ));
                     }
                 }

@@ -10,6 +10,10 @@ pinned (grep / awk / tomllib, bijection verified both directions); one RNG
 home (getrandom absent from `crates/*/benches/`, grep rc=1) and one temp home.
 Three-phase detached runners plus 14 static lanes on a no-build box.
 
+> SUPERSEDED (2026-10-27): the final standing totals are 864 measured
+> / 0 failed with purrdf-rdf 123 and shapes 37 — this section's 418
+> snapshot predates the late phase-3/4 receipts and the viz_layout /
+> canonical_sort footer corrections. See bench-coverage-report.md.
 Terminal green: **418 measured / 0 failed** and climbing — re-read from
 register + in-log footers at 13:08 PDT: purrdf 44, purrdf-rdf 122, shapes 36,
 iri 2, sparql-algebra 140, sparql-results 14, columnar 12, lex 22, cdt 12,

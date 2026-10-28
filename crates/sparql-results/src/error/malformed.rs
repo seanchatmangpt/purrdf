@@ -40,7 +40,10 @@ impl purrdf_hash::error::StructuredError for MalformedResult {
 impl core::fmt::Display for MalformedResult {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Predicate { .. } => f.write_str("triple-term predicate is not an IRI"),
+            Self::Predicate { term, cause } => write!(
+                f,
+                "triple-term predicate is not an IRI (term: {term}; cause: {cause})"
+            ),
             Self::RowWidth {
                 bindings,
                 variables,

@@ -96,6 +96,8 @@ import init, {
   liftProjection,
   ProjectionLift,
   ProjectionPackage,
+  ProvenanceInfo,
+  ProvenanceInfo,
   provenanceFromJson,
   provenanceFromXml,
   Quad,

@@ -75,7 +75,7 @@ pub fn triples_to_n3(prefixes: &BTreeMap<String, String>, triples: &[Triple]) ->
 
     if used.contains("") {
         if let Some(base) = prefixes.get("") {
-            out.push_str(&format!("@prefix : <{}> .\n", base));
+            out.push_str(&format!("@prefix : <{base}> .\n"));
         }
     }
     for p in &used {
@@ -83,7 +83,7 @@ pub fn triples_to_n3(prefixes: &BTreeMap<String, String>, triples: &[Triple]) ->
             continue;
         }
         if let Some(base) = prefixes.get(p) {
-            out.push_str(&format!("@prefix {}: <{}> .\n", p, base));
+            out.push_str(&format!("@prefix {p}: <{base}> .\n"));
         }
     }
     if !used.is_empty() {
@@ -134,7 +134,7 @@ pub fn triples_to_trig(prefixes: &BTreeMap<String, String>, triples: &[Triple]) 
 
     if used.contains("") {
         if let Some(base) = prefixes.get("") {
-            out.push_str(&format!("@prefix : <{}> .\n", base));
+            out.push_str(&format!("@prefix : <{base}> .\n"));
         }
     }
     for p in &used {
@@ -142,7 +142,7 @@ pub fn triples_to_trig(prefixes: &BTreeMap<String, String>, triples: &[Triple]) 
             continue;
         }
         if let Some(base) = prefixes.get(p) {
-            out.push_str(&format!("@prefix {}: <{}> .\n", p, base));
+            out.push_str(&format!("@prefix {p}: <{base}> .\n"));
         }
     }
     if !used.is_empty() {
@@ -197,8 +197,8 @@ enum Position {
 fn term_to_n3(term: &Term, prefixes: &BTreeMap<String, String>, pos: Position) -> String {
     match term {
         Term::Iri(iri) if matches!(pos, Position::Predicate) && iri == RDF_TYPE => "a".to_string(),
-        Term::Iri(iri) => compact_iri(iri, prefixes).unwrap_or_else(|| format!("<{}>", iri)),
-        Term::Var(name) => format!("?{}", name),
+        Term::Iri(iri) => compact_iri(iri, prefixes).unwrap_or_else(|| format!("<{iri}>")),
+        Term::Var(name) => format!("?{name}"),
         Term::Blank(name) => format!("_:{}", sanitize_blank(name)),
         Term::Literal(lit) => literal_to_n3(lit, prefixes),
         Term::List(items) => {
@@ -207,7 +207,7 @@ fn term_to_n3(term: &Term, prefixes: &BTreeMap<String, String>, pos: Position) -
                 .map(|item| term_to_n3(item, prefixes, Position::Object))
                 .collect::<Vec<_>>()
                 .join(" ");
-            format!("({})", rendered)
+            format!("({rendered})")
         }
         Term::Formula(triples) if triples.is_empty() => "{}".to_string(),
         Term::Formula(triples) => formula_to_n3(triples, prefixes, 0),
@@ -320,8 +320,8 @@ fn explicit_graph_for_printing(graph: &Graph) -> (Vec<String>, Vec<Triple>) {
         for name in names {
             // Byte encoding gives an injective, legal IRI even for standardized-apart names.
             let encoded: String = name.bytes().map(|b| format!("{:02x}", b)).collect();
-            let iri = format!("urn:eyeron:quantified:{}", encoded);
-            declarations.push(format!("{} <{}> .", keyword, iri));
+            let iri = format!("urn:eyeron:quantified:{encoded}");
+            declarations.push(format!("{keyword} <{iri}> ."));
             replacements.insert(
                 if universal {
                     Term::var(name.clone())
@@ -456,9 +456,9 @@ fn compact_iri(iri: &str, prefixes: &BTreeMap<String, String>) -> Option<String>
     best.map(|(prefix, base)| {
         let local = &iri[base.len()..];
         if prefix.is_empty() {
-            format!(":{}", local)
+            format!(":{local}")
         } else {
-            format!("{}:{}", prefix, local)
+            format!("{prefix}:{local}")
         }
     })
 }

@@ -188,9 +188,10 @@ Non-vacuity rules:
 ### 7.1 Register formats
 
 Two register files exist; they are **separate series**, never summed. A
-count that adds rows across both files is a miscount (the wave's "123"
-purrdf-rdf miscount came from exactly this class — cross-file mixing, not
-arithmetic).
+count that adds rows across both files is a miscount. (The wave's
+purrdf-rdf "122 vs 123" episode ended at 123 across 7 binaries — the
+122 recount had dropped the viz_layout footer; see the coverage
+report's final recount and its correction history.)
 
 - **`register.txt`** (serial lane, phase runners) — one row per phase-runner
   execution: `CRATE rc=R S s [cap=C] [note] log=PATH` (bare seconds, not

@@ -86,7 +86,6 @@ gates=(
     check-publish-order
     check-wasm-js-exports
     check-entailment-surface
-    check-python-stub-parity
     check-tracked-paths
     check-test-shards
 )

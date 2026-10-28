@@ -14,7 +14,7 @@ SPDX-License-Identifier: CC-BY-4.0
 >
 > - `purrdf` facade — rc=0, 44 benchmarks measured, 0 failed
 >   (`/tmp/bench-logs/purrdf.phase2.log`).
-> - `purrdf-rdf` (projections/native_codecs tables) — rc=0, 6 bench binaries
+> - `purrdf-rdf` (projections/native_codecs tables) — rc=0, 7 bench binaries
 >   measured, 0 failed (`/tmp/bench-logs/purrdf-rdf.phase2.log`).
 > - `purrdf-iri` — register rc=0, 2 measured, 0 failed
 >   (`/tmp/bench-logs/purrdf-iri.log`).
@@ -36,7 +36,10 @@ SPDX-License-Identifier: CC-BY-4.0
 > happened yet — do not cite numbers for these:
 >
 > - `purrdf-arrow` — rc=101 (`/tmp/bench-logs/purrdf-arrow.phase2.log`).
-> - `purrdf-duckdb` — rc=101 (`/tmp/bench-logs/purrdf-duckdb.phase2.log`).
+> - `purrdf-duckdb` — rc=101 phase-2; GREEN in phase-4b: rc=0 652s, footers
+>   14+4 measured / 0 failed (`/tmp/bench-logs/purrdf-duckdb.phase4b.all.log`;
+>   precondition: the `~/.frozen-duckdb/cache` prebuilt lib — without it the
+>   build falls back to a release download, OPT-65).
 > - `purrdf-sparql-eval` — rc=101 across phase-1/2/3
 >   (`/tmp/bench-logs/purrdf-sparql-eval.phase3.log` et al.).
 > - `purrdf-branchless` — rc=101 (`/tmp/bench-logs/purrdf-branchless.phase2.log`).
@@ -1846,7 +1849,10 @@ One line per suite: what it measures, and the sellable claim it backs.
 - **duckdb `sql_rdf_e2e`** (`crates/duckdb/benches/sql_rdf_e2e.rs`) — the
   full compile-turtle → five-table Parquet views → SQL → RDF triple
   projection path, per-triple throughput. Sells: SQL-in-RDF end to end is
-  measured, not inferred from raw-SQL rows. STATUS: UNVERIFIED - no measured row exists yet (register rc=101; phase-4b rerun queued); do not cite numbers for this bench until its register row lands.
+  measured, not inferred from raw-SQL rows. STATUS: MEASURED (phase-4b
+  rc=0 652s; both duckdb binaries' footers 14+4 = 18 measured / 0 failed).
+  Environment precondition: the `~/.frozen-duckdb/cache` prebuilt DuckDB
+  lib (OPT-65) — a fresh machine downloads on first build.
 - **duckdb `sieve_bench` narration fix** (`crates/duckdb/benches/sieve_bench.rs`) —
   doc-level fix: the suite header now says it measures raw SQL on in-memory
   DuckDB tables, not the SQL-in-RDF pipeline. Sells: no reader mistakes a

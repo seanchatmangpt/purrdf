@@ -231,7 +231,11 @@ impl std::fmt::Display for ArrowEgressHeaderError {
         match self {
             Self::BadMagic => write!(f, "canonarrow: bad wire magic"),
             Self::BadSchemaVersion(v) => write!(f, "canonarrow: unsupported schema version {v}"),
-            Self::BadFlags(fl) => write!(f, "canonarrow: undefined flag bits 0x{fl:04x}"),
+            Self::BadFlags(fl) => write!(
+                f,
+                "canonarrow: undefined flag bits 0x{:04x}",
+                fl & !FLAGS_MASK
+            ),
             Self::BadPayloadOffset(off) => {
                 write!(f, "canonarrow: expected payload offset 128, got {off}")
             }

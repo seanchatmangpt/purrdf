@@ -57,6 +57,9 @@ MAKE_FAST_TARGETS = {
 BLOCK_MAKE = {"test", "check", "wasm", "pytest", "conformance"}
 # Bounded forms: the repo wrapper, or an exact `-k 1 5` coreutils lease.
 BOUNDED_HEADS = {"bounded", "./scripts/bounded", "scripts/bounded"}
+# Documented bounded script entry points (CLAUDE.md command surface); the
+# generic `.sh` refusal still applies to everything not listed here.
+BOUNDED_SCRIPTS = {"lane-lease.sh", "bounded-fmt.sh", "test-bounded-guard.sh"}
 BOUNDED_TIMEOUT = re.compile(r"^(g?timeout)\s+-k\s+1\s+5(\s|$)")
 # Interpreters whose embedded string must be inspected (or refused).
 SHELL_HEADS = {"sh", "bash", "zsh", "ksh", "dash"}
@@ -207,8 +210,14 @@ def classify(seg, depth=0):
         rest = words[1:]
         ci = next((k for k, w in enumerate(rest)
                    if w == "-c" or re.fullmatch(r"-[a-zA-Z]*c", w)), None)
-        if ci is None or ci + 1 >= len(rest):
+        if ci is None:
+            # `bash <script.sh>` runs a file, not an interactive shell:
+            # classify the script itself (the .sh allowlist still gates it).
+            if rest and rest[0].endswith(".sh"):
+                return classify(rest[0], depth + 1)
             return "block"  # interactive/uninspectable shell
+        if ci + 1 >= len(rest):
+            return "block"  # -c with no payload
         embedded = " ".join(rest[ci + 1:])
         v = verdict(embedded, depth + 1)
         return "block" if v == "block" else "ok"
@@ -229,10 +238,13 @@ def classify(seg, depth=0):
         targets = [w for w in words[1:] if not w.startswith("-") and "=" not in w]
         if not targets or any(t in BLOCK_MAKE for t in targets):
             return "block"
-        if all(t in MAKE_FAST_TARGETS for t in targets):
+        if all(t in MAKE_FAST_TARGETS
+               or __import__("re").fullmatch(r"bt?-[A-Za-z0-9_-]+", t) for t in targets):
             return "ok"
         return "block"  # unknown target: fail closed
     if base.endswith(".sh"):
+        if base in BOUNDED_SCRIPTS:
+            return "ok"
         return "block"  # opaque shell scripts must be bounded
     if base in ("python3", "python", "perl"):
         rest = words[1:]

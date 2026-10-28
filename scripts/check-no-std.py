@@ -24,6 +24,10 @@ import sys
 import time
 from pathlib import Path
 
+# Alloc-free no_std crates this gate covers. purrdf-cdt also declares
+# `#![no_std]` but legitimately uses `alloc::vec!`/`Vec` (no_std + alloc),
+# which this gate heap ban is built to refuse - out of scope by design.
+NO_STD_CRATES = ("branchless",)
 DEFAULT_SRC = Path(__file__).resolve().parent.parent / "crates" / "branchless" / "src"
 
 BRANCH_TOKENS = [
@@ -170,12 +174,12 @@ def audit_file(path: Path) -> dict:
     return res
 
 
-def main(argv: list[str]) -> int:
-    src_dir = Path(argv[1]) if len(argv) > 1 else DEFAULT_SRC
+def audit_crate(src_dir: Path):
+    """Audit one no_std crate's src tree; returns (rc, fails, warns)."""
     files = sorted(src_dir.glob("*.rs"))
     if not files:
         print(f"NO_FILES: {src_dir}")
-        return 2
+        return 2, [], []
 
     t0 = time.perf_counter()
     results = [audit_file(p) for p in files]
@@ -230,7 +234,28 @@ def main(argv: list[str]) -> int:
     if elapsed_ms >= 80.0:
         print("PERF-FAIL: scan exceeded 80 ms budget")
         return 1
-    return 1 if fails else 0
+    return (1 if fails else 0), fails, warns
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) > 1:
+        src_dirs = [Path(argv[1])]
+    else:
+        root = Path(__file__).resolve().parent.parent / "crates"
+        src_dirs = [root / c / "src" for c in NO_STD_CRATES]
+    all_fails: list[str] = []
+    all_warns: list[str] = []
+    for src_dir in src_dirs:
+        rc, fails, warns = audit_crate(src_dir)
+        all_fails.extend(fails)
+        all_warns.extend(warns)
+        if rc == 2:
+            return 2
+    if not all_fails:
+        return 0
+    for f in all_fails:
+        print(f)
+    return 1
 
 
 if __name__ == "__main__":
