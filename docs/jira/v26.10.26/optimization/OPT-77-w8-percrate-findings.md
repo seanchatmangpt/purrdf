@@ -1621,3 +1621,16 @@ n3 reasoner.rs (backward chaining — SERIOUS):
 - engine.rs:862/report.rs:132 — Unbounded termination would surface
   as termination: None (indistinguishable from semi-naive no-
   obligation); soundness rests on chase.rs:1591 refusing first.
+
+## wave-18 additions (sparql-eval vm/mod.rs)
+
+- :1264 — CoalesceNext latent: a bound non-interned Val::Value branch
+  would be misread as unbound; correctness hinges on the compiler's
+  unstated intern-always-for-top-level invariant.
+- :361-379 — expression owner ptr::eq guard hard-errors on Copied
+  re-run with substituted pointers (loud, but the coupling is
+  unenforced by types).
+- :1665-1676 — pop_values mid-drain error leaves a corrupted stack;
+  benign only because every caller ?-outs (terminal).
+- Dispatch/stack discipline, IN error propagation, suspend re-push:
+  verified correct.
