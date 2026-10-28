@@ -2985,3 +2985,37 @@ direction).
   AGENTS.md drift (4) — filed in wave-32/33 addenda.
 - COMMIT AUDIT: 25 commits, zero subject-mismatches.
 
+### wave-34 addendum
+
+- AGENTS.md job-table fix plan: REWORD not regenerate (the table was
+  60/85 on day one — never complete; a 107-row mirror in a hand file is
+  the drift hazard the repo's own gate philosophy rejects). Exact reword
+  text banked; optional check-doc-claims hardening: table ids must
+  resolve to ledger ids and be a ledger-order subsequence. div-ceil:
+  cite as crate-private (only retrieval callers + a census prose
+  mention); do NOT widen visibility.
+- envelope-probe: exceeds_ceiling clamps a NEGATIVE ledger reading to 0
+  and silently passes the acceptance-criterion ceiling (main.rs:76) —
+  failure laundered into a pass.
+- shexj: Reader::schema discards @context with no type check
+  (shexj.rs:739), contradicting the module's typed-failure contract.
+- helper-census rules.rs: names_hasher vouches on a naming convention
+  (ends in Map/Set) not on the annotation naming a hasher (:443-453);
+  is_test_file matches tests/benches/examples at ANY depth, exempting a
+  crate whose own directory is so named from shipping-code rules
+  (:989-994).
+- cli describe/premise/import findings from W33 L4 (3: --iri @base
+  blind spot silent-empty; premise_iri same -> false refusal; --import
+  .gts drops the envelope ledger) — filed.
+- shapes srl (2): source-rule reifier label bypasses the mint-prefix
+  guarantee (srl/eval.rs:593; g-x{e}_focus same class); Declared-schedule
+  same-order run-once group unordered + id-string sorted (eval.rs:678
+  vs the rule-node-order doc).
+- sparql-eval workspace accounting (3 minor): ghost-arena growth escapes
+  admission (scratch.rs:898-909); WorkspaceCharge::drop children leak on
+  reservation-shrink failure (workspace.rs:2392-2399, masked by the
+  failed latch); interned-schema cap-clear under-reports retained bytes
+  (solution.rs:1405-1408).
+- evidence core: CLEAN; two low-severity API notes (witness_stop
+  post-finish, InvalidUndecided one-sided).
+
