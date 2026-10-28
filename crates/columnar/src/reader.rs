@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::str;
 use std::sync::Arc;
 
-use purrdf_core::langtag::{is_identity_folded, is_well_formed};
+use purrdf_core::langtag::{is_identity_folded, is_well_formed_with, Profile};
 use purrdf_core::{
     BlankScope, ContentDigest, ContentStore, LossLedger, RdfDataset, RdfDatasetBuilder, RdfLiteral,
     RdfTextDirection, TermFactory as _, TermValue,
@@ -394,7 +394,13 @@ fn resolve_term_record(
                 if let Some(tag) = &language {
                     // Matching Some establishes that language is present;
                     // rejection moves its original string through the expect.
-                    if tag.is_empty() || !is_identity_folded(tag) || !is_well_formed(tag) {
+                    // Grammar gate uses the same LANGTAG-terminal profile the
+                    // ingest codecs hold tags to (crates/rdf native_codecs/syntax.rs),
+                    // so the reader never refuses what a parser accepted.
+                    if tag.is_empty()
+                        || !is_identity_folded(tag)
+                        || !is_well_formed_with(tag, Profile::ConcreteSyntaxLangtagBounded)
+                    {
                         return Err(ColumnarError::reader_malformed(
                             "terms.lang",
                             ReaderReason::LanguageTag {
@@ -1021,7 +1027,7 @@ mod term_walk_tests {
     //! 128 KiB thread. Re-interning a resolved value is the builder's own
     //! `TermFactory::intern_value`, tested beside it in `purrdf-core`.
 
-    use purrdf_core::langtag::{is_identity_folded, is_well_formed};
+    use purrdf_core::langtag::{is_identity_folded, is_well_formed_with, Profile};
     use purrdf_core::{BlankScope, RdfLiteral, RdfTextDirection, TermBox, TermValue};
 
     use super::{
@@ -1061,7 +1067,13 @@ mod term_walk_tests {
                     ));
                 };
                 if let Some(tag) = &language {
-                    if tag.is_empty() || !is_identity_folded(tag) || !is_well_formed(tag) {
+                    // Grammar gate uses the same LANGTAG-terminal profile the
+                    // ingest codecs hold tags to (crates/rdf native_codecs/syntax.rs),
+                    // so the reader never refuses what a parser accepted.
+                    if tag.is_empty()
+                        || !is_identity_folded(tag)
+                        || !is_well_formed_with(tag, Profile::ConcreteSyntaxLangtagBounded)
+                    {
                         return Err(ColumnarError::reader_malformed(
                             "terms.lang",
                             ReaderReason::LanguageTag {

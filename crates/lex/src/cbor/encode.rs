@@ -108,7 +108,19 @@ fn write_scalar<W: Write + ?Sized>(value: &Value, out: &mut W) -> io::Result<boo
         Value::Bool(false) => out.write_all(&[0xf4])?,
         Value::Bool(true) => out.write_all(&[0xf5])?,
         Value::Null => out.write_all(&[0xf6])?,
-        Value::Simple(simple) => head::write_head(out, SIMPLE, u64::from(*simple))?,
+        Value::Simple(simple) => match simple {
+            // RFC 8949 §3.3: the two-byte simple-value encoding is reserved
+            // for values 32..=255, so 24..=31 have no well-formed encoding
+            // (one-byte info 24..=31 is a long argument, a float width or
+            // reserved/stop code, never one of these values).
+            24..=31 => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "simple values 24..=31 are reserved and cannot be encoded",
+                ));
+            }
+            _ => head::write_head(out, SIMPLE, u64::from(*simple))?,
+        },
         Value::Tag(..) | Value::Array(_) | Value::Map(_) => return Ok(false),
     }
     Ok(true)
@@ -143,7 +155,22 @@ fn sorted_entries<'v>(
         .map(|(key, value)| (canonical_key(key), value))
         .collect();
     keyed.sort_by(|a, b| a.0.cmp(&b.0));
+    // A repeated key: last wins, so the output is accepted by
+    // `decode_deterministic`, which refuses a repeated key.
+    dedup_last(&mut keyed);
     keyed
+}
+
+/// Drop consecutive entries with equal keys, keeping each key's last entry.
+fn dedup_last<T>(keyed: &mut Vec<(Vec<u8>, T)>) {
+    let mut kept: Vec<(Vec<u8>, T)> = Vec::with_capacity(keyed.len());
+    for (key, value) in keyed.drain(..) {
+        match kept.last_mut() {
+            Some(last) if last.0 == key => last.1 = value,
+            _ => kept.push((key, value)),
+        }
+    }
+    *keyed = kept;
 }
 
 /// Stream `jobs` to `out`: every container's parts go onto the work list in
