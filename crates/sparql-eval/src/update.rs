@@ -1246,6 +1246,14 @@ fn graph_op_move(
         m.insert_record(&copied)?;
     }
     for record in &src {
+        // A source record NATIVE to the destination graph is value-identical
+        // to its own copy above, and removal is keyed by quad VALUE — removing
+        // it here would delete the just-inserted row. It is already where MOVE
+        // wants it; leave it in place. (Spec: MOVE DEFAULT/NAMED keeps the
+        // destination's own quads and appends the source's.)
+        if record.quad.g == dest {
+            continue;
+        }
         m.remove_record(record);
     }
     remember_destination(dest.as_ref(), m)?;
