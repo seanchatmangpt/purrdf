@@ -834,3 +834,5 @@ n3 printing.rs round-trip (5):
   base leaks #frag into every resolved reference.
 - base.rs:837-842 — classify-vs-parse fast-path drift risk (property
   tests pin it today).
+
+- gts composite.rs: 0 logic bugs (offsets/lengths verified; 3 minor robustness notes: hardcoded 32 seed split, implicit empty-context zero-init, verify diagnostic collapse).
