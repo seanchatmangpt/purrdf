@@ -1179,3 +1179,10 @@ n3 printing.rs round-trip (5):
   OldOnly scans classify it wrong; only round-1 Delta::all would rescue,
   and restores fire mid-stratum at R>=2. The session's highest-severity
   confirmed finding (missed derivations = wrong query answers).
+
+- CONFIRMED: shapes narrowing() misapplies node-level constraint arms
+  on property shapes (no path.is_none() guard; sh:targetWhere admits
+  property shapes; excluded focus nodes never re-checked through
+  conforms_with_id_depth → silently dropped targets). Exposure not
+  unique to targetWhere (any path-bearing shape recursing into these
+  arms).
