@@ -1123,3 +1123,10 @@ n3 printing.rs round-trip (5):
 - CONFIRMED: text analysis.rs shattering (adversarial lane re-read
   the fallback loop — whole-word grapheme split, Han is ALetter under
   UAX#29 so "abc漢字def" is one word).
+
+- CONFIRMED: update.rs bnode prefix (insert_data:553 literal None;
+  fix requires threading cfg in — insert_data has no options param).
+- REFUTED: hnsw DistanceCache cross-query reuse — every production
+  call site creates a fresh cache per query (pub(crate) type, Query
+  borrows it); the :169 doc line is an accounting note. Doc-clearer
+  only, no reachable wrong-answer path.
