@@ -98,7 +98,7 @@ pub fn to_writer(
         graph.annotations.push((r, p, v, g));
     }
 
-    apply_lookaside(&state, &mut graph, lookaside.clone());
+    apply_lookaside(&state, &mut graph, lookaside.clone())?;
     graph.terms = state.terms;
 
     Writer::deterministic(&graph, profile).map_err(|err| codec_error_to_diagnostic(&err))
@@ -310,24 +310,28 @@ fn is_iri_or_bnode_term(term: &RdfTerm) -> bool {
     matches!(term, RdfTerm::Iri(_) | RdfTerm::BlankNode(_))
 }
 
-fn apply_lookaside(state: &InternState, graph: &mut Graph, lookaside: RdfLookaside) {
+fn apply_lookaside(
+    state: &InternState,
+    graph: &mut Graph,
+    lookaside: RdfLookaside,
+) -> Result<(), RdfDiagnostic> {
     for entry in lookaside.metadata {
         let key = entry.key;
-        let value = metadata_value_to_cbor(&entry.value);
+        let value = metadata_value_to_cbor(&entry.value)?;
         graph.set_meta(key, value);
     }
 
     for suppression in lookaside.suppressions {
-        let by = suppression
-            .by
-            .as_deref()
-            .and_then(|label| term_id_by_display(state, label));
+        let by = match suppression.by.as_deref() {
+            Some(label) => term_id_by_display(state, label)?,
+            None => None,
+        };
         graph.suppressions.push(Suppression {
             targets: suppression
                 .targets
                 .iter()
                 .map(metadata_value_to_cbor)
-                .collect(),
+                .collect::<Result<Vec<_>, RdfDiagnostic>>()?,
             reason: suppression.reason,
             by,
         });
@@ -346,38 +350,64 @@ fn apply_lookaside(state: &InternState, graph: &mut Graph, lookaside: RdfLookasi
     let _ = lookaside.blobs;
 }
 
-fn term_id_by_display(state: &InternState, label: &str) -> Option<usize> {
-    state
+/// Resolve a suppression `by` display label to a term id. The label is a
+/// display hint, so resolution is best-effort — but a label matching MORE
+/// THAN ONE IRI/blank-node term is ambiguous and must not silently bind the
+/// first positional match. Identity scannable here is kind + display value;
+/// blank-node scope was flattened at freeze time and is not recoverable.
+fn term_id_by_display(state: &InternState, label: &str) -> Result<Option<usize>, RdfDiagnostic> {
+    let matches: Vec<usize> = state
         .terms
         .iter()
-        .position(|term| term.value.as_deref() == Some(label) && is_iri_or_bnode(term))
+        .enumerate()
+        .filter(|(_, term)| term.value.as_deref() == Some(label) && is_iri_or_bnode(term))
+        .map(|(id, _)| id)
+        .collect();
+    match matches.as_slice() {
+        [] => Ok(None),
+        [id] => Ok(Some(*id)),
+        _ => Err(RdfDiagnostic::error(
+            "gts-suppression-by-ambiguous",
+            format!(
+                "suppression `by` label {label:?} matches {} terms; cannot disambiguate",
+                matches.len()
+            ),
+        )),
+    }
 }
 
-fn metadata_value_to_cbor(value: &RdfMetadataValue) -> Value {
+fn metadata_value_to_cbor(value: &RdfMetadataValue) -> Result<Value, RdfDiagnostic> {
     match value {
-        RdfMetadataValue::Null => Value::Null,
-        RdfMetadataValue::Bool(b) => Value::Bool(*b),
-        RdfMetadataValue::Integer(i) => match purrdf_lex::cbor::Integer::try_from(*i) {
-            Ok(integer) => Value::Integer(integer),
-            Err(_) => Value::Integer(purrdf_lex::cbor::Integer::from(if *i < 0 {
-                i64::MIN
-            } else {
-                i64::MAX
-            })),
-        },
-        RdfMetadataValue::Float(f) => Value::Float(*f),
-        RdfMetadataValue::Text(t) => Value::Text(t.clone()),
-        RdfMetadataValue::Bytes(b) => Value::Bytes(b.clone()),
-        RdfMetadataValue::Array(a) => Value::Array(a.iter().map(metadata_value_to_cbor).collect()),
-        RdfMetadataValue::Map(m) => Value::Map(
-            m.iter()
-                .map(|(k, v)| (Value::Text(k.clone()), metadata_value_to_cbor(v)))
-                .collect(),
-        ),
-        RdfMetadataValue::Tagged { tag, value } => {
-            Value::Tag(*tag, Box::new(metadata_value_to_cbor(value)))
+        RdfMetadataValue::Null => Ok(Value::Null),
+        RdfMetadataValue::Bool(b) => Ok(Value::Bool(*b)),
+        // A silent clamp to i64::MIN/MAX laundered an out-of-range integer
+        // into a plausible-looking value; the hard-fail convention wins.
+        RdfMetadataValue::Integer(i) => {
+            let integer = purrdf_lex::cbor::Integer::try_from(*i).map_err(|_| {
+                RdfDiagnostic::error(
+                    "gts-metadata-integer-range",
+                    format!("metadata integer {i} does not fit the CBOR 64-bit range"),
+                )
+            })?;
+            Ok(Value::Integer(integer))
         }
-        RdfMetadataValue::Opaque(s) => Value::Text(s.clone()),
+        RdfMetadataValue::Float(f) => Ok(Value::Float(*f)),
+        RdfMetadataValue::Text(t) => Ok(Value::Text(t.clone())),
+        RdfMetadataValue::Bytes(b) => Ok(Value::Bytes(b.clone())),
+        RdfMetadataValue::Array(a) => Ok(Value::Array(
+            a.iter()
+                .map(metadata_value_to_cbor)
+                .collect::<Result<Vec<_>, RdfDiagnostic>>()?,
+        )),
+        RdfMetadataValue::Map(m) => Ok(Value::Map(
+            m.iter()
+                .map(|(k, v)| Ok((Value::Text(k.clone()), metadata_value_to_cbor(v)?)))
+                .collect::<Result<Vec<_>, RdfDiagnostic>>()?,
+        )),
+        RdfMetadataValue::Tagged { tag, value } => {
+            Ok(Value::Tag(*tag, Box::new(metadata_value_to_cbor(value)?)))
+        }
+        RdfMetadataValue::Opaque(s) => Ok(Value::Text(s.clone())),
     }
 }
 
