@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::str;
 use std::sync::Arc;
 
-use purrdf_core::langtag::{is_identity_folded, is_well_formed_with, Profile};
+use purrdf_core::langtag::{Profile, is_identity_folded, is_well_formed_with};
 use purrdf_core::{
     BlankScope, ContentDigest, ContentStore, LossLedger, RdfDataset, RdfDatasetBuilder, RdfLiteral,
     RdfTextDirection, TermFactory as _, TermValue,
@@ -1027,7 +1027,7 @@ mod term_walk_tests {
     //! 128 KiB thread. Re-interning a resolved value is the builder's own
     //! `TermFactory::intern_value`, tested beside it in `purrdf-core`.
 
-    use purrdf_core::langtag::{is_identity_folded, is_well_formed_with, Profile};
+    use purrdf_core::langtag::{Profile, is_identity_folded, is_well_formed_with};
     use purrdf_core::{BlankScope, RdfLiteral, RdfTextDirection, TermBox, TermValue};
 
     use super::{

@@ -272,6 +272,10 @@ fn canonical_bottom_up(root: &Value) -> Vec<u8> {
                         }
                         drop(children);
                         pairs.sort_by(|a, b| a.0.cmp(&b.0));
+                        // A repeated key: last wins, so the output is
+                        // accepted by `decode_deterministic`.
+                        dedup_last(&mut pairs);
+                        head::push_head(&mut bytes, MAP, pairs.len() as u64);
                         for (key, value) in pairs {
                             bytes.extend_from_slice(&key);
                             bytes.extend_from_slice(&value);

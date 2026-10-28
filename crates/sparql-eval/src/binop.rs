@@ -56,9 +56,6 @@ impl<I: ViewTermId> JoinIndex<I> {
             .find(purrdf_hash::fixed::hash_one(key), |entry| &entry.0 == key)
             .map(|entry| &*entry.1)
     }
-    fn contains_key(&self, key: &JoinKey<I>) -> bool {
-        self.get(key).is_some()
-    }
 }
 
 /// Evaluate `left . right` (algebra `Join`) as a hash join on shared variables.
@@ -2140,7 +2137,8 @@ pub(crate) fn build_index<I: ViewTermId>(
 /// anti-join shape) hits the keyed bucket in O(1) — the bucket scan reads each
 /// row's evidence, so a bucket entirely of undecided rows still costs O(|bucket|).
 ///
-/// Evidence gate: a build row whose evidence is [`RowEvidence::is_undecided`] is
+/// Evidence gate: a build row whose evidence is undecided
+/// ([`crate::evidence_exec::RowEvidence::is_undecided`]) is
 /// **never** a member for this boolean probe. This mirrors [`probe_evidence`]
 /// (`found = !combined.is_undecided()`) and `interned.rs` `established_rows`
 /// (which filters undecided rows out of the established partition): undecided
