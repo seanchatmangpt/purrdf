@@ -25,9 +25,21 @@ pub(crate) fn run(
     }
     .map_err(CliError::GlobMatch)?;
     let mut out = std::io::stdout().lock();
-    writeln!(out, "matched {}\nwork {}", report.matched, report.work)?;
-    out.flush()?;
+    writeln!(out, "matched {}\nwork {}", report.matched, report.work)
+        .and_then(|()| out.flush())
+        .map_err(downstream_or_runtime)?;
     Ok(())
+}
+
+/// The OutTarget contract (sink.rs): a downstream reader that closed early
+/// (`purrdf glob ... | head`) is a clean silent success; any other write
+/// failure is a typed runtime refusal.
+fn downstream_or_runtime(error: std::io::Error) -> CliError {
+    if error.kind() == std::io::ErrorKind::BrokenPipe {
+        CliError::DownstreamClosed
+    } else {
+        CliError::Runtime(error.to_string())
+    }
 }
 
 pub(crate) fn run_set(
@@ -58,8 +70,9 @@ pub(crate) fn run_set(
     for index in report.indices {
         writeln!(out, "index {index}")?;
     }
-    writeln!(out, "work {}", report.work)?;
-    out.flush()?;
+    writeln!(out, "work {}", report.work)
+        .and_then(|()| out.flush())
+        .map_err(downstream_or_runtime)?;
     Ok(())
 }
 

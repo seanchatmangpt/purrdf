@@ -159,6 +159,12 @@ impl Arguments {
                 if argument.starts_with('-') {
                     return Err(ArgumentError(format!("unrecognized option `{argument}`")));
                 }
+                if argument.is_empty() {
+                    return Err(ArgumentError(
+                        "an empty filter selects every benchmark in non-exact mode                          and nothing in exact mode; name a benchmark id"
+                            .to_owned(),
+                    ));
+                }
                 parsed.filters.push(argument);
                 continue;
             };

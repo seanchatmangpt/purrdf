@@ -27,6 +27,24 @@ use crate::source;
 pub(crate) fn verify(input: &str) -> Result<(), CliError> {
     let owner = source::acquire_pack_input(input)?;
     let digest = verify_pack(owner.as_bytes())?;
-    println!("{digest}");
+    // The stdout contract, not `println!`: a `| head` EPIPE is a clean
+    // silent success, any other write failure is a typed runtime refusal —
+    // `println!` panics instead, an abort where the crate's contract is an
+    // exit code.
+    let mut stdout = std::io::stdout().lock();
+    stdout
+        .write_all(digest.as_bytes())
+        .and_then(|()| writeln!(stdout))
+        .and_then(|()| stdout.flush())
+        .map_err(downstream_or_runtime)?;
     Ok(())
+}
+
+/// See [`crate::glob::downstream_or_runtime`].
+fn downstream_or_runtime(error: std::io::Error) -> CliError {
+    if error.kind() == std::io::ErrorKind::BrokenPipe {
+        CliError::DownstreamClosed
+    } else {
+        CliError::Runtime(error.to_string())
+    }
 }
