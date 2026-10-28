@@ -1260,3 +1260,16 @@ n3 reasoner.rs (backward chaining — SERIOUS):
 - reader.rs:296-305 — terminal UnresolvedTerm fallback unreachable as
   written; cycles always reported as CyclicTriple even through a
   datatype edge (conflated refusal reason).
+
+## wave-15 additions (shapes engine dispatch)
+
+- engine.rs:830-834 — claimants runs every focus node through every
+  shape's sh:ask: one shape's bad target aborts claims() for the
+  WHOLE focus set (blast radius = all unrelated shapes).
+- engine.rs:434-466/:775-810 — foreign SELECT results indexed only
+  via enumerated_foreign which invert never reads: nodes claimable
+  solely through the ask loop; no index-level backstop if an ask
+  silently returns false.
+- engine.rs:63-68 — sort_focus_nodes reads rayon::current_num_threads
+  >1 inside the worker pool: "serial" resolution still forks a nested
+  parallel sort (oversubscription).
