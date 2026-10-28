@@ -401,6 +401,10 @@ fn bench_triple_carrier(c: &mut Bench) {
         println!("[ir_layout] triple corpus rows={rows} warm={warm:?}");
         report("triple cold indexes", indexes);
         let mut group = c.benchmark_group(format!("triple_carrier/{rows}"));
+        // rows=10_000 build arm runs ~171ms/iter; 50 samples ≈ 8.6s.
+        if rows == 10_000 {
+            group.sample_size(50);
+        }
         group.bench_function("build", |b| {
             b.iter(|| std::hint::black_box(build_triple_corpus(rows)));
         });

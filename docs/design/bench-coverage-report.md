@@ -270,7 +270,7 @@ the coverage matrix (section 2) for these 14 crates.
 ## 1e. Consolidated measured table (V6 lane, 2026-10-27)
 
 Every row below was re-extracted fresh from the rc=0 logs this lane (V6) —
-not copied from sections 1.1/1b/1c. Every criterion row in the run carries
+not copied from sections 1.1/1b/1c. Every testkit (criterion-style) row in the run carries
 **100 samples** (verified per `time:` line in each log). Detailed per-bench
 medians/thrpt: sections 1.1 (iri), 1b (sparql-algebra), 1c (sparql-results).
 
@@ -364,7 +364,7 @@ NEW (Bytes :192, Elements :215, Bytes :227); `pipeline_alloc.rs` NEW;
 measured / 0 failed, rc=0 1338s (`/tmp/bench-logs/purrdf.phase2.log`, section
 4) |
 | rdf | 9 | TOUCHED+MEASURED | `crates/rdf/benches/native_codecs.rs:62`
-(Bytes :63); 8 other files PRE. Phase-2 GREEN: 122 criterion benches / 0
+(Bytes :63); 8 other files PRE. Phase-2 GREEN: 122 testkit (criterion-style) benches / 0
 failed across 6 binaries + 2 report-only alloc bins, rc=0 1903s
 (`/tmp/bench-logs/purrdf-rdf.phase2.log`, section 4) |
 | rdf-core | 20 | PRE | incl. ir_layout.rs, model_traits.rs, purremb.rs |
@@ -500,7 +500,7 @@ command + rc; UNVERIFIED otherwise.
   tail: `could not compile ... due to 1 previous error`). FQ-01 applied
   (`solution.rs:1965` -> `purrdf_core::FastMap::default()`); the phase-3
   re-run (no `--locked` issue; pid 81055) compiled clean and is **measuring**
-  at refresh time — log tail shows live criterion rows
+  at refresh time — log tail shows live testkit (criterion-style) rows
   (`deep_nesting/parse/filter_exists/16 ...`), 2 binaries complete (4+8
   measured, 0 failed, `/tmp/bench-logs/purrdf-sparql-eval.phase3.log:1698,
   1717`). Row standing stays UNVERIFIED until the register carries the
@@ -535,8 +535,8 @@ its log does not show.
   `/tmp/bench-logs/purrdf.phase2.log:420,442`; register row
   (`purrdf.phase2.log`); pipeline_alloc fix: `Arc<RdfDataset>` annotation |
 | purrdf-rdf | all 9 bench files | **GREEN** — rc=0, 1903s, register row
-  (`purrdf-rdf.phase2.log`). Footer recount from the log: **122 criterion
-  benches measured / 0 failed across 6 binaries** (footers at
+  (`purrdf-rdf.phase2.log`). Footer recount from the log: **122 testkit (criterion-style) benches
+  measured / 0 failed across 6 binaries** (footers at
   `:675` flat_view_canon 10, `:708` gts_ingest 12, `:727` gts_selected_blobs
   6, `:880` native_codecs 46, `:1058` projections 45, `:1083` turtle_chains
   3; total 10+12+6+46+45+3 = 122). Two further binaries are alloc/report-only,
@@ -601,7 +601,12 @@ its log does not show.
   (register row; `/tmp/bench-logs/purrdf-glob.phase2.log`). |
 | purrdf-geo-kernel | cells/covers/geodesic/transforms | **GREEN** — rc=0,
   2220s, 109 measured / 0 failed (`/tmp/bench-logs/
-  purrdf-geo-kernel.phase3.log` footer; register row). |
+  purrdf-geo-kernel.phase3.log` footer; register row). Measured at the
+  pre-shrink sizes: 26 rows in that log run at batch4096 (transforms and
+  geodesic ladders, measured-at batch256/4096 before the shrink), which the
+  current defaults no longer run — `transforms.rs`/`geodesic.rs` ladders now
+  top out at 1024, with 4096 an opt-in env capacity probe. Those rows are
+  not comparable to current-ladder rows. |
 | purrdf-shex | pattern_validate + prepared_validate | **GREEN** — rc=0, 18
   measured / 0 failed (register row; `/tmp/bench-logs/purrdf-shex.phase2.log`). |
 | purrdf-retrieval | on_demand_read + fusion_frontier_alloc | **GREEN** —
@@ -689,7 +694,7 @@ path. ALIVE = command + rc.
 | Facade pipeline e2e + alloc, 44 benches, 0 failed (2 bins) |
   `purrdf/benches/pipeline_e2e.rs`, `pipeline_alloc.rs` | SAFE-TO-CITE (log) —
   `/tmp/bench-logs/purrdf.phase2.log:420,442`, register rc=0, 1338s |
-| rdf native_codecs 46 measured; crate 122 criterion benches / 0 failed
+| rdf native_codecs 46 measured; crate 122 testkit (criterion-style) benches / 0 failed
   (6 bins) + 2 report-only alloc bins | `crates/rdf/benches/native_codecs.rs`
   et al. | SAFE-TO-CITE (log) — `/tmp/bench-logs/purrdf-rdf.phase2.log`
   (footers at :675-1088), register rc=0, 1903s |
@@ -750,7 +755,7 @@ NEW/TOUCHED files has compiled yet (no cargo on this machine).
 failed, rc=0 1338s, `/tmp/bench-logs/purrdf.phase2.log` (register rc=0) |
 | Native codec GB/s rates | `crates/rdf/benches/native_codecs.rs` (TOUCHED) |
 **PROMOTED TO GREEN (F15)** — 46 measured / 0 failed in native_codecs alone;
-crate total 122 criterion benches / 0 failed + 2 report-only alloc bins,
+crate total 122 testkit (criterion-style) benches / 0 failed + 2 report-only alloc bins,
 rc=0 1903s, `/tmp/bench-logs/purrdf-rdf.phase2.log` (register rc=0) |
 | N3 parse/reason (numeric + fixpoint) | `n3/benches/reasoner.rs` (TOUCHED) | **RED, unowned** — rc=101 185s, SIGKILL mid-run after partial rows; diagnosis owner needed |
 | Lexer scan throughput | `crates/lex/benches/scan.rs` (TOUCHED) | **PROMOTED TO GREEN** — 22 measured / 0 failed, rc=0 243s, `/tmp/bench-logs/purrdf-lex.phase2.log` |
@@ -788,7 +793,7 @@ rows |
 | n3 | phase-2 rc=101, 185s — SIGKILL mid-run, diagnosis owner needed |
 | hnsw / text / retrieval / geo-kernel | `--locked` refusals, never started;
 phase-3 re-run in progress (FQ-02..05) — geo-kernel measuring now, others
-queued; zero measured rows so far |
+| hnsw / text / retrieval / geo-kernel | RESOLVED per register: geo-kernel rc=0 2220s (109/0), retrieval rc=0 455s (18/0), text rc=0 1365s (299/0); hnsw phase-3 rc=101 + phase-4 rc=124 with content-complete report tables (excluded from totals) |
 
 Note (iri / sparql-algebra / sparql-results): phase-1 rc=0 (section 1). iri and
 sparql-algebra sell as log receipts (section 6.0); sparql-results' 14 rows have
@@ -844,4 +849,4 @@ SELLABLE row is promoted past log scope without a phase receipt.
 
 ## Correction (coordinator, 2026-10-27)
 
-An earlier lane reported purrdf-rdf at 123 criterion benches; the footer recount from /tmp/bench-logs/purrdf-rdf.phase2.log is 122 across 6 binaries (10+12+6+46+45+3, each footer `N benchmarks measured; 0 failed`). All `123 criterion` instances in this file were corrected to 122.
+An earlier lane reported purrdf-rdf at 123 testkit (criterion-style) benches; the footer recount from /tmp/bench-logs/purrdf-rdf.phase2.log is 122 across 6 binaries (10+12+6+46+45+3, each footer `N benchmarks measured; 0 failed`). All `123 criterion` instances in this file were corrected to 122.

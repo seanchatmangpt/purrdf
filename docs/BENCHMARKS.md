@@ -46,7 +46,12 @@ SPDX-License-Identifier: CC-BY-4.0
 >
 > - `purrdf-geo-kernel` — **TERMINAL GREEN (closed 2026-10-27)**: register
 >   rc=0, 2220s, 109 measured / 0 failed
->   (`/tmp/bench-logs/purrdf-geo-kernel.phase3.log`).
+>   (`/tmp/bench-logs/purrdf-geo-kernel.phase3.log`). Measured at the
+>   pre-shrink input sizes: the transform and geodesic batch ladders in that
+>   log top out at batch4096, which the current defaults no longer run
+>   (`transforms.rs`/`geodesic.rs` ladders now top out at 1024; 4096 is an
+>   opt-in capacity probe via env). Rows measured at batch4096 are not
+>   comparable to current-ladder rows — cite them with this provenance.
 >
 > **TERMINAL GREEN (footer confirmations closed 2026-10-27)**:
 >
@@ -1895,7 +1900,9 @@ One line per suite: what it measures, and the sellable claim it backs.
   elements/s. Sells: the semi-naive engine's derive rate at the million-fact
   scale the name claims, not a smaller proxy.
 - **entail 10^4 rows** (`crates/entail/benches/chase.rs`,
-  `classify.rs`, `consistency.rs`) — chase over 2,000 triples, ontology
+  `classify.rs`, `consistency.rs`) — chase over 2,000 triples (measured at
+  the 2,000-node chain before the ladder shrank; the current default chase
+  chain ladder is 16/64/1,000 — the 2,000 rung OOMs solo, e88d78ea), ontology
   classification at 10,000 classes, consistency at the widened case-split
   ladder. Sells: the reasoner stays measured (report-only) at the scale
   where saturation stops being interactive.

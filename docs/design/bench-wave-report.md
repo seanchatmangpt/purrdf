@@ -134,10 +134,10 @@ close path; "no unowned red remains" stands as of 13:08 PDT.
 | FQ-ID | crate | defect | fix | state |
 |---|---|---|---|---|
 | FQ-01 | sparql-eval | E0599 FastMap::new (solution.rs:1965) | FastMap::default() | **APPLIED** |
-| FQ-02 | geo-kernel | --locked lock refusal (G-4) | phase-3 rerun, no --locked | RE-RUN IN FLIGHT |
-| FQ-03 | hnsw | same | phase-3 rerun | RE-RUN IN FLIGHT |
-| FQ-04 | retrieval | same | phase-3 rerun | RE-RUN IN FLIGHT |
-| FQ-05 | text | same | phase-3 rerun | RE-RUN IN FLIGHT |
+| FQ-02 | geo-kernel | RESOLVED: register rc=0 2220s, 109 measured / 0 failed (phase-3 log) |
+| FQ-03 | hnsw | PARTIAL-RESOLVED: phase-3 rc=101 2237s (SIGKILL during build), phase-4 rc=124 3600s with content-complete report tables (build cost + 72 recall rows); phase-4b split re-run queued |
+| FQ-04 | retrieval | RESOLVED: register rc=0 455s, 18 measured / 0 failed (phase-3 log) |
+| FQ-05 | text | RESOLVED: register rc=0 1365s, 299 measured / 0 failed across 7 footers (phase-3 log) |
 | FQ-06 | shapes | pydantic_package cut off mid-run | phase-4 --bench pydantic_package | ASSIGNED |
 | FQ-07 | hash-conformance | in yaml matrix, absent from queues | phase-4 lane | ASSIGNED |
 | FQ-08 | sparql-eval | phase-4 deep_nesting rc=101 51s was a COMPILE break, not the stack overflow: purrdf-sparql-results lib failed — 50 errors in `canon_arrow.rs` (47x E0753 stray `///` in the `//!` block, 2x E0499, 1x E0277); wrapper never exercised | `canon_arrow.rs` fix landed 612bba89 | FIXED, phase-4b rerun post-612bba89 queued |

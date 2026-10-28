@@ -911,6 +911,8 @@ fn benchmark(c: &mut Bench) {
 
     {
         let mut carriers = c.benchmark_group("lpg_package_vs_sink");
+        // ~300ms/iter arms (open_cypher/graphml package+sink): 80 samples ≈ 24s.
+        carriers.sample_size(80);
         carriers.throughput(Throughput::Elements(LARGE_QUADS as u64));
         for carrier in LpgCarrier::ALL {
             carriers.bench_function(format!("{}_package", carrier.name()), |bencher| {
@@ -935,6 +937,9 @@ fn benchmark(c: &mut Bench) {
 
     {
         let mut carriers = c.benchmark_group("lpg_carriers");
+        // generic_csv/neo4j_csv rows sit at 26-27s, just over the 25s target:
+        // 80 samples trims ~20% while keeping measurement noise acceptable.
+        carriers.sample_size(80);
         carriers.throughput(Throughput::Elements(
             (lpg.graph.nodes.len() + lpg.graph.edges.len()) as u64,
         ));

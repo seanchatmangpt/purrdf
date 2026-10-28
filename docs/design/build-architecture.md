@@ -226,6 +226,39 @@ SIGKILL means 4-way exceeds the 48GB ceiling — drop to 2-way, re-receipt
 No documented total may combine the two; where both lanes measure the same
 crate, the rows are independent measurements, not partitions of one total.
 
+### 7.2 Report-only / capacity-probe tier
+
+A third tier of ordinary `[[bench]]` targets exists that is **run under
+`make bench` only** and never enters any measured count: rows from this tier
+carry no measured count in any total, in either register series.
+
+Two member shapes:
+
+- **Report-only tables.** Benches whose output is a table read by eye, not
+  a criterion measurement: the hnsw build/recall tables, and the purrdf-core
+  `purremb_alloc` + `pack_restore_alloc` allocation probes. They run, they
+  print, they are receipts for behavior (alloc shape, recall at a build
+  config), never for a count of greens.
+- **Capacity-probe rungs.** The geo-kernel geodesic / transforms / covers
+  benches gated behind `GEO_*_LARGE` environment gates, default OFF, checked
+  strict (`=="1"`). With the gate unset they exit early; with the gate set
+  they run their probe rungs (`batch4096`, `radius-400000`), which exist to
+  answer "does this fit in capacity at all", not to produce a comparable
+  measurement. Explicit run:
+
+  ```sh
+  GEO_GEODESIC_LARGE=1 cargo bench -p purrdf-geo-kernel -- geodesic
+  GEO_TRANSFORMS_LARGE=1 cargo bench -p purrdf-geo-kernel -- transforms
+  GEO_COVERS_LARGE=1 cargo bench -p purrdf-geo-kernel -- covers
+  ```
+
+**Exclusion-from-totals rule.** Tier members are never counted: not in the
+serial register totals, not in fast-lane totals, not in any documented sum.
+No measured footer in a tier log means no count exists for it — absence of a
+footer is the signal, not a count to reconstruct. An unmeasured point is not
+a claim: a tier row receipts that the bench ran (or was skipped by its gate),
+never that a number was measured.
+
 ## 8. Hygiene and the fast-lane target family
 
 The fast-lane target family — `/tmp/purrdf-fast-target`,
