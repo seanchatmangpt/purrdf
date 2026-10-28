@@ -359,7 +359,15 @@ impl Registry {
         };
         let mut vocabularies = Vocabularies::NONE;
         for (vocabulary, required) in declared {
-            let required = required.as_bool() != Some(false);
+            let Some(required) = required.as_bool() else {
+                return Err(SchemaError::InvalidKeyword {
+                    location: format!("{metaschema}#/$vocabulary/{vocabulary}"),
+                    reason: crate::KeywordRefusal::Requirement {
+                        expected: crate::KeywordRequirement::Boolean,
+                        actual: required.clone(),
+                    },
+                });
+            };
             match dialect.vocabulary(vocabulary, required) {
                 Some(flags) => vocabularies = vocabularies.union(flags),
                 None if required => {

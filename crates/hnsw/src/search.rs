@@ -531,13 +531,19 @@ pub(crate) fn search_layer_admitted<A: Arithmetic>(
     let mut distances_allocation = None;
     let mut fresh: Vec<usize> = Vec::new();
     let mut distances: Vec<f64> = Vec::new();
+    // Termination: this `while let` IS the break-when-candidate-heap-is-empty. When the
+    // reachable component is smaller than `ef`, the fullness-gated break inside can never
+    // fire; the beam exits by exhausting `candidates`, which is the full reachable
+    // expansion completeness requires there. (OPT-77 finding on this path refuted.)
     while let Some(Reverse(current)) = candidates.pop() {
-        if results.len() >= ef {
-            // The nearest unexplored candidate is already worse than the worst result, so
-            // no expansion can improve the beam.
-            if results.peek().is_some_and(|worst| current > *worst) {
-                break;
-            }
+        // The nearest unexplored candidate is already worse than the worst result, so
+        // no expansion can improve the beam. The guard cannot fire while
+        // `results.len() < ef`: no eviction has run yet, so `results` still holds every
+        // discovered node and `current` (itself discovered) is never strictly worse than
+        // their maximum — the beam exits by exhausting `candidates`, which is exactly
+        // the full reachable expansion the smaller-than-`ef` component requires.
+        if results.peek().is_some_and(|worst| results.len() >= ef && current > *worst) {
+            break;
         }
         // The unvisited neighbours, scored as one batch, then admitted in adjacency
         // order: visiting does not depend on admission, and admission sees exactly the
@@ -555,6 +561,10 @@ pub(crate) fn search_layer_admitted<A: Arithmetic>(
             if visited.visit(neighbor.row) {
                 fresh.push(neighbor.row);
             }
+        }
+        if fresh.is_empty() {
+            // Every neighbour was already visited: nothing to score, nothing to admit.
+            continue;
         }
         query.of_many(
             &fresh,

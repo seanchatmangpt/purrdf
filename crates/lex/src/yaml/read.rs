@@ -725,7 +725,14 @@ impl Parser<'_> {
         }
         self.pos += 1;
         let start = self.pos;
-        while !self.blank_at(self.pos) && !is_flow_indicator(self.peek()) {
+        // A name also stops at `:` when that reads as a value indicator (a
+        // blank or flow indicator after it), so `*x: v` names `x`, not `x:`.
+        while !self.blank_at(self.pos)
+            && !is_flow_indicator(self.peek())
+            && !(self.peek() == Some(b':')
+                && (self.blank_at(self.pos + 1)
+                    || is_flow_indicator(self.peek_at(self.pos + 1))))
+        {
             self.pos += self.text[self.pos..]
                 .chars()
                 .next()
@@ -833,8 +840,12 @@ impl Parser<'_> {
                 .iter()
                 .take_while(|&&b| b == b' ')
                 .count();
+            // A tab in the continuation's indentation is separation, not
+            // indentation: the line cannot continue the scalar.
+            let tabbed = self.bytes[self.line_start(self.pos)..self.pos].contains(&b'\t');
             if self.pos >= self.bytes.len()
                 || self.at_marker()
+                || tabbed
                 || spaces as isize <= owner
                 || self.at_comment()
             {
@@ -1702,11 +1713,7 @@ impl Parser<'_> {
             // A scalar after `?` is a key; a number, boolean or null one keeps
             // its source text, as an implicit key does.
             let key = self.key_text(text.clone(), plain, tag, at)?;
-            let value = match self.scalar(text, plain, tag, at) {
-                Ok(value) => value,
-                Err(error) if error.kind == ErrorKind::NonFinite => Value::String(key.clone()),
-                Err(error) => return Err(error),
-            };
+            let value = self.scalar(text, plain, tag, at)?;
             self.count(1, at)?;
             self.register(anchor, &value);
             return self.fill_key(key, at);
@@ -2283,7 +2290,10 @@ fn key_of(mut value: Value, scalar_keys: bool) -> Option<String> {
         Value::String(text) => Some(mem::take(text)),
         Value::Number(number) if scalar_keys => Some(number.lexeme().to_owned()),
         Value::Bool(flag) if scalar_keys => Some(flag.to_string()),
-        Value::Null if scalar_keys => Some("null".to_owned()),
+        // A null key has lost its source text here (an alias or a popped
+        // single-pair key), so it keeps the core schema's canonical `~`
+        // spelling, as an implicit `~` key does.
+        Value::Null if scalar_keys => Some("~".to_owned()),
         _ => None,
     }
 }

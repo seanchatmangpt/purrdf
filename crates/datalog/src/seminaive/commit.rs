@@ -46,6 +46,16 @@ where
     complete: bool,
     winner_work_admitted: bool,
     preparation: Vec<Preparation<'r, I, N>>,
+    /// Lowest original coordinate a restoration re-admitted this round, if any.
+    ///
+    /// Invariant: `restore_row_in` re-admits a withdrawn row at its immutable
+    /// append coordinate, which can fall below the next round's delta span
+    /// `[round_lo, row_slots())`. Without this record the restored row is
+    /// invisible to both `Scan::Delta` and `Scan::OldOnly` joins, so every
+    /// derivation that needs it on the delta side is silently missed. The
+    /// stratum lowers the next delta's `lo` to this bound (`stratum.rs`
+    /// `Phase::Evidence`) so the restored row re-enters the delta scan.
+    restored_lo: Option<u64>,
 }
 
 impl<'r, I: TermIdentity, const N: usize> Frame<'r, I, N>
@@ -84,6 +94,7 @@ where
             complete: false,
             winner_work_admitted: false,
             preparation: Vec::new(),
+            restored_lo: None,
         })
     }
 
@@ -131,6 +142,7 @@ where
             complete: false,
             winner_work_admitted: false,
             preparation: slot.0,
+            restored_lo: None,
         }
     }
 
@@ -201,6 +213,13 @@ where
 
     pub(super) fn is_complete(&self) -> bool {
         self.complete
+    }
+
+    /// The lowest original coordinate a restoration re-admitted this round, if
+    /// any. The stratum lowers its next delta's `lo` to this bound so a row
+    /// restored below `[round_lo, row_slots())` stays delta-visible.
+    pub(super) fn restored_lo(&self) -> Option<u64> {
+        self.restored_lo
     }
 
     /// Destroy completed deferred payloads before returning their original charge.
@@ -396,6 +415,10 @@ where
                     .remove(&ids)
                     .expect("the admitted original token is moved exactly once");
                 state.rel.restore_row_in(original, memory);
+                let index = row.index();
+                if self.restored_lo.is_none_or(|lowest| index < lowest) {
+                    self.restored_lo = Some(index);
+                }
                 row
             } else {
                 let inserted = state

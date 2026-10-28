@@ -135,30 +135,35 @@ enum Job<'v> {
 }
 
 /// A key's deterministic encoding.
-fn canonical_key(key: &Value) -> Vec<u8> {
+fn canonical_key(key: &Value) -> io::Result<Vec<u8>> {
     let mut bytes = Vec::new();
-    if !write_scalar(key, &mut bytes).expect("writing to a Vec cannot fail") {
-        bytes = canonical_bottom_up(key);
+    if !write_scalar(key, &mut bytes)? {
+        bytes = canonical_bottom_up(key)?;
     }
-    bytes
+    Ok(bytes)
 }
 
 /// A map's entries in deterministic order, each with its key's encoding,
 /// leaving out entries whose key is a text string in `excluded`.
+///
+/// # Errors
+///
+/// The writer's error, or the refusal of a reserved simple value
+/// (24..=31) appearing as a key.
 fn sorted_entries<'v>(
     entries: &'v [(Value, Value)],
     excluded: &[&str],
-) -> Vec<(Vec<u8>, &'v Value)> {
+) -> io::Result<Vec<(Vec<u8>, &'v Value)>> {
     let mut keyed: Vec<(Vec<u8>, &Value)> = entries
         .iter()
         .filter(|(key, _)| !key.as_text().is_some_and(|text| excluded.contains(&text)))
-        .map(|(key, value)| (canonical_key(key), value))
-        .collect();
+        .map(|(key, value)| Ok::<_, io::Error>((canonical_key(key)?, value)))
+        .collect::<Result<_, _>>()?;
     keyed.sort_by(|a, b| a.0.cmp(&b.0));
     // A repeated key: last wins, so the output is accepted by
     // `decode_deterministic`, which refuses a repeated key.
     dedup_last(&mut keyed);
-    keyed
+    Ok(keyed)
 }
 
 /// Drop consecutive entries with equal keys, keeping each key's last entry.
@@ -199,7 +204,7 @@ fn run<W: Write + ?Sized>(mut jobs: Vec<Job<'_>>, out: &mut W, canonical: bool) 
             Value::Map(entries) => {
                 head::write_head(out, MAP, entries.len() as u64)?;
                 if canonical {
-                    for (key, value) in sorted_entries(entries, &[]).into_iter().rev() {
+                    for (key, value) in sorted_entries(entries, &[])?.into_iter().rev() {
                         jobs.push(Job::Value(value));
                         jobs.push(Job::Encoded(key));
                     }
@@ -219,7 +224,7 @@ fn run<W: Write + ?Sized>(mut jobs: Vec<Job<'_>>, out: &mut W, canonical: bool) 
 /// The deterministic encoding of `root`, built bottom-up: each container's
 /// encoding is assembled from its children's once they are complete, so a map
 /// nested inside a map KEY is sorted without a recursive call.
-fn canonical_bottom_up(root: &Value) -> Vec<u8> {
+fn canonical_bottom_up(root: &Value) -> io::Result<Vec<u8>> {
     enum Step<'v> {
         Enter(&'v Value),
         Exit(&'v Value),
@@ -230,7 +235,7 @@ fn canonical_bottom_up(root: &Value) -> Vec<u8> {
         match step {
             Step::Enter(value) => {
                 let mut bytes = Vec::new();
-                if write_scalar(value, &mut bytes).expect("writing to a Vec cannot fail") {
+                if write_scalar(value, &mut bytes)? {
                     done.push(bytes);
                     continue;
                 }
@@ -263,7 +268,6 @@ fn canonical_bottom_up(root: &Value) -> Vec<u8> {
                         }
                     }
                     Value::Map(entries) => {
-                        head::push_head(&mut bytes, MAP, entries.len() as u64);
                         let first = done.len() - 2 * entries.len();
                         let mut children = done.drain(first..);
                         let mut pairs = Vec::with_capacity(entries.len());
@@ -288,9 +292,7 @@ fn canonical_bottom_up(root: &Value) -> Vec<u8> {
         }
     }
     done.pop().expect("the root's encoding is assembled last")
-}
-
-/// Write `value` to `out` as-is: shortest heads, shortest exact floats,
+}/// Write `value` to `out` as-is: shortest heads, shortest exact floats,
 /// definite lengths, map entries in the order the value holds them.
 ///
 /// # Errors
@@ -314,7 +316,8 @@ pub fn encode_into(value: &Value, out: &mut Vec<u8>) {
 
 /// Write `value` to `out` in RFC 8949 §4.2.1 core deterministic encoding:
 /// [`write`](fn@write)'s rules, and every map's entries in the bytewise order of their
-/// keys' deterministic encodings (a stable sort).
+/// keys' deterministic encodings, a repeated key's last entry kept (the only
+/// output [`super::decode_deterministic`] accepts).
 ///
 /// # Errors
 ///

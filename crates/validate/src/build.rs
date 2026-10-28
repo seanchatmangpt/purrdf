@@ -286,7 +286,9 @@ fn attach_diagnostics(run: &mut Run, diagnostics: &[MandatoryDiagnostic]) {
         });
     }
     match run.invocations.first_mut() {
-        Some(invocation) => invocation.tool_execution_notifications = notifications,
+        Some(invocation) => invocation
+            .tool_execution_notifications
+            .extend(notifications),
         None => run.invocations.push(crate::model::Invocation {
             execution_successful: true,
             start_time_utc: None,
@@ -413,7 +415,11 @@ fn result_to_sarif(
     // any other message set — several messages, a language tag, a direction, an
     // `rdf:HTML` literal — needs the bag, or something would be lost.
     let text_carries_all = match result.messages.as_slice() {
-        [only] => only.language().is_none() && only.datatype_str() == XSD_STRING,
+        [only] => {
+            only.language().is_none()
+                && only.direction().is_none()
+                && only.datatype_str() == XSD_STRING
+        }
         _ => result.messages.is_empty(),
     };
     if !text_carries_all {
@@ -559,7 +565,7 @@ fn focus_physical_location(
     Some(PhysicalLocation {
         artifact_location: ArtifactLocation {
             uri: uri.to_owned(),
-            uri_base_id: base_id.map(ToOwned::to_owned),
+            uri_base_id: base_id_for(&uri, base_id),
         },
         region: Some(Region {
             start_line: Some(position.line),
@@ -647,16 +653,22 @@ fn diagnostic_location(
         });
     }
 
-    let physical = location.path.as_ref().map(|path| PhysicalLocation {
-        artifact_location: ArtifactLocation {
-            uri: path.clone(),
-            uri_base_id: base_id.map(ToOwned::to_owned),
-        },
-        region: (location.line.is_some()).then(|| Region {
+    let physical = location.path.as_ref().map(|path| {
+        let region = (location.line.is_some() || location.column.is_some()).then(|| Region {
+            // SARIF regions may carry only a column when the line is unknown;
+            // a column without a line is still a usable coordinate.
             start_line: location.line,
             start_column: location.column,
             ..Region::default()
-        }),
+        });
+        PhysicalLocation {
+            artifact_location: ArtifactLocation {
+                uri: path.clone(),
+                // SARIF §3.4.2: `uriBaseId` is meaningless on an absolute URI.
+                uri_base_id: base_id_for(path, base_id),
+            },
+            region,
+        }
     });
 
     if physical.is_none() && logical.is_empty() {
@@ -753,6 +765,18 @@ fn register_rules(results: &mut [SarifResult]) -> Vec<ReportingDescriptor> {
 /// default).
 fn source_root_base_id(options: &SarifOptions) -> Option<&'static str> {
     options.source_root_uri.as_ref().map(|_| SRCROOT_BASE_ID)
+}
+
+/// The `uriBaseId` to stamp on an artifact location: the caller's `SRCROOT` base
+/// id, but ONLY when `path` is a relative reference — SARIF §3.4.2 forbids the
+/// indirection on an absolute URI, where the base would never be resolved. A
+/// path that does not validate as an IRI at all is treated as relative (the
+/// stamp is harmless; the resolver ignores it on unresolvable references).
+fn base_id_for(path: &str, base_id: Option<&str>) -> Option<String> {
+    match purrdf_iri::is_absolute(path) {
+        Ok(true) => None,
+        _ => base_id.map(ToOwned::to_owned),
+    }
 }
 
 fn assemble_run(

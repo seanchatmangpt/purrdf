@@ -36,8 +36,9 @@ IRI resolves to its quantifier term while that scope is open, and the binding
 ends when the scope closes — the same IRI used after the closing `}` parses as
 a plain IRI (a different term identity), not an error. Quantifier refusals
 cover ordering and duplication only: a quantifier must precede its graph's
-first triple, `@forAll` must precede `@forSome` in the same graph, and an IRI
-cannot be quantified twice in one graph. Triple
+first triple, `@forAll` and `@forSome` may appear in either order within the
+same graph, and an IRI cannot be quantified twice in one graph (in any
+enclosing scope — re-declaration shadows silently is no longer permitted). Triple
 terms keep the RDF 1.2 term model exactly; a formula term is a first-class term
 identity of its own. `.log:` predicates are parsed as ordinary IRIs — the
 *meaning* of `log:implies` and friends is supplied by the reasoner, not the

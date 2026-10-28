@@ -503,17 +503,23 @@ impl Compiler<'_> {
                 "$dynamicRef" if modern => {
                     let (target, resolved) = self.reference(context, keyword, value)?;
                     // An anchor-shaped fragment (non-empty, not a JSON
-                    // pointer) is an explicit `$dynamicAnchor` reference:
-                    // failing to resolve it is a compile error, never the
-                    // plain-`$ref` fallback (validate.rs unwraps a `None`
-                    // anchor to the target node). The fallback stays only for
-                    // fragments that are JSON pointers or absent, which name
-                    // no anchor at all.
+                    // pointer) explicitly names a `$dynamicAnchor`. Failure
+                    // to percent-decode it, or a base resource that is not
+                    // registered, is a compile error — the previous
+                    // `?`-cascade silently degraded the keyword to a plain
+                    // `Ref` (validate.rs unwraps a `None` anchor to the
+                    // target node). A fragment that decodes and names a
+                    // registered resource but matches no `$dynamicAnchor`
+                    // there is NOT an error: 2020-12 Core has `$dynamicRef`
+                    // fall back to `$ref` semantics for an unmatched anchor,
+                    // and the frozen suite pins it
+                    // (boon_differential_vectors.txt dynamicRef.json
+                    // 7/0, 8/0, 10/0 — "without-bookend" / "unmatched
+                    // dynamic anchor" fixtures expected valid), so the
+                    // fallback is the contract, not a defect.
                     let anchor = match resolved.split_once('#') {
                         None => None,
-                        Some((_, fragment))
-                            if fragment.is_empty() || fragment.starts_with('/') =>
-                        {
+                        Some((_, fragment)) if fragment.is_empty() || fragment.starts_with('/') => {
                             None
                         }
                         Some((base, fragment)) => {
@@ -524,27 +530,19 @@ impl Compiler<'_> {
                                     resolved: resolved.clone(),
                                 }
                             })?;
-                            let resource = self
-                                .registry
-                                .resource_by_uri(base)
-                                .ok_or_else(|| {
-                                    unresolved(
+                            match self.registry.resource_by_uri(base) {
+                                Some(resource) => self
+                                    .registry
+                                    .dynamic_anchor(resource, &name)
+                                    .map(|_| name.into_owned()),
+                                None => {
+                                    return Err(unresolved(
                                         &at(context.absolute, keyword),
                                         &format!("#{fragment}"),
                                         &resolved,
-                                    )
-                                })?;
-                            if self.registry.dynamic_anchor(resource, &name).is_none() {
-                                // Direct variant, not `unresolved()`: the
-                                // base resource exists (possibly a published
-                                // metaschema), only the anchor is missing.
-                                return Err(SchemaError::UnresolvedReference {
-                                    location: at(context.absolute, keyword),
-                                    reference: format!("#{fragment}"),
-                                    resolved: resolved.clone(),
-                                });
+                                    ));
+                                }
                             }
-                            Some(name.into_owned())
                         }
                     };
                     references.push(Keyword {

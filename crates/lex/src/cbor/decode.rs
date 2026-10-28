@@ -186,7 +186,7 @@ impl Source for Slice<'_> {
         let len = usize::try_from(len)
             .ok()
             .filter(|&len| len <= available)
-            .ok_or_else(|| DecodeError::new(DecodeErrorKind::Truncated, self.bytes.len()))?;
+            .ok_or_else(|| DecodeError::new(DecodeErrorKind::Truncated, self.pos))?;
         out.extend_from_slice(&self.bytes[self.pos..self.pos + len]);
         self.pos += len;
         Ok(())
@@ -717,7 +717,13 @@ pub fn read_from<R: Read + ?Sized>(
     let mut source = Stream { reader, pos: 0 };
     match decode_item(&mut source, limits, false) {
         Ok(value) => Ok(Some(value)),
-        Err(error) if error.kind == DecodeErrorKind::Truncated && error.offset == 0 => Ok(None),
+        // Clean end of stream means nothing at all was consumed: the first
+        // `byte` read past the end. Anything else — including a head byte
+        // taken before the payload ran out — ends inside an item and stays a
+        // [`DecodeErrorKind::Truncated`] refusal. Test `source.pos`, not the
+        // error offset, so the classification does not depend on how the
+        // source reports truncation positions.
+        Err(error) if error.kind == DecodeErrorKind::Truncated && source.pos == 0 => Ok(None),
         Err(error) => Err(error),
     }
 }

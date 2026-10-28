@@ -35,6 +35,9 @@ where
     delta: Delta,
     first_round: bool,
     round_lo: u64,
+    /// Lowest coordinate restored below a round's span (from [`commit::Frame`]);
+    /// lowers every later delta's `lo` so restored rows stay delta-visible.
+    restored_lo: Option<u64>,
     phase: Phase<'r, I, N>,
 }
 
@@ -55,6 +58,7 @@ where
             delta: Delta::all(state.rel.row_slots()),
             first_round: true,
             round_lo: state.rel.row_slots(),
+            restored_lo: None,
             phase: Phase::Ready,
         }
     }
@@ -176,6 +180,9 @@ where
                         "unlimited publication completes its original winners"
                     );
                     check_budget(state)?;
+                    if let Some(lo) = frame.restored_lo() {
+                        self.restored_lo = Some(self.restored_lo.map_or(lo, |kept| kept.min(lo)));
+                    }
                     self.phase = Phase::Evidence { had_facts: true };
                 }
                 Phase::Evidence { had_facts } => {
@@ -186,7 +193,7 @@ where
                         self.phase = Phase::Ready;
                     } else if *had_facts {
                         self.delta = Delta {
-                            lo: self.round_lo,
+                            lo: self.restored_lo.map_or(self.round_lo, |lo| lo.min(self.round_lo)),
                             hi: state.rel.row_slots(),
                         };
                         self.phase = Phase::Ready;

@@ -53,7 +53,7 @@ pub fn read(files: &ParquetFiles) -> Result<ColumnarRead, ColumnarError> {
     };
     let quad_rows = {
         let quads = read_table(files.get(Table::Quads), Table::Quads)?;
-        decode_quad_rows(&quads, &dictionary.named_graphs)?
+        decode_quad_rows(&quads, &dictionary.named_graphs, "quad row order")?
     };
     let reifier_rows = {
         let reifiers = read_table(files.get(Table::Reifiers), Table::Reifiers)?;
@@ -61,7 +61,14 @@ pub fn read(files: &ParquetFiles) -> Result<ColumnarRead, ColumnarError> {
     };
     let annotation_rows = {
         let annotations = read_table(files.get(Table::Annotations), Table::Annotations)?;
-        decode_quad_rows(&annotations, &dictionary.named_graphs)?
+        // The annotations table orders like the quad table but is its own
+        // table: an ordering violation there names the annotations context,
+        // not a quad context.
+        decode_quad_rows(
+            &annotations,
+            &dictionary.named_graphs,
+            "annotation row order",
+        )?
     };
     let content_store = {
         let blobs = read_table(files.get(Table::Blobs), Table::Blobs)?;
@@ -452,6 +459,7 @@ fn resolve_term_record(
 fn decode_quad_rows(
     data: &TableData,
     named_graphs: &[bool],
+    order_context: &str,
 ) -> Result<Vec<QuadRow>, ColumnarError> {
     let mut first = int_column(data, 0)?.rows();
     let mut second = int_column(data, 1)?.rows();
@@ -472,7 +480,7 @@ fn decode_quad_rows(
             optional_graph_ref(g, row, named_graphs)?,
         ));
     }
-    ensure_strict_order(&rows, "quad-like row order")?;
+    ensure_strict_order(&rows, order_context)?;
     Ok(rows)
 }
 
