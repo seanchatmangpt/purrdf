@@ -3112,3 +3112,19 @@ direction).
   three tests drafted). Not yet applied — the kit's Report struct needs
   an owners-field read the lane sketched but the writer must verify.
 
+### wave-37 addendum 2 — gts writer sweep (W37 L5)
+
+- FIXED: Writer::with_layout panics on caller input (typo/case-slip ->
+  .expect abort) — now returns the typed FrameError::Layout like every
+  other constructor; Writer::new keeps its infallible signature with the
+  no-layout invariant named; test callers updated.
+- FILED: tar export truncates sub-second `modified` (no fractional mtime
+  PAX record; two distinct inputs collapse byte-identical — contradicts
+  the byte-exact transport contract, tar.rs:359/:231-265); term_to_wire
+  silently drops a non-canonical literal direction (writer.rs:47-49 —
+  needs a fallible-signature rework; inconsistent with the fail-closed
+  style).
+- CLEAN: frame key ordering (canonical map sort), Encrypt0 sealing arm,
+  catalog id assignment, compared_pairs windowing, tar numeric/PAX-length
+  writers, blob pub.digest vs reader recomputation.
+
