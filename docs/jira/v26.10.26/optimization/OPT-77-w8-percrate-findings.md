@@ -3041,3 +3041,40 @@ direction).
 - Out: duckdb B19 final-clean-diff lane, agent_memory items-1/2 lane,
   rfc3339/percent/shexj-imports micro-sweep.
 
+### wave-36 progress
+
+- LANDED: gate-parity extension — BOUNDED_TIERS (7 stages, all four
+  fields pinned), unwrap_bounded_tier (the wrapper can no longer hide
+  the gate it runs), bounded_tier_problems (SLA drift / untabled stage /
+  stage-gone-quiet all refused), main wiring + self-test cases.
+  Registering the ladder immediately surfaced two REAL one-sided gates
+  invisible behind the inline bounded() bodies (check-leaf-compile.sh,
+  check-no-std.py — CI-only by design) — now registered, ONE_SIDED_COUNT
+  7 -> 9. TWO PRE-EXISTING VACUOUS SELF-TEST ANCHORS repaired: the
+  Makefile's $(BOUNDED) prefix had silently no-op'd both mutation tests
+  (argument-drift and local-only-gate were never actually introduced —
+  vacuous passes, the exact failure class the non-vacuity doctrine
+  exists for). Live-verified: self-test rc=0, main rc=0.
+- FILED: sparql-conformance PASS-silencing trio (ordered detection
+  parses without base -> multiset downgrade; rs:ResultSet expectations
+  ignore the query's ORDER BY; lax_cardinality path never checks order —
+  all three funnel a false `ordered` into compare_solutions, each alone
+  flips FAIL->PASS) + serviceData setup failure short-circuits to FAIL
+  without grading .err. run.rs:840/:775, compare.rs:343-351/:396-441,
+  lib.rs:262-265.
+- FILED: conformance-kit (Crash aggregates as CANT_TELL — a hard crash
+  reads as skipped in the scoreboard; no records-vs-catalog closure
+  check — a wholly crashed suite shrinks the denominator silently;
+  case_count validated only when a review index exists; admit gating
+  makes the completeness guard structurally unreachable for no-review
+  catalogs). outcome.rs:391-403/:374-387, reviews.rs:115-128.
+- FILED: percent.rs:196 encode() expect-panics on extreme input (the
+  fallible encode_with_memory exists); shex imports.rs:78-92 root-cycle
+  contract gap; rfc3339 CLEAN (parse/format year-bound asymmetry noted,
+  not a defect).
+- COSE apply deferred one tick: the W36 string-check found post-wave-28
+  drift at several sites (incl. borrowed.rs:29 now reading differently
+  and no From<Vec<u8>> for Value impl — writer.rs:1257 needs an edit);
+  applying against fresh strings next tick.
+- FIX-RECHECK batches 2+3: all 18 spot-checks PRESENT, no regressions.
+
