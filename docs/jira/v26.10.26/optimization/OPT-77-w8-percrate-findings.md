@@ -3030,3 +3030,14 @@ direction).
 - The simd.md anchor-drift finding (wave-31) is CLOSED as a bulk item;
   individual residual anchors are cosmetic.
 
+### wave-35 progress
+
+- FIXED: cli glob BrokenPipe contract (both emitters), pack verify
+  println-panic -> typed funnel, bench empty-filter parse refusal.
+- HYGIENE RECHECK: clean tree; .deficiencies zero entries; OPT-77 ledger
+  124 wave headings, zero duplicated headings (the wave-32 double-append
+  dedupe held); two /tmp lane leases still held (lane-fb-ladder,
+  lane-lane-fb-ladder — the rm needs operator approval).
+- Out: duckdb B19 final-clean-diff lane, agent_memory items-1/2 lane,
+  rfc3339/percent/shexj-imports micro-sweep.
+
