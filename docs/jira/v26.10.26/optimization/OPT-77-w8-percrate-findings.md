@@ -1329,3 +1329,13 @@ n3 reasoner.rs (backward chaining — SERIOUS):
 - profile.rs:403-410 — run() drops a captured runtime failure on any
   Err variant other than Execution/Shapes::Invalid/Processor:
   governor resource exhaustion can be silently swallowed.
+
+- text index postings order: REFUTED — PartitionKey is (graph,
+  language), so a partition never mixes languages; the comparator
+  degenerates to subject order = id-ascending within a partition.
+  All consumers operate per-partition. (The W11 verifier missed the
+  partition key.)
+- text segment/storage.rs: empty-dictionary offsets.len()-1 underflow
+  (:190) and zero-length words stored but exact(b"") always None
+  (:137-183) — CONFIRMED edge-case bugs; unvalidated sorted-offsets
+  precondition noted.
