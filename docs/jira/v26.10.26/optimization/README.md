@@ -74,6 +74,10 @@ No source code was modified by the inspection; tickets are engineering specs onl
 | OPT-71 | Error-surface deep items + wasm class parity gate | — OPEN (optimization/OPT-71-error-surface-and-wasm-class-gate.md) |
 | OPT-72 | W3C vocab-literal completion sweep (direct fixes + dep-decision items) | — OPEN (optimization/OPT-72-vocab-literals-completion.md) |
 | OPT-73 | uninlined_format_args backlog, 84 sites, deferred past the drain | — OPEN (optimization/OPT-73-clippy-format-args-backlog.md) |
+| OPT-74 | n3/deep_nesting bench OOM: memory-bounded fixtures | — OPEN (optimization/OPT-74-n3-reasoner-bench-oom.md) |
+| OPT-75 | CHANGELOG SHACL pin drift | — OPEN (optimization/OPT-75-changelog-shacl-pin-drift.md) |
+| OPT-76 | duckdb eval hardening | — OPEN (optimization/OPT-76-duckdb-eval-hardening.md) |
+| OPT-77 | wave-8+ per-crate findings ledger (~490 bullets, waves 8–20) | — OPEN (optimization/OPT-77-w8-percrate-findings.md) |
 | OPT-5S | `../OPT-5s-bounded-ceiling.md` | Agent C14 | bounded wrapper + hook + corpus, ENFORCED |
 
 Note (2026-10-27): `OPT-64 and OPT-65-frozen-duckdb-endgame.md` exists on disk but has no

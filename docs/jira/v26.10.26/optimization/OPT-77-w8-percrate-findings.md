@@ -1890,3 +1890,191 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   out of the closure).
 - cli.rs:1802 — --expr-at requires = "expr_via" makes the zero-step
   walk (At { via: &[] }) unreachable from the CLI.
+
+---
+
+## wave-21 verification audit (2026-10-28, 20-lane static fan-out)
+
+Verification lanes over the earlier repair waves. Findings below carry
+corrected anchors (wave-12's dtd line numbers had drifted).
+
+### lex xml — wave-12 findings CONFIRMED UNFIXED, anchors corrected
+
+- dtd.rs:528-532 (was :529-532) — entity_value decodes char refs INTO the
+  stored replacement text: `<!ENTITY x '&#60;b/'>` yields a live `<` that
+  next() re-scans as markup; XML 1.0 §4.4 says char-ref-produced </& are
+  literal data.
+- dtd.rs:261-268 (was :259-267) — same class on the PE path: a literal `%`
+  stored in replacement text is re-scanned by dtd_item as a live PE ref.
+- crates/lex/src/xml/reader/reader.rs:1391-1398 (was reader.rs:1392-1397)
+  — end_tag forbids closing only at-or-below the ENTITY frame's entry
+  depth; an entity closing an element opened BEFORE the reference is
+  accepted (§4.3.2 well-formedness).
+- dtd.rs:524-527 — the char-ref `;` scan is unbounded from `&` to the
+  first `;` anywhere in the literal's remainder (the ledger's old
+  reader.rs:844-854 ref was the attribute-value scan, which is bounded
+  by `bytes[hit..close]`).
+
+### datalog restored_lo — sound but over-wide; maintained model gap
+
+- The span-widening repair is sound (Delta::contains lo-inclusive at
+  seminaive.rs:1732-1735; restored_lo frame-local; no cross-stratum
+  leak). But restored_lo is a running minimum never reset
+  (stratum.rs:184), so every later round's delta span starts at the
+  earliest restoration coordinate — O(R*S) re-scan plus per-round
+  DeltaRun materialization on restore-heavy programs. The doc comment at
+  commit.rs:56-57 says "the *next* delta's lo"; the code widens ALL
+  subsequent deltas. Candidate fix: reset restored_lo once the round
+  immediately following the restoration completes, or track exact
+  restored coordinates instead of a floor.
+- DEFECT CANDIDATE: maintained.rs never reads restored_lo —
+  advance_until records it (commit.rs:419-420) but no maintained.rs
+  reader exists; whether the maintained model's membership-delta
+  machinery (maintained.rs:2032-2062) covers restored rows is
+  UNVERIFIED. If not, restorations are delta-invisible under maintained
+  evaluation.
+- TEST GAP: no regression test covers restore-after-fixpoint delta
+  visibility (grep of tests/ finds none). Belongs in
+  crates/datalog/tests/rules_runtime.rs or a new
+  tests/restore_visibility.rs asserting a derivation that requires the
+  restored row on the delta side survives the fixpoint round.
+
+### hnsw — work-accounting fix has no behavioral receipt
+
+- The saturating-add-before-insert fix (search.rs:163-171, 1b6906fe) is
+  test-blind: no test drives a bounded-workspace insert_admitted
+  failure mid-search and asserts take_work() > 0 on the Err path.
+  Nearest misses: oracle_contract.rs:383-398 is a planner row ceiling,
+  sparql_e2e.rs:418 asserts the typed error but not the work count. A
+  test in oracle_contract.rs using a tiny WorkspaceCapability ceiling
+  closes it.
+- Converting report-only benches to measured rows: harness capability
+  EXISTS (testkit footers); the report-only design is deliberate
+  (build.rs:14-24, thermal state). If measured rows are wanted, add an
+  in-binary footer keyed on a non-wall-clock predicate (recall@10 floor
+  at ef>=128, or per-scale digest non-zero/uniqueness — raw material
+  already computed at recall.rs:304 and build.rs:170). Never wall-clock
+  assertions (build.rs:150-154). Do NOT migrate to the sampled harness.
+
+### entail — phase-4b rc=124 was run ordering, not a severed seam
+
+- schema_scan's fixture is bounded (10 individuals, pairs ladder
+  5/100/400/800); the consistency bench's expensive rungs consumed the
+  3600s cap before schema_scan started. Fix is CI-side sharding:
+  `cargo bench -p purrdf-entail --bench schema_scan` as its own
+  invocation with its own ceiling. Optional static trim if a code edit
+  is preferred: consistency.rs:573 drop the 64 rung (self-described
+  scale probe), :600 drop 16 from the proof ladder, :446-447 consider
+  dropping 16_000. Do NOT shrink schema_scan's own ladder and do NOT
+  revert the achiever cache / range_by_role index (dl_step_ledger.rs:
+  458-473 pins exact work at 36 for this shape).
+
+### shapes — three verification gaps on the repair set
+
+- TEST GAP: no pin of the guard's actual behavioral change — a where
+  shape that IS a property shape (bears sh:path) and also carries
+  sh:class/hasValue/in. Old behavior (narrow via constraint) and new
+  (narrow only via minCount arm) both untested;
+  target_eval.rs:238/241/244.
+- TEST GAP: silent non-claiming of a failing ASK target (engine.rs:839)
+  has zero coverage — neither the skip nor the promised valid-neighbour
+  survival ("keeps the remaining shapes and focus nodes validable",
+  comment :829-832).
+- INCONSISTENCY: engine.rs:1987 (bind_complete_source) and :4667
+  (parse_shapes_with_options) call resolve_xpath(options.xpath_regex)
+  WITHOUT the crate::xpath::current() thread-local fallback that
+  Request::admit applies (profile.rs:345-360) — with xpath_regex=None
+  and an active dated native scope they select Limits::default(),
+  diverging from the documented precedence. Same shape at rules.rs:876
+  and engine.rs:3832 gating on is_none() only.
+
+### columnar — langtag grammar arm untested
+
+- reader.rs:409/:1083 `!is_well_formed_with(tag, Bounded)` refusal arm
+  has no direct test: the only langtag refusal test is refused by
+  is_identity_folded (uppercase), and generated tables only use
+  "en"/"EN". A folded-but-grammar-invalid tag ("en-", "e-n") is never
+  exercised in either direction. Valid neighbour exists
+  (reader.rs:1213-1226).
+
+### rdf-capi — post-exhaust rowcursor access untested
+
+- The exhaust-clears-current fix (rowcursor.rs:117-120) has no test
+  that calls purrdf_rowcursor_term AFTER CursorExhausted to assert
+  InvalidArgument. Every existing test drains then frees (smoke.c:547,
+  abi.rs:1586/1640/2277, query.rs:1931). Header needs no regen
+  (contract already documented at purrdf.h:3279-3286).
+
+### lex yaml — three test gaps on the new behaviors
+
+- Anchor names breaking at `:` (read.rs:720-745): no invalid-case test
+  anywhere (`&x:` / `*x:` forms untested); only near-miss is `*x : v`
+  with a space.
+- Tab-on-plain-continuation error (read.rs:843-849): no test feeds a
+  tab-indented continuation of a plain multi-line scalar; existing Tab
+  tests cover block indent and block scalars only.
+- Null-key `~` convention: the lost-source path (alias-to-null key or
+  popped single-pair key yielding "~", read.rs:2292-2303) has no direct
+  test; literal-`~`-key rows exist (yaml_scalar_keys.rs:71).
+- NonFinite keys: fully pinned both directions (value invalid-case
+  tests.rs:409-411, key neighbours yaml_scalar_keys.rs:75-76) — CLEAN.
+
+### sql update bnode prefix — one label-assertion gap
+
+- The mint-prefix fix covers all eval-time seams (INSERT DATA
+  update.rs:469-477/561-566, DELETE/INSERT WHERE :685-687, LOAD
+  :1020-1022); parse-time seam does not exist by construction (PREFIX
+  resolves fully at parse). Gap: no end-to-end "INSERT DATA with blank
+  template honors configured prefix" label assertion — the INSERT DATA
+  seam is exercised only via shared helper tests (update.rs:1603-1618).
+
+### jsonschema / csvw — spot verdicts
+
+- Ref-chain bound CONFIRMED ALIVE (validate.rs:56 MAX_REF_CHAIN=250,
+  enforced :1686-1699; behavior tests api.rs:612/636/647). CLEAN.
+- csvw loss accounting: all drop paths increment located,
+  contract-checked ledger entries; exact-count arithmetic pinning
+  exists only for the okf twin (okf_terms_projection.rs:78-124), not
+  csvw-terms. Minor.
+- probe_has_match gating: tests assert final evaluation results, not
+  call counts. CLEAN.
+
+### golden_bytes — 8 of 10 PINNED digests likely stale, no regen tooling
+
+- PINNED table (columnar/tests/golden_bytes.rs:130-181) last pinned at
+  de30c8f5 (2026-10-19); since then parquet.rs +1408 lines, segmented
+  dictionary compression, reifier write-path changes all landed. 8/10
+  expected stale (Blobs two likely stable — content-addressed). No
+  #[ignore] regen function exists (contrast pack_container.rs:208-214's
+  idiom); regen = run test, read assert diff at :195, paste, commit
+  with reason per header contract. Needs a cargo box. Recommended:
+  add the #[ignore] regen fn (static edit) so the cargo-box pass is
+  mechanical.
+
+### OPT-73 recount (supersedes the 84 figure)
+
+- Real uninlined_format_args-class candidates: ~115 across
+  n3/reasoner.rs (31), n3/tests/n3_parse.rs (22),
+  n3/proof_check_n3.rs (22), n3/parser.rs (15), proof_writer.rs (6),
+  printing.rs (5), proof_check.rs (3), lexer.rs (3), sql/serializer.rs
+  (2), sql/ast.rs (2), duckdb/eval.rs (2), n3/ast.rs (1),
+  n3/tests/n3_proofs.rs (1). Single-line grep; clippy on a build box
+  is authoritative. Several ledger anchors already landed; count rose
+  as unlisted files retained sites.
+
+### misc wave-21 verdicts
+
+- index.mjs PARSE_OK (node --check exit 0); ProvenanceInfo imported
+  once, exported once; class-reexport test asserts static presence and
+  it is present. CLEAN.
+- purrdf.h needs NO regen for the rowcursor change (doc comments and
+  signatures unchanged; cbindgen output would be byte-identical).
+- Fanout residue: zero session markers, zero duplicate test names, no
+  session-introduced debug leftovers.
+- Commit-subject/file mismatches in the wave window (baeb5e4f touches
+  only jsonschema/compile.rs under a shapes,sparql-eval subject;
+  2017ec68 touches columnar+cbor under a jsonschema subject;
+  47eb5ec9 touches cbor+yaml under an hnsw subject; 4ed3317b adds the
+  sql bench under a lex subject) — bookkeeping drift, disclosed; do
+  not rewrite history (fix-forward doctrine).
+

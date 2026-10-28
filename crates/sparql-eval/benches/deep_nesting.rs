@@ -69,7 +69,14 @@ const DEPTHS: &[usize] = &[16, 64, 256];
 
 /// The deepest level the limit probe tries. A construct that still answers here is
 /// measured here.
-const PROBE_CEILING: usize = 20_000;
+///
+/// Bounded (was 20_000): a probe near 20k levels builds an 18k-deep parsed spine
+/// whose recursive parse/drop plus per-level retained evidence can touch the full
+/// 256 MiB measurement stack whenever the typed guard loses the race — the profile
+/// that SIGKILLed the phase-4 requeue at 527s (OPT-74). 1024 still exceeds the
+/// deepest fixed ladder rung (256) by 4x, so the probe keeps headroom while the
+/// fixture's own footprint stays bounded.
+const PROBE_CEILING: usize = 1_024;
 
 /// The explicit stack every construct is probed and sampled on. Deep enough that
 /// the engine's typed stack refusal always wins the race against the thread's real

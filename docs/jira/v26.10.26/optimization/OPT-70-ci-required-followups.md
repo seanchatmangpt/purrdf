@@ -68,3 +68,17 @@ documented command forms).
 > bash-script classification) landed with the reconciled self-test; the
 > agent-body reword (repair-lane.md/verification-gate.md still instruct
 > raw cargo ladder steps) remains OPEN.
+
+---
+
+## Update (2026-10-28, wave-21 verification lane)
+
+Item 4 (bounded_build_guard vs documented commands) is FULLY landed: the
+allowlist covers lane-lease.sh / bounded-fmt.sh / test-bounded-guard.sh
+(.claude/hooks/bounded_build_guard.py:80-81) and the fb family (:72-73), and
+the agent bodies are reworded (repair-lane.md:19-22, verification-gate.md:
+10-12 point at make b-<crate> / CI-owned ladder). The earlier wave-6 UPDATE
+residue no longer exists; this item is closed. Item 1 (Cargo.lock members)
+stays REFUTED. Items 2 (bounded-gates ladder single-sourcing) and 3
+(generated/ coverage) remain OPEN, CI-side.
+

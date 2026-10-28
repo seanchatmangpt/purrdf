@@ -2,7 +2,7 @@
 
 **Status:** OPEN (filed 2026-10-27, W4 error-surface + wasm-parity lanes)
 
-## 1. Error surface (crates/arrow, crates/sparql-results)
+## 1. Error surface (canon_arrow.rs lives in crates/sparql-results/src/, NOT crates/arrow — corrected 2026-10-28, wave-21)
 
 Mechanical message fixes landed in 1900f7d5. Remaining structural items:
 
