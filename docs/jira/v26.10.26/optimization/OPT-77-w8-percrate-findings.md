@@ -2514,3 +2514,68 @@ reader fixes, from_turtle RdfTerm extension, python __len__ fix.
   typed. Banked.
 - csvw/gts test-writing lanes died on rate limits — requeued.
 
+---
+
+## wave-29 status (2026-10-28)
+
+### Fixed (in-tree, UNVERIFIED)
+
+- sql compiler.rs: RdfTerm::Literal carries language + direction (read-seam
+  discard closed; consumers unchanged, data preserved).
+- entail owl_dl: integrate() completion-mark rollback on observation
+  refusal (was: mark-first + bail left the edge suffix permanently
+  unintegrated while reach/delta read it as current — replay could diverge
+  from the decision procedure on a clash reachable only through the
+  abandoned suffix).
+
+### New findings filed (plans needed)
+
+- gts_write.rs:362-367: out-of-i64 metadata Integer silently CLAMPED to
+  i64::MIN/MAX during CBOR conversion (should be typed refusal
+  rdf-metadata-integer-range). :349-354: suppression `by` resolves by
+  first positional display-value match — bnode-label/IRI collisions bind
+  the suppression to the wrong term (key on kind+label+scope or refuse
+  ambiguity).
+- capture_sparql_goldens.rs:143-203: reclassification never prunes stale
+  sibling artifacts (.skip-multi persists beside a new .rows) — "no git
+  diff on re-run" only forward.
+- alloc-probe (self-inflicted, wave-25 ledger): partial TLS failure
+  double-counts — succeeded legs stay in TLS while the dropped ledger
+  charges the FULL call (lib.rs:208-230). Prescription: reorder legs
+  live-first AND make the dropped charge piecewise (charge allocations/
+  size only for legs that failed), so the ledgers stay exclusive. Also:
+  metered() is not panic-safe (enclosing peak/trough destroyed on unwind,
+  :748-760); open()/sample() use panicking .with while recorders promise
+  try_with (:576-598); TempDir prefix check bypassable on Windows via
+  drive-prefix names (temp.rs:161).
+- cli convert.rs:351-361: the --canonical lane bypasses resolve_target —
+  out.nt.gz / out.gts accepted for canonical output (name lies about
+  bytes). :286-338: --import + --max-stored-facts/--max-join-steps
+  silently ignored without --entailment, and --import legs make the --base
+  refusal look satisfied (phantom legs). Residual transport-target gaps on
+  non-RDF byte writers: entails.rs:303, shacl.rs:200, shex.rs:297,
+  validate.rs:878, shapes_tools.rs:586/:653.
+- packet-N latin1 sweep: ZERO packet-framed stdio harnesses exist — no
+  live violation; latent risk noted at wasm-test-runner.sh if it ever
+  grows stdin frame reads.
+
+### Verdicts
+
+- testkit process_enter/disarm_and_drain CAS protocol: CLEAN (monotone
+  drain, AcqRel proof, no clobber window).
+- alloc-probe achiever... n/a — entail owl_dl achiever_cache +
+  range_by_role: CLEAN (immutable keys, partial-walk never cached,
+  built-once from finalized Kb).
+- stream.rs framing: CLEAN (CRLF buckets, offsets, truncated-frame
+  refusal).
+- cdt deep sweep (W28): one defect banked (langString acceptance).
+- Rate-limit losses: csvw test, gts test, generated-coverage lanes —
+  requeued.
+
+### Banked verified diffs still awaiting application
+
+COSE kid->bytes (25 sites + writer API decision), hnsw
+RankedSearchRefusal, duckdb B19, agent_memory B18, cdt langString
+refusal, bounded-tier gate-parity extension, Makefile cargo-tree grep
+deletion, csvw/gts/alloc-probe test writers.
+
