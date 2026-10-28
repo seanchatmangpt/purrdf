@@ -540,10 +540,15 @@ impl<'a> Lexer<'a> {
             word_bytes.copy_from_slice(&bytes[end..end + 8]);
             let mask = byte_lane_in_range(u64::from_le_bytes(word_bytes), b'0', b'9');
             if mask != FULL_WORD_DIGITS {
-                // `trailing_zeros` is 64 on an all-zero mask; `& 63` maps
-                // that to a zero-length run (e.g. `4.e2`, where the fraction
-                // scan starts on 'e' with no digit lanes set).
-                end += ((mask.trailing_zeros() & 63) >> 3) as usize;
+                // The run's length is the index of the first NON-digit lane:
+                // invert the 0x80-per-lane membership mask and count the
+                // leading set lanes. (`mask.trailing_zeros()` instead counts
+                // from the first digit lane — always lane 0 here — which
+                // consumed zero digits and re-read the same byte forever
+                // whenever a run of 1-7 digits had 8 or more bytes of input
+                // left, e.g. `:x :y 1 ;\n    :z :w .`)
+                let leading = (!mask & FULL_WORD_DIGITS).trailing_zeros() >> 3;
+                end += leading as usize;
                 self.pos = end;
                 value.push_str(&self.input[start..end]);
                 return end - start;
@@ -838,7 +843,7 @@ mod tests {
         let tokens = lex("55. ").expect("`55. ` must lex");
         assert!(matches!(
             tokens.iter().map(|t| &t.kind).collect::<Vec<_>>()[..],
-            [TokenKind::Number(_), TokenKind::Dot]
+            [TokenKind::Number(_), TokenKind::Dot, ..]
         ));
     }
 }
