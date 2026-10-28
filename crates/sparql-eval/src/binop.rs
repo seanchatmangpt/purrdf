@@ -2155,8 +2155,9 @@ pub(crate) fn probe_has_match<I: ViewTermId>(
     workspace: &crate::WorkspaceCapability,
 ) -> Result<bool, EvalError> {
     // A row joins only if it is compatible AND its membership is established.
-    let member =
-        |rrow: &RetainedRow<I>| -> bool { compatible(probe, rrow, shared) && !rrow.evidence().is_undecided() };
+    let member = |rrow: &RetainedRow<I>| -> bool {
+        compatible(probe, rrow, shared) && !rrow.evidence().is_undecided()
+    };
     Ok(match bound_key(probe, shared, KeySide::Left, workspace)? {
         // Fully bound on shared columns: bucket rows share the probe key by
         // construction (`build_index` only inserts non-empty buckets), so only
@@ -4220,6 +4221,124 @@ mod tests {
         assert!(
             !probe_has_match(&[None, t(5)], &shared, &ek, &ew, &empty.rows, &workspace)
                 .expect("resident probe")
+        );
+    }
+
+    #[test]
+    fn probe_has_match_treats_undecided_evidence_rows_as_non_members() {
+        use crate::evidence_exec::{QueryEvidence, RowEvidence};
+        use crate::scratch::SolutionTerm;
+        use purrdf_core::TermId;
+        use purrdf_core::evidence::{EvidenceRecord, Frame, InformationMap, SearchCompleteness};
+        use purrdf_core::evidence::ReasonDescription;
+        use purrdf_lex::allocation::{Memory, Resident};
+
+        let t = |i: u32| {
+            Some(SolutionTerm::Existing(
+                TermId::from_index(i).expect("stored term index is representable"),
+            ))
+        };
+        let workspace = crate::WorkspaceCapability::default();
+
+        // Mint one genuinely undecided row-evidence record through the native
+        // owner (the only lawful construction path — `with_undecided` is private).
+        let query = QueryEvidence::new(&workspace).expect("query evidence owner");
+        let cause = purrdf_core::TermValue::iri("https://example.org/missing-time");
+        let concern = purrdf_core::TermValue::simple_literal("candidate");
+        let reason = query
+            .declare_reason(ReasonDescription {
+                cause: &cause,
+                concern: &concern,
+                constraint: None,
+                vault: None,
+                watermark: None,
+            })
+            .expect("declared reason");
+        let record = EvidenceRecord::from_parts(
+            &InformationMap::default(),
+            SearchCompleteness::Undetermined,
+            &Frame::default(),
+            &[reason],
+            &[],
+            &mut Memory::new(&mut Resident),
+        )
+        .expect("undetermined record");
+        let undecided = query.retain_undecided(&record).expect("undecided evidence");
+        assert!(undecided.is_undecided());
+        let mint_undecided = || query.retain_undecided(&record).expect("undecided evidence");
+        let decided = RowEvidence::default();
+        assert!(!decided.is_undecided());
+
+        // Attach the records to rows; a non-virtual record forces the tracked
+        // owner so `evidence()` observes the real per-row state.
+        let undecided_row = crate::solution::RetainedRow::from_resident(purrdf_core::smallvec![
+            t(2)
+        ])
+        .with_evidence(undecided, &workspace)
+        .expect("attach undecided evidence");
+        let decided_row = crate::solution::RetainedRow::from_resident(purrdf_core::smallvec![
+            t(1)
+        ])
+        .with_evidence(decided.clone(), &workspace)
+        .expect("attach decided evidence");
+
+        // Inner over schema [x]: x=1 (decided), x=2 (undecided). Shared = {x}.
+        let shared = vec![(0usize, 0usize)];
+        let mut builder = RowsBuilder::new(&workspace);
+        builder.push_row(decided_row).expect("push decided row");
+        builder.push_row(undecided_row).expect("push undecided row");
+        let inner = SolutionSeq {
+            schema: VarSchema::shared_resident(VarSchema::from_vars([Variable::new("x")])),
+            rows: builder.finish().expect("resident row bag"),
+        };
+        let rows = &inner.rows;
+        let (keyed, wild) =
+            build_index(&inner, &shared, &workspace).expect("resident index");
+
+        // Bound probe x=2: the keyed bucket row carries undecided evidence —
+        // the boolean shortcut must agree with `probe_evidence`'s
+        // `found = !combined.is_undecided()` gate and report a non-match.
+        assert!(
+            !probe_has_match(&[t(2), None], &shared, &keyed, &wild, rows, &workspace)
+                .expect("resident probe"),
+            "undecided evidence row is not a member for the boolean EXISTS probe"
+        );
+        // Bound probe x=1: decided bucket row still matches.
+        assert!(
+            probe_has_match(&[t(1), None], &shared, &keyed, &wild, rows, &workspace)
+                .expect("resident probe")
+        );
+        // Wildcard probe: matches the decided row, skips the undecided one.
+        assert!(
+            probe_has_match(&[None, t(5)], &shared, &keyed, &wild, rows, &workspace)
+                .expect("resident probe")
+        );
+
+        // A lone undecided compatible row must not establish membership either.
+        let mut solo = RowsBuilder::new(&workspace);
+        solo.push_row(
+            crate::solution::RetainedRow::from_resident(purrdf_core::smallvec![t(2)])
+                .with_evidence(mint_undecided(), &workspace)
+                .expect("attach undecided evidence"),
+        )
+        .expect("push solo row");
+        let inner2 = SolutionSeq {
+            schema: VarSchema::shared_resident(VarSchema::from_vars([Variable::new("x")])),
+            rows: solo.finish().expect("resident row bag"),
+        };
+        let rows2 = &inner2.rows;
+        let (k2, w2) =
+            build_index(&inner2, &shared, &workspace).expect("resident index");
+        assert!(
+            !probe_has_match(&[t(2), None], &shared, &k2, &w2, rows2, &workspace)
+                .expect("resident probe"),
+            "a lone undecided compatible row must not establish EXISTS membership"
+        );
+        // Wildcard probe over the solo undecided row: still no member.
+        assert!(
+            !probe_has_match(&[None, t(5)], &shared, &k2, &w2, rows2, &workspace)
+                .expect("resident probe"),
+            "wildcard probe must not count an undecided row as a member"
         );
     }
 

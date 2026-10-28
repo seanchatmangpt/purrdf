@@ -1697,3 +1697,30 @@ n3 reasoner.rs (backward chaining — SERIOUS):
   scalar and reparses as block structure at column 0 instead of
   raising the Tab error.
 - Flow nesting + ?/: block slot machine traced clean.
+
+## wave-17/19 repair-landing receipts (R/F lanes)
+
+- R4 sql memo: hoisted; sibling compile_document ordering at :2279
+  flagged for follow-up.
+- R11 glob_rdf: distinct-object BTreeSet selection + Failure::Selection
+  detail field (also :146 borrow fix, committed separately).
+- R12 cdt_agg: CdtOutcome::Error propagates on non-empty folds.
+- R15 jsonschema draft-07: exclusive bounds compiled as Kind-swap
+  modifiers post-keyword-loop.
+- R16/R18 columnar: predicate refusal + ReifierPredicate error variant
+  + annotations ordering context + langtag grammar gate; golden_bytes
+  PINNED regen = only red rung (needs cargo box).
+- R19 entail rif: by_surface -> Vec<u32> multimap, emission expands
+  every reading (no over-refusal; xsd:string twins are valid input).
+- F1 datalog: restored_lo span-widening (the CONFIRMED missed-
+  derivations fix); F3 n3: cycle-cut counter makes NAF defer instead
+  of spuriously succeeding; F10 cbor: EOF/offset by construction.
+- F11 cbor encode: Simple(24..=31) refused; canonical dedups last-
+  wins — COMPILES CLEAN (make b-purrdf-lex exit 0, first warm
+  verdict). Follow-ups: Value::canonicalize needs the same dedup;
+  randomized test premise needs owner alignment.
+- F13 SARIF: directional bag, column-only regions, uriBaseId relative-
+  only, notifications extended.
+- F20 n3 parser: cross-scope quantifier shadowing refused; RDF12
+  typed error; either directive order accepted. README.md:38-39 doc
+  drift flagged (owner: README).

@@ -328,7 +328,7 @@ pub fn encode_into(value: &Value, out: &mut Vec<u8>) {
 ///
 /// # Errors
 ///
-/// The writer's error.
+/// The writer's error, or the refusal of a reserved simple value (24..=31).
 pub fn write_canonical<W: Write + ?Sized>(value: &Value, out: &mut W) -> io::Result<()> {
     run(vec![Job::Value(value)], out, true)
 }
