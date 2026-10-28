@@ -814,3 +814,5 @@ n3 printing.rs round-trip (5):
 - terms.rs:982-989 — per-cell limit checked only on representable
   values post-filter_map: unrepresentable-heavy cells bypass the
   limit via the ledger.
+
+- ed25519 keys.rs signing path: CLEAN (RFC 8032 clamp, nonce derivation, challenge domain separation, key acceptance, s-composition all verified).
