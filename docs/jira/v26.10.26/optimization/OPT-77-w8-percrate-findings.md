@@ -1596,3 +1596,5 @@ n3 reasoner.rs (backward chaining — SERIOUS):
 - canon Graph-scope probe: refutation CONFIRMED by second opinion
   (rows pre-filtered q.g == Some(graph); annotation/reifier loops
   carry the same filter).
+
+- shapes eval_closed AnyGraph: REFUTED — Core data graph is dataset-wide by design (data.rs:68-77: projected IR flattens all quads into default, AnyGraph ≡ DefaultGraph); sibling Core probes use the same scope.
