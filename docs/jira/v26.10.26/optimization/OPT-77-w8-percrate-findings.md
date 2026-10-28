@@ -1080,3 +1080,21 @@ n3 printing.rs round-trip (5):
   gets.
 - metadata.rs:1162-1164 — a table declaring `"dialect": null` gets
   the default instead of inheriting the group's.
+
+## wave-14 additions (phonetic, cli describe/rules, jsonschema compile)
+
+- text phonetic.rs: no live bug (dead SS arm, latent byte-vs-scalar
+  bound ordering, apostrophe-then-mark gray zone — all noted).
+- cli rules: rules --shapes and rules --check never add the import
+  readers to refuse_shared_stdin (shapes_tools.rs:131/:320) — stdin
+  double-read, silent partial/empty import table.
+- cli rules:239 — stderr announces inferred().len() but a lossy --to
+  target can emit fewer rows (announced count exceeds the file).
+- describe path clean.
+- jsonschema compile.rs: draft-07 exclusiveMinimum/Maximum compiled
+  as numbers (:552-567) though dialect.rs supports the boolean form —
+  valid draft-07 schemas fail compilation; negative bounds saturate
+  via to_u64_saturating instead of failing (:~893); $dynamicRef
+  anchor resolution is silently lossy (compiles as plain Ref, ~:498);
+  min/maxContains ignored under non-Validation vocabulary while the
+  standalone arm still validates them (inconsistent paths).
