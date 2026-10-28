@@ -1137,7 +1137,7 @@ fn property_cycle_certificates_retain_original_edges_models_and_data() {
         assert!(complete.legacy().results.is_empty());
         assert_eq!(
             purrdf_shapes::report::conforms_from_dataset(graph.dataset()),
-            Some(expected)
+            Ok(Some(expected))
         );
         for cycles in [direct.cycles.as_slice(), complete.cycles(), graph.cycles()] {
             assert!(!cycles.is_empty());

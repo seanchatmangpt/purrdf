@@ -147,6 +147,10 @@ deps = [
 
 [[crate]]
 name = "purrdf-core"
+# The kernel is ring-fenced to ZERO external packages — pyo3 (or any other
+# binding layer) must never appear among its normal dependencies, optional
+# included; `check-layers --ring-fence` enforces this structurally.
+external = []
 deps = [
     "purrdf-branchless",
     "purrdf-cdt",

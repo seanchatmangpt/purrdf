@@ -124,6 +124,13 @@ impl Subsumptions {
                 }
                 if taxonomy.derives(sub, sup) {
                     verdicts[i * n + j] = Verdict::True;
+                    if records && !complete {
+                        // A derivation is a proof whatever the fragment; the
+                        // basis records which KIND of saturation stood behind
+                        // it, so an incomplete taxonomy never claims a
+                        // complete saturation.
+                        bases[i * n + j] = ClaimBasis::SaturatedIncomplete;
+                    }
                     continue;
                 }
                 if complete {
@@ -230,11 +237,43 @@ impl Subsumptions {
         self.holds(a, b) && self.holds(b, a)
     }
 
-    /// The index of the canonical member of `i`'s equivalence class — the lowest index it
-    /// was established equivalent to, so a whole equivalence class collapses to one
-    /// representative deterministically.
-    pub(crate) fn representative(&self, i: usize) -> usize {
-        (0..=i).find(|&j| self.equivalent(i, j)).unwrap_or(i)
+    /// The equivalence classes of the ESTABLISHED mutual-subsumption relation,
+    /// as each index's representative.
+    ///
+    /// The pointwise [`Self::equivalent`] is not an equivalence relation on the
+    /// nose: with an undecided pair in the matrix, `A = B` and `B = C` can both
+    /// hold while `A = C` does not, so "the lowest index I am pointwise
+    /// equivalent to" is not transitive and a whole class can split, handing
+    /// the reduction endpoints that are members of one class. A union-find over
+    /// the matrix's equivalence pairs closes the chain; union always hangs the
+    /// larger root under the smaller, so a component's root IS its lowest
+    /// member and determinism is unchanged.
+    pub(crate) fn representatives(&self) -> Vec<usize> {
+        let mut parent: Vec<usize> = (0..self.n).collect();
+        fn find(parent: &mut Vec<usize>, x: usize) -> usize {
+            let mut root = x;
+            while parent[root] != root {
+                root = parent[root];
+            }
+            let mut at = x;
+            while parent[at] != root {
+                let next = parent[at];
+                parent[at] = root;
+                at = next;
+            }
+            root
+        }
+        for i in 0..self.n {
+            for j in 0..i {
+                if self.equivalent(i, j) {
+                    let (a, b) = (find(&mut parent, i), find(&mut parent, j));
+                    if a != b {
+                        parent[a.max(b)] = a.min(b);
+                    }
+                }
+            }
+        }
+        (0..self.n).map(|i| find(&mut parent, i)).collect()
     }
 
     /// Whether `classes[sub]` is strictly below `classes[sup]` — subsumed and not
@@ -340,14 +379,12 @@ impl ClassHierarchy {
 
         // The transitive reduction over equivalence-class representatives.
         //
-        // The representatives are computed ONCE into a dense positional vector rather than
-        // re-derived at each of the reduction's three loop levels:
-        // `Subsumptions::representative` scans an equivalence class to find its lowest
-        // member, so calling it from the
-        // innermost `any` would put a linear scan under a cubic loop. Memoizing changes no
-        // answer — it is the same function of the same matrix — and it is what keeps
-        // classifying a large signature bounded by the reduction rather than by bookkeeping.
-        let representatives: Vec<usize> = (0..n).map(|i| m.representative(i)).collect();
+        // The representatives are computed ONCE into a dense positional vector;
+        // a union-find over the matrix's equivalence pairs (min-root union)
+        // replaces a per-index scan that was not transitive under undecided
+        // pairs — a split class was exactly what emitted a direct edge implied
+        // by another through the split.
+        let representatives: Vec<usize> = m.representatives();
         let canonical: Vec<usize> = (0..n).filter(|&i| representatives[i] == i).collect();
         let mut direct = Vec::new();
         for &i in &canonical {

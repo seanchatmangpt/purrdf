@@ -2525,7 +2525,7 @@ fn emit_path_list(
 /// Returns an error string if the N-Triples cannot be parsed.
 pub fn conforms_from_ntriples(nt: &str) -> Result<bool, String> {
     let data = dataset_from_ntriples(nt)?;
-    Ok(conforms_from_dataset(&data).unwrap_or(true))
+    Ok(conforms_from_dataset(&data)?.unwrap_or(true))
 }
 
 /// Extract a `BTreeSet<ResultTuple>` from an N-Triples SHACL report string.
@@ -2535,7 +2535,7 @@ pub fn conforms_from_ntriples(nt: &str) -> Result<bool, String> {
 /// Returns an error string if the N-Triples cannot be parsed.
 pub fn tuples_from_ntriples(nt: &str) -> Result<BTreeSet<ResultTuple>, String> {
     let data = dataset_from_ntriples(nt)?;
-    Ok(tuples_from_dataset(&data))
+    tuples_from_dataset(&data)
 }
 
 /// Parse a SHACL report N-Triples string into a query-able frozen [`RdfDataset`]
@@ -2554,7 +2554,7 @@ fn dataset_from_ntriples(nt: &str) -> Result<Arc<RdfDataset>, String> {
 /// result of the report: reading every typed node would count each detail as a
 /// report result of its own, so a round trip of a report with details would not
 /// give back its own tuples.
-pub fn tuples_from_dataset(data: &RdfDataset) -> BTreeSet<ResultTuple> {
+pub fn tuples_from_dataset(data: &RdfDataset) -> Result<BTreeSet<ResultTuple>, String> {
     let result_nodes: Vec<Term> = native_quads(
         data,
         None,
@@ -2580,11 +2580,17 @@ pub fn tuples_from_dataset(data: &RdfDataset) -> BTreeSet<ResultTuple> {
 
         // Parse severity from the IRI string (strip angle brackets the term
         // rendering adds for a NamedNode). A non-built-in severity IRI is
-        // preserved verbatim (Severity::Other); a missing severity defaults to
-        // sh:Violation.
+        // preserved verbatim (Severity::Other); an ABSENT severity is an
+        // error — the writer always emits one, so the default-to-Violation
+        // fallback silently re-labelled malformed foreign results as the
+        // most severe level and flipped conformance through the disallow
+        // set.
         let sev_str = severity_iri.trim_matches(|c| c == '<' || c == '>');
         let severity = if sev_str.is_empty() {
-            Severity::Violation
+            return Err(format!(
+                "result {result_node} carries no sh:resultSeverity; a report \
+                 result must state its severity"
+            ));
         } else {
             Severity::from_iri(sev_str).unwrap_or_else(|| Severity::Other(NamedNode::from(sev_str)))
         };
@@ -2592,7 +2598,24 @@ pub fn tuples_from_dataset(data: &RdfDataset) -> BTreeSet<ResultTuple> {
         tuples.insert((focus, path, value, component, source_shape, severity));
     }
 
-    tuples
+    Ok(tuples)
+}
+
+/// The dataset's single `sh:ValidationReport` node: `Ok(None)` when it has
+/// none, an error when it has more than one. Conformance and its disallow
+/// set must come from the SAME node — a dataset with two report nodes is not
+/// one validation report, and unioning per-node sets would judge it under a
+/// law no single report states.
+fn the_report_node(data: &RdfDataset) -> Result<Option<Term>, String> {
+    let nodes = subjects_typed(data, sh::VALIDATION_REPORT);
+    match nodes.as_slice() {
+        [] => Ok(None),
+        [node] => Ok(Some(node.clone())),
+        _ => Err(format!(
+            "exactly one sh:ValidationReport node is required, found {}",
+            nodes.len()
+        )),
+    }
 }
 
 /// The conformance-disallow set a report dataset declares: the objects of its
@@ -2603,13 +2626,14 @@ pub fn tuples_from_dataset(data: &RdfDataset) -> BTreeSet<ResultTuple> {
 /// # Errors
 ///
 /// Returns an error when a value of `sh:conformanceDisallows` is not an IRI ("All
-/// values of sh:conformanceDisallows MUST be IRIs").
+/// values of sh:conformanceDisallows MUST be IRIs"), or when the dataset
+/// carries more than one `sh:ValidationReport` node.
 pub fn conformance_disallows_from_dataset(
     data: &RdfDataset,
 ) -> Result<ConformanceDisallows, String> {
     let predicate = Term::NamedNode(NamedNode::from(sh::CONFORMANCE_DISALLOWS));
     let mut levels = Vec::new();
-    for report_node in subjects_typed(data, sh::VALIDATION_REPORT) {
+    for report_node in the_report_node(data)?.into_iter() {
         for (_, _, object) in native_quads(
             data,
             Some(&report_node),
@@ -2633,16 +2657,24 @@ pub fn conformance_disallows_from_dataset(
 }
 
 /// Extract the `sh:conforms` boolean from a report dataset, if present.
-pub fn conforms_from_dataset(data: &RdfDataset) -> Option<bool> {
-    let report_node = subjects_typed(data, sh::VALIDATION_REPORT)
-        .into_iter()
-        .next()?;
-    let raw = object_string(data, &report_node, sh::CONFORMS)?;
+///
+/// # Errors
+///
+/// Returns an error when the dataset carries more than one
+/// `sh:ValidationReport` node.
+pub fn conforms_from_dataset(data: &RdfDataset) -> Result<Option<bool>, String> {
+    let report_node = match the_report_node(data)? {
+        Some(node) => node,
+        None => return Ok(None),
+    };
+    let Some(raw) = object_string(data, &report_node, sh::CONFORMS) else {
+        return Ok(None);
+    };
     // The boolean literal renders as `"true"^^<xsd:boolean>` (typed).
     match raw.as_str() {
-        s if s.starts_with("\"true\"") => Some(true),
-        s if s.starts_with("\"false\"") => Some(false),
-        _ => None,
+        s if s.starts_with("\"true\"") => Ok(Some(true)),
+        s if s.starts_with("\"false\"") => Ok(Some(false)),
+        _ => Ok(None),
     }
 }
 
@@ -3074,8 +3106,8 @@ mod tests {
                 .unwrap()
                 .nquads
         );
-        assert_eq!(conforms_from_dataset(&direct), Some(true));
-        assert!(tuples_from_dataset(&direct).is_empty());
+        assert_eq!(conforms_from_dataset(&direct), Ok(Some(true)));
+        assert!(tuples_from_dataset(&direct).expect("readable").is_empty());
     }
 
     /// Hostile blank labels (`a×b`, a C0 control) are escaped at codec egress but
@@ -3335,7 +3367,7 @@ mod tests {
 
         // Check conforms_from_dataset directly
         let data = dataset_from_ntriples(&nt).unwrap();
-        assert_eq!(conforms_from_dataset(&data), Some(true));
+        assert_eq!(conforms_from_dataset(&data), Ok(Some(true)));
     }
 
     #[test]

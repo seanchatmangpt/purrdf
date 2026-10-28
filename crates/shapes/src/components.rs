@@ -865,6 +865,31 @@ fn first_object_of(data: &RdfDataset, subject: &Term, predicate: &str) -> Option
     objects_of(data, subject, predicate).into_iter().next()
 }
 
+/// The `sh:severity` of a validator or constraint-component node. Mirrors
+/// [`crate::shapes::Parser::severity_of`]: "the values of sh:severity" is a
+/// single evaluated severity, so a multi-valued or non-IRI read is refused
+/// rather than resolved by store order or silently skipped.
+fn severity_of_node(data: &RdfDataset, node: &Term) -> Result<Option<Severity>, String> {
+    let mut severity = None;
+    let mut count = 0usize;
+    for value in objects_of(data, node, sh::SEVERITY) {
+        count += 1;
+        if severity.is_none() {
+            severity = Some(
+                severity_from_term(&value)
+                    .ok_or_else(|| format!("sh:severity on {node} must be an IRI, got {value}"))?,
+            );
+        }
+    }
+    match (count, severity) {
+        (0, _) => Ok(None),
+        (1, Some(s)) => Ok(Some(s)),
+        _ => Err(format!(
+            "sh:severity on {node} must have a single IRI value; got {count} values"
+        )),
+    }
+}
+
 /// The query form `validator`'s `rdf:type` declarations make it, respecting subclasses
 /// of `sh:SPARQLAskValidator` and `sh:SPARQLSelectValidator`.
 ///
@@ -1143,8 +1168,7 @@ fn parse_validator(
     });
 
     let messages = declared_messages(data, validator).map_err(|message| (None, message))?;
-    let severity =
-        first_object_of(data, validator, sh::SEVERITY).and_then(|t| severity_from_term(&t));
+    let severity = severity_of_node(data, validator).map_err(|message| (None, message))?;
     // SHACL 1.2 SPARQL Extensions: result annotations are declared "at the subject
     // of the sh:select or sh:ask triple", which is this validator node.
     let annotations = crate::result_annotations::parse_with_rule(data, validator)?;
@@ -1246,8 +1270,7 @@ fn parse_component(
     }
 
     let messages = declared_messages(data, component)?;
-    let severity =
-        first_object_of(data, component, sh::SEVERITY).and_then(|t| severity_from_term(&t));
+    let severity = severity_of_node(data, component)?;
 
     Ok(Component {
         id: NamedNode::from(component_iri),

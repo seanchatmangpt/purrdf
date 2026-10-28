@@ -432,6 +432,14 @@ pub enum ClaimBasis {
     /// Verified by re-running the saturation, which rests on
     /// [`TrustBaseEntry::ClassifyingSaturation`].
     Saturated,
+    /// The CLASSIFYING SATURATION derived the claim, but that saturation ran
+    /// on an INCOMPLETE taxonomy, so its negative answers carry no weight and
+    /// its positives rest on an under-approximation. The derivation is still
+    /// a proof — soundness does not wait on the fragment — and a checker
+    /// verifies it the same way as [`Self::Saturated`], over
+    /// [`TrustBaseEntry::ClassifyingSaturation`], with the incompleteness
+    /// recorded instead of a complete saturation standing in for it.
+    SaturatedIncomplete,
     /// The claim is an axiom of the logic — `C ⊑ C` — so no search decided it and none needed
     /// to.
     Reflexive,
@@ -489,6 +497,7 @@ impl Claim {
             ClaimBasis::Undecided { .. } | ClaimBasis::NotDecided => Verdict::Unknown,
             ClaimBasis::ExhibitedModel { .. }
             | ClaimBasis::Saturated
+            | ClaimBasis::SaturatedIncomplete
             | ClaimBasis::Reflexive
             | ClaimBasis::Syntactic => Verdict::True,
         }
@@ -1201,13 +1210,16 @@ impl ServiceProof {
                 }
                 ClaimBasis::Undecided { run } => expect(run, ProofAnswer::Undecided)?,
                 ClaimBasis::Saturated
+                | ClaimBasis::SaturatedIncomplete
                 | ClaimBasis::Reflexive
                 | ClaimBasis::NotDecided
                 | ClaimBasis::Syntactic => {}
             }
             match claim.basis {
                 // A saturated subsumption has no refutation behind it.
-                ClaimBasis::Saturated => checks.trust(1, &[TrustBaseEntry::ClassifyingSaturation]),
+                ClaimBasis::Saturated | ClaimBasis::SaturatedIncomplete => {
+                    checks.trust(1, &[TrustBaseEntry::ClassifyingSaturation])
+                }
                 // …and a not-decided claim has nothing behind it at all.
                 ClaimBasis::NotDecided => checks.leave(1),
                 // Reflexivity, the module extractor's locality fixpoint, and the agreement
@@ -2000,6 +2012,7 @@ fn encode_basis(out: &mut Vec<u8>, basis: &ClaimBasis) {
             length(out, *run);
         }
         ClaimBasis::Saturated => out.push(4),
+        ClaimBasis::SaturatedIncomplete => out.push(8),
         ClaimBasis::Reflexive => out.push(5),
         ClaimBasis::NotDecided => out.push(6),
         ClaimBasis::Syntactic => out.push(7),
@@ -2319,6 +2332,7 @@ fn decode_basis(reader: &mut Reader<'_>) -> Result<ClaimBasis, DlProofError> {
             run: reader.length()?,
         }),
         4 => Ok(ClaimBasis::Saturated),
+        8 => Ok(ClaimBasis::SaturatedIncomplete),
         5 => Ok(ClaimBasis::Reflexive),
         6 => Ok(ClaimBasis::NotDecided),
         7 => Ok(ClaimBasis::Syntactic),

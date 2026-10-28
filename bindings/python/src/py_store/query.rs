@@ -741,7 +741,10 @@ impl PyQuerySolutions {
     }
 
     fn __len__(&self) -> usize {
-        self.rows.len()
+        // The solutions are a one-shot iterator: `__next__` consumes rows, so
+        // the length is the REMAINING count (matching the row type's
+        // length_hint semantics), never the stale unstarted total.
+        self.rows.len() - self.pos
     }
 }
 

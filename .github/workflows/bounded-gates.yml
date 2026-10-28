@@ -106,92 +106,24 @@ jobs:
       # fallback): the SLA is the SLA.
       - name: Tier 1a — static gates (toolchain pin, no_std)
         run: |
-          bounded() {
-            local tier="$1" stage="$2" secs="$3" sla="$4"; shift 4
-            local rc=0 started ended ms status
-            started="$(date +%s%N)"
-            timeout -k 1 "${secs}" "$@" || rc=$?
-            ended="$(date +%s%N)"
-            ms=$(( (ended - started) / 1000000 ))
-            if [ "${rc}" -eq 0 ]; then
-              status=PASS
-            elif [ "${rc}" -eq 124 ] || [ "${rc}" -eq 137 ]; then
-              status=TIMEOUT
-            else
-              status=FAIL
-            fi
-            echo "RECEIPT tier=${tier} stage=${stage} status=${status} ms=${ms} sla=${sla}"
-            [ "${rc}" -eq 0 ] || exit 1
-          }
-          bounded 1 check-toolchain-pin 5 5000 python3 scripts/check-toolchain-pin.py
-          bounded 1 check-no-std 5 5000 python3 scripts/check-no-std.py
+          bash scripts/bounded-tier.sh 1 check-toolchain-pin 5 5000 python3 scripts/check-toolchain-pin.py
+          bash scripts/bounded-tier.sh 1 check-no-std 5 5000 python3 scripts/check-no-std.py
 
       - name: Tier 1b — static gates (layers, serializer rewinds)
         run: |
-          bounded() {
-            local tier="$1" stage="$2" secs="$3" sla="$4"; shift 4
-            local rc=0 started ended ms status
-            started="$(date +%s%N)"
-            timeout -k 1 "${secs}" "$@" || rc=$?
-            ended="$(date +%s%N)"
-            ms=$(( (ended - started) / 1000000 ))
-            if [ "${rc}" -eq 0 ]; then
-              status=PASS
-            elif [ "${rc}" -eq 124 ] || [ "${rc}" -eq 137 ]; then
-              status=TIMEOUT
-            else
-              status=FAIL
-            fi
-            echo "RECEIPT tier=${tier} stage=${stage} status=${status} ms=${ms} sla=${sla}"
-            [ "${rc}" -eq 0 ] || exit 1
-          }
-          bounded 1 check-layers 5 5000 python3 scripts/check-layers.py
-          bounded 1 check-serializer-rewinds 5 5000 python3 scripts/check-serializer-rewinds.py
+          bash scripts/bounded-tier.sh 1 check-layers 5 5000 python3 scripts/check-layers.py
+          bash scripts/bounded-tier.sh 1 check-serializer-rewinds 5 5000 python3 scripts/check-serializer-rewinds.py
 
       # Tier 2 — python oracles. The suite runs in 0.07s locally; the 5s ceiling
       # is the CI budget it must fit.
       - name: Tier 2 — python oracles
         run: |
-          bounded() {
-            local tier="$1" stage="$2" secs="$3" sla="$4"; shift 4
-            local rc=0 started ended ms status
-            started="$(date +%s%N)"
-            timeout -k 1 "${secs}" "$@" || rc=$?
-            ended="$(date +%s%N)"
-            ms=$(( (ended - started) / 1000000 ))
-            if [ "${rc}" -eq 0 ]; then
-              status=PASS
-            elif [ "${rc}" -eq 124 ] || [ "${rc}" -eq 137 ]; then
-              status=TIMEOUT
-            else
-              status=FAIL
-            fi
-            echo "RECEIPT tier=${tier} stage=${stage} status=${status} ms=${ms} sla=${sla}"
-            [ "${rc}" -eq 0 ] || exit 1
-          }
-          bounded 2 python-oracles 5 5000 bash -c 'cd crates/branchless/oracles && python3 -m pytest -q'
+          bash scripts/bounded-tier.sh 2 python-oracles 5 5000 bash -c 'cd crates/branchless/oracles && python3 -m pytest -q'
 
       # Tier 3 — bounded-guard corpus and the leaf compile probe. The corpus
       # verifies wrapper kills and measured 8.9s against its own budget, so it
       # carries the one 10s SLA on this ladder; the leaf probe keeps the 5s law.
       - name: Tier 3 — bounded-guard corpus and leaf compile probe
         run: |
-          bounded() {
-            local tier="$1" stage="$2" secs="$3" sla="$4"; shift 4
-            local rc=0 started ended ms status
-            started="$(date +%s%N)"
-            timeout -k 1 "${secs}" "$@" || rc=$?
-            ended="$(date +%s%N)"
-            ms=$(( (ended - started) / 1000000 ))
-            if [ "${rc}" -eq 0 ]; then
-              status=PASS
-            elif [ "${rc}" -eq 124 ] || [ "${rc}" -eq 137 ]; then
-              status=TIMEOUT
-            else
-              status=FAIL
-            fi
-            echo "RECEIPT tier=${tier} stage=${stage} status=${status} ms=${ms} sla=${sla}"
-            [ "${rc}" -eq 0 ] || exit 1
-          }
-          bounded 3 bounded-guard-corpus 10 10000 bash scripts/test-bounded-guard.sh
-          bounded 3 leaf-compile-probe 5 5000 bash scripts/check-leaf-compile.sh
+          bash scripts/bounded-tier.sh 3 bounded-guard-corpus 10 10000 bash scripts/test-bounded-guard.sh
+          bash scripts/bounded-tier.sh 3 leaf-compile-probe 5 5000 bash scripts/check-leaf-compile.sh
