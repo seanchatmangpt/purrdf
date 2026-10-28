@@ -867,8 +867,9 @@ impl<'a> TermsProjector<'a> {
         let index = self.build_subject_index();
         let memberships = self.table_memberships(&index);
         let (table_group, rows, values) = self.build_table_group(&index, &memberships)?;
-        self.record_quad_losses(&memberships)?;
-        self.record_structural_losses()?;
+        let mut emitted_graphs = BTreeSet::new();
+        self.record_quad_losses(&memberships, &mut emitted_graphs)?;
+        self.record_structural_losses(&emitted_graphs)?;
         check_ledger_sound(&self.ledger, "rdf-1.2-dataset", CSVW_TERMS_PROFILE)
             .map_err(ProjectionError::integrity)?;
 
@@ -1040,7 +1041,11 @@ impl<'a> TermsProjector<'a> {
         ))
     }
 
-    fn record_quad_losses(&mut self, memberships: &[Vec<&str>]) -> Result<(), ProjectionError> {
+    fn record_quad_losses(
+        &mut self,
+        memberships: &[Vec<&str>],
+        emitted_graphs: &mut BTreeSet<ProjectionTerm>,
+    ) -> Result<(), ProjectionError> {
         for index in 0..self.quads.len() {
             let quad = &self.quads[index];
             if !self.graph_selected(quad.graph.as_ref()) {
@@ -1076,6 +1081,9 @@ impl<'a> TermsProjector<'a> {
                 continue;
             }
             if represented {
+                if let Some(graph) = &quad.graph {
+                    emitted_graphs.insert(graph.clone());
+                }
                 if quad.graph.is_some() {
                     self.record_quad_loss(index, LOSS_CSVW_TERMS_NAMED_GRAPH_PLACEMENT_DROPPED)?;
                 }
@@ -1088,12 +1096,11 @@ impl<'a> TermsProjector<'a> {
         Ok(())
     }
 
-    fn record_structural_losses(&mut self) -> Result<(), ProjectionError> {
-        let non_empty_graphs = self
-            .quads
-            .iter()
-            .filter_map(|quad| quad.graph.clone())
-            .collect::<BTreeSet<_>>();
+    fn record_structural_losses(
+        &mut self,
+        emitted_graphs: &BTreeSet<ProjectionTerm>,
+    ) -> Result<(), ProjectionError> {
+        let non_empty_graphs = emitted_graphs;
         for index in 0..self.named_graphs.len() {
             if !self.graph_selected(Some(&self.named_graphs[index])) {
                 self.record_named_graph_loss(index, LOSS_CSVW_TERMS_GRAPH_UNSELECTED)?;
@@ -1104,12 +1111,14 @@ impl<'a> TermsProjector<'a> {
         for index in 0..self.reifiers.len() {
             if !self.graph_selected(self.reifiers[index].graph.as_ref()) {
                 self.record_reifier_loss(index, LOSS_CSVW_TERMS_GRAPH_UNSELECTED)?;
+                continue;
             }
             self.record_reifier_loss(index, LOSS_CSVW_TERMS_REIFIER_DROPPED)?;
         }
         for index in 0..self.annotations.len() {
             if !self.graph_selected(self.annotations[index].graph.as_ref()) {
                 self.record_annotation_loss(index, LOSS_CSVW_TERMS_GRAPH_UNSELECTED)?;
+                continue;
             }
             self.record_annotation_loss(index, LOSS_CSVW_TERMS_ANNOTATION_DROPPED)?;
         }

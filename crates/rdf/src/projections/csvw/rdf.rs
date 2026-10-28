@@ -474,6 +474,10 @@ fn expand_url(
         }
         if name == "_name" {
             output.push_str(value);
+        } else if operator == Some('#') {
+            // RFC 6570 §3.2.1: fragment expansion uses the fragment pct-encode
+            // set (pchar, `/`, `?`) — a literal `#` in the value becomes `%23`.
+            percent::push_encoded(&mut output, value, percent::FRAGMENT);
         } else if operator == Some('+') {
             percent::push_encoded(&mut output, value, percent::URI_TEMPLATE_RESERVED);
         } else {

@@ -466,6 +466,11 @@ impl Compiler<'_> {
         let mut children = Vec::new();
         let mut annotations = Vec::new();
         let mut unevaluated = Vec::new();
+        // Draft-07 boolean `exclusiveMinimum`/`exclusiveMaximum` modify the
+        // numeric bounds; keyword order in the object is unspecified, so the
+        // rewrite of the compiled bounds happens after the keyword loop.
+        let mut exclusive_min = false;
+        let mut exclusive_max = false;
         if draft07 && let Some(value) = map.get("$ref") {
             // Draft-07 Core §8.3: every other keyword beside `$ref` is ignored.
             let (target, _) = self.reference(context, "$ref", value)?;
@@ -553,18 +558,58 @@ impl Compiler<'_> {
                     &mut assertions,
                     Kind::Maximum(number(context, keyword, value)?, value.clone()),
                 )),
-                "exclusiveMaximum" if validation => Some((
-                    &mut assertions,
-                    Kind::ExclusiveMaximum(number(context, keyword, value)?, value.clone()),
-                )),
+                "exclusiveMaximum" if validation => {
+                    // Draft-07 §6.2.4: boolean modifier on `maximum`; numeric
+                    // form is draft-06+/modern.
+                    if draft07 {
+                        match value.as_bool() {
+                            Some(flag) => {
+                                exclusive_max = flag;
+                                None
+                            }
+                            None => Some((
+                                &mut assertions,
+                                Kind::ExclusiveMaximum(
+                                    number(context, keyword, value)?,
+                                    value.clone(),
+                                ),
+                            )),
+                        }
+                    } else {
+                        Some((
+                            &mut assertions,
+                            Kind::ExclusiveMaximum(number(context, keyword, value)?, value.clone()),
+                        ))
+                    }
+                }
                 "minimum" if validation => Some((
                     &mut assertions,
                     Kind::Minimum(number(context, keyword, value)?, value.clone()),
                 )),
-                "exclusiveMinimum" if validation => Some((
-                    &mut assertions,
-                    Kind::ExclusiveMinimum(number(context, keyword, value)?, value.clone()),
-                )),
+                "exclusiveMinimum" if validation => {
+                    // Draft-07 §6.2.3: boolean modifier on `minimum`; numeric
+                    // form is draft-06+/modern.
+                    if draft07 {
+                        match value.as_bool() {
+                            Some(flag) => {
+                                exclusive_min = flag;
+                                None
+                            }
+                            None => Some((
+                                &mut assertions,
+                                Kind::ExclusiveMinimum(
+                                    number(context, keyword, value)?,
+                                    value.clone(),
+                                ),
+                            )),
+                        }
+                    } else {
+                        Some((
+                            &mut assertions,
+                            Kind::ExclusiveMinimum(number(context, keyword, value)?, value.clone()),
+                        ))
+                    }
+                }
                 "maxLength" if validation => Some((
                     &mut assertions,
                     Kind::MaxLength(count(context, keyword, value)?),
@@ -861,6 +906,22 @@ impl Compiler<'_> {
         // `unevaluatedItems` is ordered before `unevaluatedProperties` only for
         // determinism; they read disjoint annotations.
         unevaluated.sort_by(|a, b| a.name.cmp(&b.name));
+        // Draft-07: apply the boolean exclusivity modifiers to the compiled
+        // bounds regardless of keyword order in the source object.
+        if exclusive_min || exclusive_max {
+            for compiled in &mut assertions {
+                let taken = std::mem::replace(&mut compiled.kind, Kind::Const(Value::Null));
+                compiled.kind = match taken {
+                    Kind::Minimum(bound, raw) if exclusive_min => {
+                        Kind::ExclusiveMinimum(bound, raw)
+                    }
+                    Kind::Maximum(bound, raw) if exclusive_max => {
+                        Kind::ExclusiveMaximum(bound, raw)
+                    }
+                    kind => kind,
+                };
+            }
+        }
         let tracks = !unevaluated.is_empty();
         let mut keywords = references;
         keywords.append(&mut assertions);

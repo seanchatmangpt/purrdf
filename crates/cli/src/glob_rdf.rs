@@ -179,28 +179,44 @@ pub(crate) fn run(args: &GlobRdfArgs) -> Result<(), CliError> {
     let plan = PreparedPlan::compile(source, root, &vocabulary, Resident)
         .map_err(|error| refusal(Failure::Plan(error)))?;
     let input = load(&args.input, from)?;
-    let mut object: Option<TermId> = None;
-    let mut count = 0;
-    if let (Some(subject), Some(predicate)) = (
-        input.term_id_by_iri(&args.input_subject),
-        input.term_id_by_iri(&args.input_predicate),
-    ) {
+    // The selection is over DISTINCT object terms: a repeated identical triple is
+    // one match, not many. Counting raw quads here spuriously failed exactly-one
+    // selection on duplicated ground triples (OPT-77).
+    let mut objects = std::collections::BTreeSet::<TermId>::new();
+    let subject = input.term_id_by_iri(&args.input_subject);
+    let predicate = input.term_id_by_iri(&args.input_predicate);
+    if let (Some(subject), Some(predicate)) = (subject, predicate) {
         for quad in input.quads_for_pattern(Some(subject), Some(predicate), None, GraphMatch::Any) {
             if quad.g.is_none() {
-                object = Some(quad.o);
-                count += 1;
+                objects.insert(quad.o);
             }
         }
     }
+    let count = objects.len();
     if count != 1 {
-        return Err(selection(
+        // When count is 0, name which endpoint was unresolvable if determinable.
+        let detail = if count == 0 {
+            match (subject, predicate) {
+                (None, _) => Some("unresolvable subject"),
+                (_, None) => Some("unresolvable predicate"),
+                (Some(_), Some(_)) => Some("no matching triples"),
+            }
+        } else {
+            None
+        };
+        let message = detail.map_or_else(
+            || format!("glob RDF input object {}: expected one distinct object selection, found {count}", args.input_subject),
+            |detail| format!("glob RDF input object {detail}: {detail} under {}", args.input_predicate),
+        );
+        return Err(selection_message(
             input,
-            "input object",
             &args.input_subject,
             Some(&args.input_predicate),
             count,
+            &message,
         ));
     }
+    let object = objects.iter().next().copied();
     let execution = plan
         .execute(
             input,

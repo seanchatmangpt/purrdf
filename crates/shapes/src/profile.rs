@@ -400,14 +400,10 @@ impl Request {
                 .and_then(|runtime| runtime.take_failure());
             match outcome {
                 Ok(value) => failure.map_or(Ok(value), |failure| Err(failure.into_public())),
-                Err(error) => Err(match error {
-                    crate::report::CompleteValidationError::Execution(_)
-                    | crate::report::CompleteValidationError::Shapes(
-                        crate::error::ShapesError::Invalid(_)
-                        | crate::error::ShapesError::Processor(_),
-                    ) => failure.map_or(error, crate::report::ReportFailure::into_public),
-                    error => error,
-                }),
+                // A concurrently captured runtime failure always surfaces: when the
+                // operation failed, the failure replaces (Execution/Shapes) or now also
+                // joins (all other variants) the error instead of being discarded.
+                Err(error) => Err(failure.map_or(error, crate::report::ReportFailure::into_public)),
             }
         };
         match &self.native {

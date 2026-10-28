@@ -311,6 +311,14 @@ pub(crate) fn write_results(
         }
         Err(error) => match target.abandon(error.into()) {
             // The reader went away; what it asked for is complete enough for it.
+            //
+            // This lane returns no ledger by construction, on this path or any
+            // other: a tabular/boolean result performs no lossy transcode (see the
+            // fn doc above), so there are no drop counts to preserve — the ledger
+            // divergence with `write_rdf` is a lane contract, not an inconsistency.
+            // The one results-lane loss signal, `provenance_dropped`, lives only in
+            // the success-path outcome; the serializer's Err variant does not carry
+            // it, same upstream-serializer gap the RDF lane's mid-stream counts hit.
             CliError::DownstreamClosed => Ok(()),
             other => Err(other),
         },
@@ -375,7 +383,7 @@ pub(crate) fn write_rdf<D: DatasetView>(
                                 named_graph_rows: 0,
                                 empty_named_graphs,
                             },
-                        ))
+                        ));
                     }
                     other => return Err(other),
                 },

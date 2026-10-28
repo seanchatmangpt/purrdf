@@ -489,8 +489,12 @@ fn absolute_without_fragment(uri: &str) -> Result<String, SchemaError> {
             reason: crate::UriRefusal::RetrievalRelative,
         });
     }
-    match uri.split_once('#') {
-        None => Ok(uri.to_owned()),
+    // Key on the syntax-normalized form (RFC-3986 §6.2.2), not the raw caller
+    // string, so registrations differing only in IRI normalization collide at
+    // the DuplicateResource check instead of taking distinct by_uri keys.
+    let parsed_str = parsed.normalize().into_text();
+    match parsed_str.split_once('#') {
+        None => Ok(parsed_str),
         Some((base, "")) => Ok(base.to_owned()),
         Some(_) => Err(SchemaError::InvalidUri {
             uri: uri.to_owned(),

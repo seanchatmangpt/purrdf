@@ -1051,18 +1051,18 @@ pub(crate) fn ebv_term<D: DatasetView + Sync>(
             .with_term(id, |term| match term {
                 TermRef::Literal {
                     language: Some(_),
-                    value,
+                    lexical,
                     ..
-                } => Some(value.is_empty()),
+                } => Some(lexical.is_empty()),
                 _ => None,
             })
             .map_err(|error| ctx.workspace.source_error(error))?,
         SolutionTerm::Computed(sid) => match ctx.scratch.computed_value(sid) {
             TermValue::Literal {
                 language: Some(_),
-                value,
+                lexical_form,
                 ..
-            } => Some(value.is_empty()),
+            } => Some(lexical_form.is_empty()),
             _ => None,
         },
     };
