@@ -2777,3 +2777,25 @@ ever published.
 text analysis, rdflib-shadow, OPT-70 generated coverage, duckdb/agent_
 memory/COSE application lanes.
 
+### wave-31 addendum 2
+
+- FIXED: gts_write.rs — gts-metadata-integer-range typed refusal replaces
+  the silent i64 clamp; gts-suppression-by-ambiguous replaces the
+  positional display-match (apply_lookaside now fallible, caller `?`).
+- VERDICTS: shapes rules.rs evaluation sweep CLEAN (ordering/fixpoint/
+  incremental/reads/triple-rule/conditions all sound; two watch-items
+  recorded: assume-hook skips per-focus deactivated_at (over-seeds,
+  retracted at layer boundary) and the declared-schedule doc's
+  rule-node-order claim vs ID-string sort — inert today, latent trap).
+- xsd numeric deep sweep: CLEAN except one CANDIDATE — fn:string of
+  double/float negative zero renders "-0" (numeric.rs:1296 length 2)
+  where F&O convention (and the adjacent +0 arm) suggests "0"; the lane
+  could not retrieve the exact F&O sentence — verify against F&O §19.1.1
+  before changing (Saxon renders "0").
+- Banked plans now include: gts_write stale-sibling prune for
+  capture_sparql_goldens (exact helper + insertion points from the lane),
+  sparql-results envelope/datatype/duplicate-var (full plan), shapes
+  ask-prebinding (3-signature), alloc-probe piecewise ledger +
+  zero-window readers (final code), markdown/MIME/TOML 6, rdf-wasm 4,
+  n3 printing 4.
+
