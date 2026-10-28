@@ -392,3 +392,45 @@ string.
 - xsd exact tower: gcd sign, denormal rounding, cross-product
   compare, exponent caps — all verified correct across all four risk
   areas.
+
+## wave-11 semantic additions (batch 1 — 8 lanes)
+
+- sparql-eval update.rs: INSERT DATA ignores the configured bnode mint
+  prefix (:552 vs :676/:1011); DELETE templates with blank nodes mint
+  fresh per-row blanks instead of WHERE-binding (silent no-op delete,
+  :675); self COPY/MOVE return before any governor poll (:1165/:1191/
+  :1223).
+- n3 parser.rs: escaped path operators bake literal backslash into IRIs
+  (:2484); cross-scope quantifier re-declaration shadows instead of
+  erroring (:2069 vs :2011); RDF12-mode @forAll/@forSome half-parses
+  (:1107); @forAll-before-@forSome hard-refused though N3 imposes no
+  order (:2051); spaced path ops against IRIs refused (:1772).
+- hnsw search.rs: DistanceCache keyed by row alone — reuse across
+  queries with different Targets returns stale memo hits (:106-163);
+  Visited stamps indexed unchecked (panic on graph growth, :544);
+  ef-guarantee silently degrades to full scan when the component is
+  smaller than ef (:530).
+- json decode.rs: IRI-composition subject collision (#vN/#sN against a
+  document already containing a fragment) silently aliases an attacker
+  node into a value slot (:60-84); codec-node Limit trips falsely on
+  Structure-run counts (:159); dedup asymmetry across base/reifier
+  tables (:309).
+- rdf-capi query.rs: plain query_entry never clears result outputs
+  (stale out_kind on error paths, :499-551); out_partial written
+  BEFORE fallible store_result (:357-396); governed entry omits
+  out_rows/out_graph from the null check — metered evaluation consumed
+  then refused (:1268-1280).
+- duckdb eval.rs (extends OPT-76): duplicate column names → colliding
+  predicate IRIs (:238); envelope breaker discards the materialized
+  prefix (bound non-deterministic in effect, :252).
+- toml codec.rs: temporal lexical blindly T-replaces odd bytes
+  (:239); float projection discards source lexical form (:169);
+  selected_bound conflates byte budget with span-count cap (:351).
+- slice cache.rs: dependency_closure silently drops unknown seeds
+  (already ticketed) + physical-first ownership misreports valid
+  owner-asserted terms (ownership.rs:374-420); Phase-5 parse failure
+  swallowed → false StaleDependency (:531); slice_phase_leaf delimiter
+  collision on \x1f-bearing paths (:448); stale-edge closure
+  recomputation un-cross-checked (:219/:571).
+- cdt ops/functions: clean (2 invariant-maintenance observations);
+  markdown/slice/… lanes still landing.
