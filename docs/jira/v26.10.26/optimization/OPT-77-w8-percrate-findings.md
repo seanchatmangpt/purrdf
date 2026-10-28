@@ -2658,3 +2658,25 @@ test writers, COSE/hnsw/duckdb/agent_memory application.
 Clean: select_best heap + -0.0 fold, guard, ceiling-withheld rule, cursor
 reuse-after-exhaustion, fbbf/bbff split.
 
+### wave-30 addendum 2
+
+- FIXED: sparql update.rs graph_op_move — MOVE NAMED TO GRAPH <h> no
+  longer destroys <h>'s own quads (destination-native records were
+  re-inserted value-identically, then removed by the value-keyed removal
+  loop; they are now skipped). Spec: the destination keeps its own quads
+  and gains the source's.
+- Banked (needs its own lane — per-solution vs batched delete/insert
+  ordering in delete_insert, update.rs:827-833, medium-confidence spec
+  reading; the batched behavior diverges from SPARQL 1.1 3.1.3 sequential
+  delete-then-insert per row).
+- Gate-truth findings (W30 L9): check-changelog-handwritten exits 0 when
+  git-cliff is absent (the one case the prose checks did nothing);
+  check-serializer-rewinds + check-toolchain-pin can pass auditing ZERO
+  files if the scope tree moves; check-shared-helpers has no ledger floor
+  (an emptied helpers-ledger.toml stays green); fb-receipt.sh darwin
+  fallback broken (BSD date lacks %N; flock absent on macOS);
+  conformance-matrix --from-results still builds. All need fail-closed
+  floors — plans are one-line guards each (quoted in the lane receipt).
+- simd.md re-anchoring: 2 rows name nonexistent functions; ~105 anchors
+  sampled 10/13 stale — needs one re-anchoring pass.
+
