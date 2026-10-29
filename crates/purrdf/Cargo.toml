@@ -21,13 +21,19 @@ all-features = true
 crate-type = ["rlib"]
 path = "src/lib.rs"
 
+[features]
+# Knowledge hooks (kh:) — optional: the hooks closure pulls purrdf-sql/purrdf-duckdb
+# (native cmake/frozen-duckdb), which must stay out of wasm-consumer default builds.
+sql = ["dep:purrdf-sql", "dep:purrdf-duckdb"]
+hooks = ["dep:purrdf-hooks", "sql"]
+
 [dependencies]
 purrdf-columnar = { workspace = true }
 purrdf-arrow = { workspace = true }
 purrdf-branchless = { workspace = true }
-purrdf-sql = { workspace = true }
-purrdf-duckdb = { workspace = true }
-purrdf-hooks = { workspace = true }
+purrdf-sql = { workspace = true, optional = true }
+purrdf-duckdb = { workspace = true, optional = true }
+purrdf-hooks = { workspace = true, optional = true }
 purrdf-rdf = { workspace = true }
 purrdf-slice = { workspace = true }
 purrdf-shapes = { workspace = true }

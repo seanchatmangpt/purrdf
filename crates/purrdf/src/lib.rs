@@ -285,16 +285,19 @@ pub mod datalog {
 }
 
 /// Declarative SQL AST representation and deterministic compiler ([`purrdf_sql`]).
+#[cfg(feature = "sql")]
 pub mod sql {
     pub use purrdf_sql::*;
 }
 
 /// Embedded DuckDB execution engine and relational-to-RDF row projection ([`purrdf_duckdb`]).
+#[cfg(feature = "sql")]
 pub mod duckdb {
     pub use purrdf_duckdb::*;
 }
 
 /// Knowledge hooks (`kh:`): RDF-described, SPARQL-driven derivation rules ([`purrdf_hooks`]).
+#[cfg(feature = "hooks")]
 pub mod hooks {
     pub use purrdf_hooks::*;
 }
