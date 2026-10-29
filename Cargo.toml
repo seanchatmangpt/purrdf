@@ -27,6 +27,7 @@ members = [
     "crates/hash-conformance",
     "crates/helper-census",
     "crates/hnsw",
+    "crates/hooks",
     "crates/iri",
     "crates/json",
     "crates/jsonschema",
@@ -108,6 +109,7 @@ purrdf-gts = { path = "crates/gts", version = "3.0.1" }
 purrdf-hash = { path = "crates/hash", version = "3.0.1" }
 purrdf-n3 = { path = "crates/n3", version = "3.0.1" }
 purrdf-hnsw = { path = "crates/hnsw", version = "3.0.1" }
+purrdf-hooks = { path = "crates/hooks", version = "3.0.1" }
 purrdf-iri = { path = "crates/iri", version = "3.0.1" }
 purrdf-json = { path = "crates/json", version = "3.0.1" }
 purrdf-jsonschema = { path = "crates/jsonschema", version = "3.0.1" }

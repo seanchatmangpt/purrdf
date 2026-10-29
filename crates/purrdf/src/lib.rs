@@ -294,6 +294,11 @@ pub mod duckdb {
     pub use purrdf_duckdb::*;
 }
 
+/// Knowledge hooks (`kh:`): RDF-described, SPARQL-driven derivation rules ([`purrdf_hooks`]).
+pub mod hooks {
+    pub use purrdf_hooks::*;
+}
+
 /// CanonArrow deterministic columnar-egress framing ([`purrdf_arrow`]) —
 /// not Arrow IPC; also rides the SPARQL results layer as the additive
 /// `canon-arrow` format.

@@ -1,0 +1,20 @@
+[package]
+name = "purrdf-hooks"
+version = "3.0.1"
+edition = "2024"
+description = "Declarative RDF-described, SPARQL-driven knowledge derivation hooks (kh:) for PurRDF"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/seanchatmangpt/purrdf"
+
+[dependencies]
+purrdf-core = { path = "../rdf-core", version = "3.0.1" }
+purrdf-rdf = { path = "../rdf", version = "3.0.1" }
+purrdf-shapes = { path = "../shapes", version = "3.0.1" }
+purrdf-sparql-eval = { path = "../sparql-eval", version = "3.0.1" }
+purrdf-sql = { path = "../sql", version = "3.0.1" }
+purrdf-duckdb = { path = "../duckdb", version = "3.0.1" }
+blake3 = "1.5"
+thiserror = "2.0"
+
+[lints]
+workspace = true

@@ -27,6 +27,7 @@ purrdf-arrow = { workspace = true }
 purrdf-branchless = { workspace = true }
 purrdf-sql = { workspace = true }
 purrdf-duckdb = { workspace = true }
+purrdf-hooks = { workspace = true }
 purrdf-rdf = { workspace = true }
 purrdf-slice = { workspace = true }
 purrdf-shapes = { workspace = true }
