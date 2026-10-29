@@ -191,13 +191,10 @@ impl Arguments {
                 // No plot is ever drawn, so the request is already met.
                 "noplot" => flag(&mut bool::default())?,
                 "wall-max" => {
-                    let value = match inline.or_else(|| rest.pop_front()) {
-                        Some(value) => value,
-                        None => {
-                            return Err(ArgumentError(
-                                "option `--wall-max` requires a number of seconds".to_owned(),
-                            ));
-                        }
+                    let Some(value) = inline.or_else(|| rest.pop_front()) else {
+                        return Err(ArgumentError(
+                            "option `--wall-max` requires a number of seconds".to_owned(),
+                        ));
                     };
                     let seconds: u64 = value.parse().map_err(|_| {
                         ArgumentError(format!(
@@ -227,9 +224,9 @@ impl Arguments {
                         Comparison::Lenient(value)
                     };
                     if parsed.baseline.replace(comparison).is_some() {
-                        return Err(ArgumentError(
-                            format!("option `--{name}` is given more than once").to_owned(),
-                        ));
+                        return Err(ArgumentError(format!(
+                            "option `--{name}` is given more than once"
+                        )));
                     }
                 }
                 _ => {
