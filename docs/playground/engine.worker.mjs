@@ -188,37 +188,43 @@ const HANDLERS = {
     };
   },
 
-  query({ sparql }) {
+  query({ sparql, now, entropySeed }) {
     const ds = requireCurrent();
-    const out = ds.query(sparql); // throws on SERVICE/LOAD/parse/eval error
+    const out = ds.query(sparql, undefined, undefined, now, entropySeed); // throws on SERVICE/LOAD/parse/eval error
     let parsed = null;
     try {
-      parsed = JSON.parse(out);
+      parsed = JSON.parse(out.body);
     } catch {
       parsed = null;
     }
     if (parsed && (Object.hasOwn(parsed, "head") || Object.hasOwn(parsed, "boolean"))) {
-      return { kind: "srj", srj: parsed };
+      return { kind: "srj", srj: parsed, executionReceipt: out.executionReceipt };
     }
     // CONSTRUCT / DESCRIBE → Turtle text, or TriG when the result carries a named
     // graph (a quad template — a first-party extension, not a SPARQL 1.2 feature):
     // Turtle has no `GRAPH` construct, so the
     // engine widens to Turtle's dataset superset rather than rendering the answer as
     // an empty document. Both are Turtle-family text and display identically.
-    return { kind: "turtle", turtle: out };
+    return { kind: "turtle", turtle: out.body, executionReceipt: out.executionReceipt };
   },
 
-  shaclValidate({ shapes }) {
+  shaclValidate({ shapes, now, entropySeed }) {
+    if (now != null || entropySeed != null) {
+      const error = new TypeError("now and entropySeed apply only to rule execution");
+      error.code = "purrdf-wasm-options";
+      throw error;
+    }
     const ds = requireCurrent();
     const dataNt = ds.serialize("ntriples");
     const sarif = JSON.parse(shaclValidateToSarif(shapes, dataNt));
     return { sarif };
   },
 
-  shaclEntail({ shapes }) {
+  shaclEntail({ shapes, xpathRegex, now, entropySeed }) {
     const ds = requireCurrent();
     const dataNt = ds.serialize("ntriples");
-    const entailed = shaclEntail(shapes, dataNt);
+    const entailed = shaclEntail(shapes, dataNt, undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, xpathRegex, now, entropySeed);
     const ntriples = entailed.ntriples;
     const diagnostics = entailed.diagnostics;
     entailed.free();

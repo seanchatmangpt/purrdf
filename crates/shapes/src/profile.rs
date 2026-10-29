@@ -398,7 +398,10 @@ impl Request {
             if let Some(state) = crate::sparql::current_governors()
                 && let Some(error) = crate::report::CompleteValidationError::resource(&state)
             {
-                return Err(error);
+                return Err(match outcome {
+                    Err(original) => error.with_rule_coordinates(original),
+                    Ok(_) => error,
+                });
             }
             let failure = scope
                 .runtime
@@ -406,9 +409,13 @@ impl Request {
                 .and_then(|runtime| runtime.take_failure());
             match outcome {
                 Ok(value) => failure.map_or(Ok(value), |failure| Err(failure.into_public())),
+                Err(error) if error.is_generic_execution() => Err(match failure {
+                    Some(failure) => failure.into_public().with_rule_coordinates(error),
+                    None => error,
+                }),
                 // A concurrently captured runtime failure always surfaces: when the
-                // operation failed, the failure replaces (Execution/Shapes) or now also
-                // joins (all other variants) the error instead of being discarded.
+                // operation failed with any other error, the failure replaces it
+                // instead of being discarded.
                 Err(error) => Err(failure.map_or(error, crate::report::ReportFailure::into_public)),
             }
         };

@@ -187,7 +187,7 @@ mod workspace;
 pub use workspace::{
     AdmittedHeap, AdmittedMap, AdmittedOrderedMap, AdmittedOrderedSet, AdmittedVec,
     AdmittedVecIntoIter, OwnedIri, WorkspaceAllocation, WorkspaceArray, WorkspaceBox,
-    WorkspaceCapability, WorkspaceIri, WorkspaceTerm,
+    WorkspaceCapability, WorkspaceInteger, WorkspaceIri, WorkspaceTerm,
 };
 // The per-query record of what the relations a query invoked attested about the
 // indexes behind them — which generation answered, and whether it was whole.
@@ -209,7 +209,7 @@ pub use engine::{
     FallibleGraphBuildResult, GraphBuildError, GraphBuildStats, NativeSparqlEngine, PlanCache,
     PreparedQuery, PreparedRdflibQuery, QueryOptions,
 };
-pub use error::{EvalError, UnsupportedKind};
+pub use error::{EvalError, EvaluatorInvariant, StackExpectation, UnsupportedKind};
 pub use eval::{
     EvalCtx, EvalOptions, LanguageStringEquality, LossVocabulary, Outcome, StandpointPredicates,
     eval, evaluate_query,
@@ -285,8 +285,8 @@ pub use property_fn::{
     Completeness, DeclaredArithmetic, DepthPlacement, DomainTag, DuplicatePolicy, ExclusionBasis,
     IndexGeneration, MemoryRelation, OrderFidelity, PfArgs, PfArity, PfAttestation, PfCursor,
     PfDescriptor, PfMode, PfRow, PropertyFunction, PropertyFunctionRegistry, RankArithmetic,
-    RankFidelity, RankedDeclaration, RequestFacet, ServiceLevel, TermKind, TermPattern,
-    TermPlacement, WorkspaceCursor, composed_order_fidelity, generation_contained,
+    RankFidelity, RankLaw, RankSource, RankedDeclaration, RequestFacet, ServiceLevel, TermKind,
+    TermPattern, TermPlacement, WorkspaceCursor, composed_order_fidelity, generation_contained,
     service_level_contained,
 };
 // The property-function registry's CONTENT-only identity. It lives in the private
@@ -301,7 +301,10 @@ pub use property_fn_plan::content_fingerprint as property_function_content_finge
 // The on-demand read of one property-function call, returned by
 // `NativeSparqlEngine::open_call_cursor`: a composition layer that stops reading a
 // ranked relation as soon as it has what it needs holds one of these.
-pub use engine::{AdmittedInternedGoverned, EvaluationFailure, ReadOperation, with_fallible_read};
+pub use engine::{
+    AdmittedInternedGoverned, EvaluationFailure, ExecutionCoordinateObserver, QueryCoordinates,
+    ReadOperation, SuppliedQueryCoordinates, with_fallible_read,
+};
 pub use property_fn_eval::{AdmittedPropertyRow, CallCursor, EvidencedPropertyRow};
 pub use workspace::SharedWorkspace;
 // The one shape description behind every question asked of a query's calls: which

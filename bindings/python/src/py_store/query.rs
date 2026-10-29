@@ -706,6 +706,7 @@ fn build_relation(
 #[pyclass(name = "QuerySolutions")]
 #[derive(Debug)]
 pub struct PyQuerySolutions {
+    execution_receipt: Option<String>,
     variables: Arc<[String]>,
     rows: Vec<Vec<Option<RdfTerm>>>,
     pos: usize,
@@ -713,6 +714,12 @@ pub struct PyQuerySolutions {
 
 #[pymethods]
 impl PyQuerySolutions {
+    /// Actual native execution receipt, absent only on nonexecuted partial values.
+    #[getter]
+    fn execution_receipt_json(&self) -> Option<String> {
+        self.execution_receipt.clone()
+    }
+
     /// The bound variables, in projection order.
     #[getter]
     fn variables(&self, py: Python<'_>) -> PyResult<Vec<Py<PyVariable>>> {
@@ -875,6 +882,7 @@ impl PyQuerySolutionIterator {
 #[pyclass(name = "QueryTriples")]
 #[derive(Debug)]
 pub struct PyQueryTriples {
+    execution_receipt: Option<String>,
     // Keep native admissions alive through the host result lifetime.
     _dataset: purrdf_core::DatasetHandle,
     pub(crate) triples: Vec<RdfTriple>,
@@ -883,6 +891,12 @@ pub struct PyQueryTriples {
 
 #[pymethods]
 impl PyQueryTriples {
+    /// Actual native execution receipt, absent only on nonexecuted partial values.
+    #[getter]
+    fn execution_receipt_json(&self) -> Option<String> {
+        self.execution_receipt.clone()
+    }
+
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
@@ -956,6 +970,7 @@ impl PyQueryTriples {
 #[pyclass(name = "QueryQuads")]
 #[derive(Debug)]
 pub struct PyQueryQuads {
+    execution_receipt: Option<String>,
     // Host term materialization does not release the original native owner.
     _dataset: purrdf_core::DatasetHandle,
     pub(crate) quads: Vec<RdfQuad>,
@@ -964,6 +979,12 @@ pub struct PyQueryQuads {
 
 #[pymethods]
 impl PyQueryQuads {
+    /// Actual native execution receipt, absent only on nonexecuted partial values.
+    #[getter]
+    fn execution_receipt_json(&self) -> Option<String> {
+        self.execution_receipt.clone()
+    }
+
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
@@ -1136,11 +1157,18 @@ fn render_graph_name(term: &RdfTerm) -> String {
 #[pyclass(name = "QueryBoolean")]
 #[derive(Debug)]
 pub struct PyQueryBoolean {
+    execution_receipt: Option<String>,
     value: bool,
 }
 
 #[pymethods]
 impl PyQueryBoolean {
+    /// Actual native execution receipt, absent only on nonexecuted partial values.
+    #[getter]
+    fn execution_receipt_json(&self) -> Option<String> {
+        self.execution_receipt.clone()
+    }
+
     fn __bool__(&self) -> bool {
         self.value
     }
@@ -1169,8 +1197,13 @@ impl PyQueryBoolean {
 /// (`Store.query`, `MutableDataset.query`, both governed lanes and the partial-answer
 /// certificate), so the graph-carrying result type reaches all of them from here and
 /// cannot be wired into some of them only.
-pub(crate) fn materialize_results(py: Python<'_>, result: SparqlResult) -> PyResult<Py<PyAny>> {
-    match result {
+pub(crate) fn materialize_results(
+    py: Python<'_>,
+    result: SparqlResult,
+    coordinates: Option<&purrdf_sparql_eval::QueryCoordinates>,
+) -> PyResult<Py<PyAny>> {
+    let execution_receipt = coordinates.map(purrdf_validate::query::execution_receipt_json);
+    let outcome = (|| match result {
         SparqlResult::Solutions {
             variables, rows, ..
         } => {
@@ -1185,6 +1218,7 @@ pub(crate) fn materialize_results(py: Python<'_>, result: SparqlResult) -> PyRes
             Ok(Py::new(
                 py,
                 PyQuerySolutions {
+                    execution_receipt,
                     variables: variables.into(),
                     rows,
                     pos: 0,
@@ -1192,9 +1226,24 @@ pub(crate) fn materialize_results(py: Python<'_>, result: SparqlResult) -> PyRes
             )?
             .into_any())
         }
-        SparqlResult::Graph(graph) => materialize_graph(py, graph),
-        SparqlResult::Boolean(value) => Ok(Py::new(py, PyQueryBoolean { value })?.into_any()),
-    }
+        SparqlResult::Graph(graph) => materialize_graph(py, graph, execution_receipt),
+        SparqlResult::Boolean(value) => Ok(Py::new(
+            py,
+            PyQueryBoolean {
+                execution_receipt,
+                value,
+            },
+        )?
+        .into_any()),
+    })();
+    outcome.map_err(|error| match coordinates {
+        Some(coordinates) => super::presentation::with_execution_receipt(
+            py,
+            error,
+            purrdf_validate::query::execution_receipt_json(coordinates),
+        ),
+        None => error,
+    })
 }
 
 /// Materialize a CONSTRUCT/DESCRIBE result dataset into the Python result object that
@@ -1218,12 +1267,17 @@ pub(crate) fn materialize_results(py: Python<'_>, result: SparqlResult) -> PyRes
 /// The graph name is never dropped. A triple has no slot for one, so flattening a
 /// graph-carrying result into `QueryTriples` would delete the most explicit part of the
 /// caller's query with no exception and no loss signal.
-fn materialize_graph(py: Python<'_>, graph: purrdf_core::DatasetHandle) -> PyResult<Py<PyAny>> {
+fn materialize_graph(
+    py: Python<'_>,
+    graph: purrdf_core::DatasetHandle,
+    execution_receipt: Option<String>,
+) -> PyResult<Py<PyAny>> {
     let quads = crate::flat_rdf_quads_from_dataset(graph.as_ref());
     if quads.iter().any(|quad| quad.graph_name.is_some()) {
         return Ok(Py::new(
             py,
             PyQueryQuads {
+                execution_receipt,
                 _dataset: graph,
                 quads,
                 pos: 0,
@@ -1238,6 +1292,7 @@ fn materialize_graph(py: Python<'_>, graph: purrdf_core::DatasetHandle) -> PyRes
     Ok(Py::new(
         py,
         PyQueryTriples {
+            execution_receipt,
             _dataset: graph,
             triples,
             pos: 0,
@@ -1812,6 +1867,7 @@ impl PyPartialAnswers {
 #[pyclass(name = "QueryOutcome", frozen)]
 #[derive(Debug)]
 pub struct PyQueryOutcome {
+    coordinates: purrdf_sparql_eval::QueryCoordinates,
     /// The complete result, present on the complete path only.
     result: Option<Py<PyAny>>,
     /// What the rows in hand bound, present on the exhausted path only.
@@ -1832,6 +1888,12 @@ pub struct PyQueryOutcome {
 
 #[pymethods]
 impl PyQueryOutcome {
+    /// The native execution receipt, retained independently of result consumption.
+    #[getter]
+    fn execution_receipt_json(&self) -> String {
+        purrdf_validate::query::execution_receipt_json(&self.coordinates)
+    }
+
     /// Whether every governor stayed intact and this is the query's complete answer.
     #[getter]
     const fn is_complete(&self) -> bool {
@@ -1951,7 +2013,7 @@ impl PyEntailmentQueryOutcome {
     }
 }
 
-/// The outcome of one governed SPARQL UPDATE.
+/// The outcome of one SPARQL UPDATE, with optional governor evidence.
 ///
 /// Deliberately not a [`PyQueryOutcome`] and deliberately without a partial arm: a
 /// query's partial answer is a certifiable thing, a partial *mutation* is not. A tripped
@@ -1960,14 +2022,21 @@ impl PyEntailmentQueryOutcome {
 #[pyclass(name = "UpdateOutcome", frozen)]
 #[derive(Debug)]
 pub struct PyUpdateOutcome {
+    coordinates: purrdf_sparql_eval::QueryCoordinates,
     /// The governor that stopped the request, present on the exhausted path only.
     tripped: Option<Py<PyTrippedGovernor>>,
-    /// This request's consumption and ceilings, present on both paths.
-    evidence: Py<PyGovernorEvidence>,
+    /// This request's consumption and ceilings, absent for an ordinary request.
+    evidence: Option<Py<PyGovernorEvidence>>,
 }
 
 #[pymethods]
 impl PyUpdateOutcome {
+    /// The native execution receipt, including an execution that was refused.
+    #[getter]
+    fn execution_receipt_json(&self) -> String {
+        purrdf_validate::query::execution_receipt_json(&self.coordinates)
+    }
+
     /// Whether every operation of the request applied.
     ///
     /// `False` means **nothing** applied, never "not all of it applied".
@@ -1982,10 +2051,12 @@ impl PyUpdateOutcome {
         self.tripped.as_ref().map(|tripped| tripped.clone_ref(py))
     }
 
-    /// This request's consumption, ceilings, and trip — on both paths.
+    /// This request's governor evidence, or `None` on an ordinary request.
     #[getter]
-    fn evidence(&self, py: Python<'_>) -> Py<PyGovernorEvidence> {
-        self.evidence.clone_ref(py)
+    fn evidence(&self, py: Python<'_>) -> Option<Py<PyGovernorEvidence>> {
+        self.evidence
+            .as_ref()
+            .map(|evidence| evidence.clone_ref(py))
     }
 
     fn __repr__(&self) -> String {
@@ -2086,15 +2157,18 @@ pub(crate) fn materialize_outcome(
     py: Python<'_>,
     outcome: GovernedOutcome,
 ) -> PyResult<Py<PyQueryOutcome>> {
-    match outcome {
+    let coordinates = outcome.coordinates().clone();
+    let materialized = (|| match outcome {
         GovernedOutcome::Complete {
             result,
             evidence,
             relations,
+            ..
         } => Py::new(
             py,
             PyQueryOutcome {
-                result: Some(materialize_results(py, result)?),
+                coordinates: coordinates.clone(),
+                result: Some(materialize_results(py, result, Some(&coordinates))?),
                 partial: None,
                 tripped: None,
                 evidence: Py::new(py, PyGovernorEvidence { inner: evidence })?,
@@ -2106,17 +2180,26 @@ pub(crate) fn materialize_outcome(
             evidence,
             relations,
             partial,
+            ..
         }) => Py::new(
             py,
             PyQueryOutcome {
+                coordinates: coordinates.clone(),
                 result: None,
-                partial: Some(materialize_partial(py, partial)?),
+                partial: Some(materialize_partial(py, partial, &coordinates)?),
                 tripped: Some(Py::new(py, PyTrippedGovernor { inner: tripped })?),
                 evidence: Py::new(py, PyGovernorEvidence { inner: evidence })?,
                 relation_witness: relations.witness,
             },
         ),
-    }
+    })();
+    materialized.map_err(|error| {
+        super::presentation::with_execution_receipt(
+            py,
+            error,
+            purrdf_validate::query::execution_receipt_json(&coordinates),
+        )
+    })
 }
 
 /// Convert the native two-phase entailment carrier without dropping either phase's
@@ -2168,19 +2251,41 @@ pub(crate) fn materialize_update_outcome(
     Py::new(
         py,
         PyUpdateOutcome {
+            coordinates: outcome.coordinates().clone(),
             tripped,
-            evidence: Py::new(
+            evidence: Some(Py::new(
                 py,
                 PyGovernorEvidence {
                     inner: outcome.evidence().clone(),
                 },
-            )?,
+            )?),
         },
     )
 }
 
+/// An ordinary UPDATE applied under no governor account.
+pub(crate) fn materialize_ordinary_update(
+    py: Python<'_>,
+    coordinates: purrdf_sparql_eval::QueryCoordinates,
+) -> PyResult<Py<PyUpdateOutcome>> {
+    let receipt = purrdf_validate::query::execution_receipt_json(&coordinates);
+    Py::new(
+        py,
+        PyUpdateOutcome {
+            coordinates,
+            tripped: None,
+            evidence: None,
+        },
+    )
+    .map_err(|error| super::presentation::with_execution_receipt(py, error, receipt))
+}
+
 /// Convert the native certificate into the Python `PartialAnswers` object.
-fn materialize_partial(py: Python<'_>, partial: PartialAnswers) -> PyResult<Py<PyPartialAnswers>> {
+fn materialize_partial(
+    py: Python<'_>,
+    partial: PartialAnswers,
+    coordinates: &purrdf_sparql_eval::QueryCoordinates,
+) -> PyResult<Py<PyPartialAnswers>> {
     let certainty = match partial {
         PartialAnswers::Certain(_) => "certain",
         PartialAnswers::AtMost(_) => "at-most",
@@ -2193,7 +2298,11 @@ fn materialize_partial(py: Python<'_>, partial: PartialAnswers) -> PyResult<Py<P
         Some(rows) => {
             let positional_prefix = rows.is_positional_prefix();
             (
-                Some(materialize_results(py, rows.into_result())?),
+                Some(materialize_results(
+                    py,
+                    rows.into_result(),
+                    Some(coordinates),
+                )?),
                 Some(positional_prefix),
             )
         }

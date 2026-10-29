@@ -31,6 +31,101 @@ has three input statements; native Rust owns capacity-scale correctness.
 
 ## Audited focused execution
 
+The packaged case `CORS: preflight, echo and Vary with cors; no CORS header and a 405 OPTIONS without`
+in `cloudflare.test.mjs` checks the HTTP host interface: allowed cross-origin
+responses expose `Purrdf-Execution-Receipt` to browsers, including error responses,
+while requests without CORS configuration receive no CORS headers.
+
+These coordinate host cases also cover receipt transport: typed and raw payload
+envelopes, effective values crossing wasm-bindgen, and low-level receipt handle
+ownership. Native suites retain identity construction and RDF semantics.
+
+The optimized package's `sync-coordinates.test.mjs` selects three host-interface
+cases, and the assembled playground selects its named Worker case:
+
+| Exact case | Concrete host obligation |
+| --- | --- |
+| `synchronous coordinates cross every query export and package output` | Every synchronous wrapper and direct positional signature transports exact strings and unsigned seeds through wasm-bindgen; supplied seeds avoid the host entropy import |
+| `synchronous positional query coordinates reject lossy host values` | Every raw query export checks JavaScript strings and BigInt/number values through shared host readers; errors retain their host type/code |
+| `synchronous omitted coordinates use fresh independent host defaults` | Omitted and null controls reach actual host clock/entropy imports per execution; independently supplied inputs suppress only their own default |
+| `playground synchronous query messages forward exact coordinates and errors` | The assembled Worker's structured-clone message carries BigInts and exact strings into the synchronous package and returns host exceptions without mutating its dataset |
+
+Run the three named package cases with `node --test --test-name-pattern` against
+fresh `make wasm-pkg` output. Run only the named Worker case from
+`docs/playground/smoke/sync-coordinates.test.mjs`, with `PLAYGROUND_OUT` naming the
+`make playground` assembly, or a local host-test fixture containing unchanged
+`engine.worker.mjs` and the actual package's `index.mjs`, `package.json` and `pkg/`
+in the same copy layout. That fixture proves the Worker interface, not site
+packaging or compiler/license provenance; the hosted Docs job must still pass
+the complete playground gates. `sync-coordinates.types.ts` checks query and UPDATE
+signatures without executing native semantics on WASM.
+
+The optimized package's `async-coordinates.test.mjs` selects these host-interface
+cases exactly; native Rust retains timestamp parsing and random-stream semantics:
+
+| Exact package case | Concrete host obligation |
+| --- | --- |
+| `async coordinates cross every query kind and output alias` | JavaScript options reach all seven async operation kinds and typed/raw/context aliases; exact strings and unsigned BigInts cross wasm-bindgen; supplied seeds avoid the actual host entropy import |
+| `async coordinates reject lossy host inputs and unsupported routes` | Checked JavaScript number/BigInt transport, host exceptions and explicit unsupported-interface refusal |
+| `async coordinate owners survive real suspension and interleaved jobs` | JSPI suspension retains owned coordinates after options handles are freed and another job runs |
+| `async jobs select omitted coordinates anew when validated options are reused` | Real host clock/entropy imports remain per-job defaults rather than retained validated-option state |
+| `Cloudflare query coordinates reach negotiated output` | The shipped Worker request adapter forwards query options into negotiated output |
+
+Run these named cases with `node --test --test-name-pattern` against the actual
+`make wasm-pkg` output. The type-only `async-coordinates.types.ts` checks the
+declarations without executing query semantics on WASM.
+
+The optimized package's `rule-coordinates.test.mjs` selects these host-interface
+cases. Native rule suites own inference semantics; these selections verify only
+JavaScript transport, ownership and JSPI behavior against the actual release package.
+
+| Exact case | Host obligation |
+| --- | --- |
+| `rule coordinates cross synchronous async and low-level positional routes` | Raw and package rule exports carry checked coordinates through both rule carriers and dated XPath selections; constructors retain 10 and 13 arguments and async options retain their positions |
+| `rule host coordinate refusals precede document parsing and preserve reuse` | Wrong JavaScript values fail at the boundary without poisoning the module; actual unsupported request variants reject coordinates before registration |
+| `rule coordinate owners survive actual JSPI yields and interleaving` | Freed option handles and mutated JavaScript objects cannot change owned inputs across a measured nonzero JSPI yield or another job |
+| `rule omitted coordinates retain independent host defaults` | Actual clock and entropy imports remain independent defaults; supplied zero suppresses host entropy |
+| `rule supplied coordinates preserve signal cancellation and subsequent reuse` | AbortSignal interruption releases rule jobs and preserves subsequent execution |
+| `playground rule messages forward coordinates and preserve dataset ownership` | The assembled Worker's structured-clone messages forward exact strings and BigInts, return refusals, and retain the dataset |
+
+The existing `wasm-package` job executes the five package cases and
+`rule-coordinates.types.ts`; the existing Docs job executes the named Worker
+case in `docs/playground/smoke/rule-coordinates.test.mjs` with `PLAYGROUND_OUT`
+pointing at its assembled Worker. Qualification requires those exact cases to
+execute with nonzero counts and no skips against the current source artifact.
+No additional package build or workflow is required. TypeScript checks the two
+rule option positions and rejects coordinate-bearing validation/product options.
+
+The optimized package's `update-coordinates.test.mjs` selects these six concrete
+host-interface cases. Native UPDATE coverage owns random-stream algorithms,
+timestamp semantics and transactional correctness; these cases verify the host
+routes, ownership, continuation and publication boundaries that carry them.
+
+| Exact package case | Concrete host obligation |
+| --- | --- |
+| `UPDATE coordinates cross every package raw and low-level host route` | Four package options objects, two positional exports and both asynchronous kinds carry exact strings and checked seeds through wasm-bindgen for each XPath selection, without host entropy reads |
+| `UPDATE host coordinate errors precede mutation and release every claim` | JavaScript number/BigInt/string decoding refuses malformed host values without poisoning the module or leaking an asynchronous dataset claim |
+| `UPDATE omitted coordinates reach independent host clock and entropy defaults` | Actual host imports remain independent defaults through synchronous and asynchronous wrappers |
+| `UPDATE low-level coordinates survive suspension freed options and interleaved mutation` | Both JSPI UPDATE kinds retain owned values and request continuation after host options are freed, while another dataset is updated |
+| `UPDATE supplied coordinates preserve asynchronous abort atomicity and reuse` | AbortSignal handling during actual SERVICE suspension publishes no staged mutation and releases the dataset claim |
+| `Cloudflare UPDATE coordinates reach mutation and typed refusal responses` | The shipped endpoint forwards controls into UPDATE, returns 204 on application, and reports invalid endpoint configuration through the existing sanitized 500 response and typed internal diagnostic with unchanged data |
+
+Run only these named cases with `node --test --test-name-pattern` against fresh
+`make wasm-pkg` output. The existing exact
+query-coordinate cases above protect the shared decoder and changed refusal
+expectations; their Worker fixture is unchanged by UPDATE routing.
+
+The UPDATE boundary also reuses these exact existing host cases, selected by name
+from their mixed targets rather than running the targets wholesale:
+
+| Target / exact case | Concrete host obligation |
+| --- | --- |
+| `async.test.mjs` / `dataset mutation during an async update is refused` | A host mutation while JSPI is suspended is detected before commit through the dataset generation boundary |
+| `async.test.mjs` / `commitUpdate refuses a different dataset` | The low-level commit API refuses a different wasm-bindgen dataset identity |
+| `async.test.mjs` / `refusal pair: an update begun while another update of the dataset is in flight is refused; a sequential one applies` | JavaScript concurrent UPDATE entry points preserve the dataset claim and release it for the next call |
+| `governors.test.mjs` / `updateGoverned refuses maxAnswers rather than ignoring a ceiling the caller set` | The package forwards the unsupported host option and returns its named refusal |
+| `governors.test.mjs` / `a cancelled token stops an UPDATE as an outcome` | The host cancellation-token handle crosses the positional UPDATE boundary and returns the governed outcome |
+
 The 2026-10-23 audit examined every Makefile WASM invocation and the direct
 workflow, qualification-driver, runner, package and Worker entry points,
 regardless of origin. It removed 312 of 359 Makefile case executions, retaining

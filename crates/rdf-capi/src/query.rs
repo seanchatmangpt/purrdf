@@ -4,6 +4,11 @@
 //! `purrdf_query` (typed result + row cursor) and `purrdf_query_json` (the
 //! SPARQL 1.1/1.2 Query Results JSON convenience path).
 
+//! Execution entries require writable `out_receipt` storage. A successful call
+//! transfers an owned JSON buffer to it; release that buffer with `purrdf_buffer_free`.
+//! On failure, the error owns any observed receipt and exposes it through
+//! `purrdf_error_execution_receipt_json` until the error is freed.
+
 use std::os::raw::c_char;
 
 use purrdf_rs::{
@@ -24,13 +29,11 @@ use crate::governor::{
 use crate::handles::PurrdfDataset;
 use crate::handles::into_handle;
 use crate::regex_profile::{Profile, decode_regex_profile, query_error};
-// The engine every entry runs on, under the caller's dated XPath law when it named one.
-// `NOW()`/`RAND()`/`UUID()`/`STRUUID()` are live by construction — `EvalCtx::new` samples
-// the real host wall clock and OS entropy itself, so no host-side wiring is needed here.
 use crate::rowcursor::PurrdfRowCursor;
 use crate::status::PurrdfStatus;
 use crate::term::PurrdfStr;
 use crate::{cstr_to_str, opt_cstr_to_str};
+use purrdf_validate::query::CoordinateInputs;
 use purrdf_validate::xpath_regex::{query_options, sparql_engine};
 
 /// The result-form discriminant written to every query entry point's `out_kind`.
@@ -49,6 +52,21 @@ const KIND_SOLUTIONS: i32 = PurrdfResultKind::Solutions as i32;
 const KIND_GRAPH: i32 = PurrdfResultKind::Graph as i32;
 const KIND_BOOLEAN: i32 = PurrdfResultKind::Boolean as i32;
 const KIND_NONE: i32 = -1;
+
+/// Own the caller's exact time and copy its optional seed for one execution.
+///
+/// # Safety
+/// `now` must be null or a NUL-terminated C string live for the call.
+/// `entropy_seed` must be null or point to a readable, aligned `u64`.
+pub(crate) unsafe fn decode_coordinates(
+    now: *const c_char,
+    entropy_seed: *const u64,
+) -> Result<CoordinateInputs, PurrdfError> {
+    unsafe {
+        CoordinateInputs::from_time_and_seed(opt_cstr_to_str(now)?, entropy_seed.as_ref().copied())
+            .map_err(|error| PurrdfError::new(PurrdfStatus::InvalidArgument, error.to_string()))
+    }
+}
 
 /// The outcome discriminant written by [`purrdf_query_governed`].
 #[repr(i32)]
@@ -242,7 +260,8 @@ unsafe fn run_query(
     base_iri: *const c_char,
     regex: Option<Profile>,
     geo: &purrdf_validate::geo::GeoProfile,
-) -> Result<SparqlResult, PurrdfError> {
+    coordinates: &CoordinateInputs,
+) -> Result<(SparqlResult, purrdf_sparql_eval::QueryCoordinates), PurrdfError> {
     unsafe {
         let query = cstr_to_str(query)?;
         let base_iri = opt_cstr_to_str(base_iri)?;
@@ -251,14 +270,16 @@ unsafe fn run_query(
         // `SparqlEngine::query` runs it (the plan, then its evaluation with no governor
         // state), with the handle's division policy and the caller's dated XPath law in
         // force.
-        let options = query_options(
+        let capture = purrdf_validate::query::ExecutionReceiptCapture::default();
+        let options = coordinates.apply(query_options(
             QueryOptions::new()
+                .with_coordinate_observer(&capture)
                 .with_geo(geo)
                 .with_division(PurrdfDataset::division(dataset)),
             regex,
-        );
+        ));
         let engine = sparql_engine(regex);
-        engine
+        let result = engine
             .prepare_query_with_options(query, base_iri, options)
             .and_then(|prepared| {
                 engine.query_prepared_view(
@@ -268,7 +289,41 @@ unsafe fn run_query(
                     options,
                 )
             })
-            .map_err(|diagnostic| query_error(&diagnostic))
+            .map_err(|diagnostic| query_error(&diagnostic));
+        let receipt = capture
+            .into_coordinates()
+            .map_err(|error| PurrdfError::new(PurrdfStatus::QueryError, error.to_string()))?;
+        result
+            .map(|result| (result, receipt.clone()))
+            .map_err(|error| {
+                error.with_execution_receipt(&purrdf_validate::query::execution_receipt_json(
+                    &receipt,
+                ))
+            })
+    }
+}
+
+/// Publish one independently owned receipt buffer after the result is prepared.
+pub(crate) unsafe fn store_execution_receipt(
+    out: *mut *mut PurrdfBuffer,
+    coordinates: &purrdf_sparql_eval::QueryCoordinates,
+) {
+    unsafe {
+        *out = into_handle(PurrdfBuffer(
+            purrdf_validate::query::execution_receipt_json(coordinates).into_bytes(),
+        ));
+    }
+}
+
+fn captured_error(
+    error: PurrdfError,
+    capture: &purrdf_validate::query::ExecutionReceiptCapture,
+) -> PurrdfError {
+    match capture.coordinates() {
+        Ok(coordinates) => error.with_execution_receipt(
+            &purrdf_validate::query::execution_receipt_json(&coordinates),
+        ),
+        Err(error) => PurrdfError::new(PurrdfStatus::QueryError, error.to_string()),
     }
 }
 
@@ -297,6 +352,7 @@ unsafe fn clear_result_outputs(
 /// carriers.
 unsafe fn store_result(
     result: SparqlResult,
+    receipt: &purrdf_sparql_eval::QueryCoordinates,
     out_kind: *mut i32,
     out_rows: *mut *mut PurrdfRowCursor,
     out_graph: *mut *mut PurrdfDataset,
@@ -311,6 +367,9 @@ unsafe fn store_result(
                     return Err(PurrdfError::new(
                         PurrdfStatus::NullPointer,
                         "out_rows is null for a SELECT result",
+                    )
+                    .with_execution_receipt(
+                        &purrdf_validate::query::execution_receipt_json(receipt),
                     ));
                 }
                 *out_kind = KIND_SOLUTIONS;
@@ -321,6 +380,9 @@ unsafe fn store_result(
                     return Err(PurrdfError::new(
                         PurrdfStatus::NullPointer,
                         "out_graph is null for a CONSTRUCT/DESCRIBE result",
+                    )
+                    .with_execution_receipt(
+                        &purrdf_validate::query::execution_receipt_json(receipt),
                     ));
                 }
                 *out_kind = KIND_GRAPH;
@@ -354,12 +416,13 @@ unsafe fn store_governed_query_outcome(
     out_boolean: *mut u8,
     out_partial: *mut PurrdfPartialCertificate,
 ) -> Result<(PurrdfQueryOutcomeKind, PurrdfGovernorEvidence), PurrdfError> {
+    let receipt = outcome.coordinates().clone();
     unsafe {
         match outcome {
             GovernedOutcome::Complete {
                 result, evidence, ..
             } => {
-                store_result(result, out_kind, out_rows, out_graph, out_boolean)?;
+                store_result(result, &receipt, out_kind, out_rows, out_graph, out_boolean)?;
                 Ok((PurrdfQueryOutcomeKind::Complete, encode_evidence(&evidence)))
             }
             GovernedOutcome::BudgetExhausted(BudgetExhausted {
@@ -374,6 +437,7 @@ unsafe fn store_governed_query_outcome(
                         };
                         store_result(
                             partial.into_result(),
+                            &receipt,
                             out_kind,
                             out_rows,
                             out_graph,
@@ -388,6 +452,7 @@ unsafe fn store_governed_query_outcome(
                         };
                         store_result(
                             partial.into_result(),
+                            &receipt,
                             out_kind,
                             out_rows,
                             out_graph,
@@ -418,7 +483,16 @@ unsafe fn store_governed_query_outcome(
 /// is `0`/`1`. Exactly one output is set per kind. `base_iri` may be null. The query runs
 /// under the dataset's division policy (`purrdf_dataset_set_division_policy`).
 ///
+/// `now` supplies an exact `xsd:dateTime` lexical form, including its fractional
+/// seconds and timezone. `entropy_seed` supplies an unsigned seed for `RAND`,
+/// `UUID` and `STRUUID`; pointed zero is valid. Each null pointer independently
+/// requests the native default for this execution. Both inputs are copied before
+/// execution; no caller memory is retained by results. Malformed time returns
+/// `PURRDF_STATUS_INVALID_ARGUMENT`; invalid UTF-8 returns `PURRDF_STATUS_INVALID_UTF8`.
+///
 /// # Safety
+/// `now` must be null or a NUL-terminated UTF-8 C string live for the call.
+/// `entropy_seed` must be null or point to a readable, aligned `uint64_t`.
 /// `dataset` must be a live handle; `query` must be a NUL-terminated C string;
 /// the out-params must be writable.
 #[unsafe(no_mangle)]
@@ -426,6 +500,9 @@ pub unsafe extern "C" fn purrdf_query(
     dataset: *const PurrdfDataset,
     query: *const c_char,
     base_iri: *const c_char,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_kind: *mut i32,
     out_rows: *mut *mut PurrdfRowCursor,
     out_graph: *mut *mut PurrdfDataset,
@@ -441,6 +518,9 @@ pub unsafe extern "C" fn purrdf_query(
                 query,
                 base_iri,
                 std::ptr::null(),
+                now,
+                entropy_seed,
+                out_receipt,
                 out_kind,
                 out_rows,
                 out_graph,
@@ -474,6 +554,9 @@ pub unsafe extern "C" fn purrdf_query_xpath_regex(
     query: *const c_char,
     base_iri: *const c_char,
     regex_profile: *const c_char,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_kind: *mut i32,
     out_rows: *mut *mut PurrdfRowCursor,
     out_graph: *mut *mut PurrdfDataset,
@@ -489,6 +572,9 @@ pub unsafe extern "C" fn purrdf_query_xpath_regex(
                 query,
                 base_iri,
                 regex_profile,
+                now,
+                entropy_seed,
+                out_receipt,
                 out_kind,
                 out_rows,
                 out_graph,
@@ -511,13 +597,16 @@ unsafe fn query_entry(
     query: *const c_char,
     base_iri: *const c_char,
     regex_profile: *const c_char,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_kind: *mut i32,
     out_rows: *mut *mut PurrdfRowCursor,
     out_graph: *mut *mut PurrdfDataset,
     out_boolean: *mut u8,
 ) -> Result<PurrdfStatus, PurrdfError> {
     unsafe {
-        if dataset.is_null() || query.is_null() || out_kind.is_null() {
+        if dataset.is_null() || query.is_null() || out_kind.is_null() || out_receipt.is_null() {
             return Err(PurrdfError::new(
                 PurrdfStatus::NullPointer,
                 format!("null pointer argument to {entry}"),
@@ -529,7 +618,9 @@ unsafe fn query_entry(
         // from a previous call (the governed entries already clear this state
         // via clear_result_outputs; the plain entries own it here).
         *out_kind = KIND_NONE;
-        match run_query(dataset, query, base_iri, regex, geo)? {
+        let coordinates = decode_coordinates(now, entropy_seed)?;
+        let (result, receipt) = run_query(dataset, query, base_iri, regex, geo, &coordinates)?;
+        match result {
             SparqlResult::Solutions {
                 variables, rows, ..
             } => {
@@ -537,6 +628,9 @@ unsafe fn query_entry(
                     return Err(PurrdfError::new(
                         PurrdfStatus::NullPointer,
                         "out_rows is null for a SELECT result",
+                    )
+                    .with_execution_receipt(
+                        &purrdf_validate::query::execution_receipt_json(&receipt),
                     ));
                 }
                 *out_kind = KIND_SOLUTIONS;
@@ -547,6 +641,9 @@ unsafe fn query_entry(
                     return Err(PurrdfError::new(
                         PurrdfStatus::NullPointer,
                         "out_graph is null for a CONSTRUCT/DESCRIBE result",
+                    )
+                    .with_execution_receipt(
+                        &purrdf_validate::query::execution_receipt_json(&receipt),
                     ));
                 }
                 *out_kind = KIND_GRAPH;
@@ -567,6 +664,7 @@ unsafe fn query_entry(
                 *out_boolean = u8::from(value);
             }
         }
+        store_execution_receipt(out_receipt, &receipt);
         Ok(PurrdfStatus::Ok)
     }
 }
@@ -653,7 +751,16 @@ unsafe fn decode_provenance_namespace(
 /// (it is not a SPARQL-results document). Read the extension back with
 /// `purrdf_sparql_results::provenance_from_json` under the SAME namespace.
 ///
+/// `now` supplies an exact `xsd:dateTime` lexical form, including its fractional
+/// seconds and timezone. `entropy_seed` supplies an unsigned seed for `RAND`,
+/// `UUID` and `STRUUID`; pointed zero is valid. Each null pointer independently
+/// requests the native default for this execution. Both inputs are copied before
+/// execution; no caller memory is retained by results. Malformed time returns
+/// `PURRDF_STATUS_INVALID_ARGUMENT`; invalid UTF-8 returns `PURRDF_STATUS_INVALID_UTF8`.
+///
 /// # Safety
+/// `now` must be null or a NUL-terminated UTF-8 C string live for the call.
+/// `entropy_seed` must be null or point to a readable, aligned `uint64_t`.
 /// `dataset` must be a live handle; `query` must be a NUL-terminated C string;
 /// the out-params must be writable. `provenance_prefix`/`provenance_iri`, if non-null,
 /// must be NUL-terminated UTF-8 C strings live for the call.
@@ -664,6 +771,9 @@ pub unsafe extern "C" fn purrdf_query_json(
     base_iri: *const c_char,
     provenance_prefix: *const c_char,
     provenance_iri: *const c_char,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_buffer: *mut *mut PurrdfBuffer,
     out_error: *mut *mut PurrdfError,
 ) -> i32 {
@@ -678,6 +788,9 @@ pub unsafe extern "C" fn purrdf_query_json(
                 provenance_prefix,
                 provenance_iri,
                 std::ptr::null(),
+                now,
+                entropy_seed,
+                out_receipt,
                 out_buffer,
             )
         })
@@ -702,6 +815,9 @@ pub unsafe extern "C" fn purrdf_query_json_xpath_regex(
     provenance_prefix: *const c_char,
     provenance_iri: *const c_char,
     regex_profile: *const c_char,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_buffer: *mut *mut PurrdfBuffer,
     out_error: *mut *mut PurrdfError,
 ) -> i32 {
@@ -716,6 +832,9 @@ pub unsafe extern "C" fn purrdf_query_json_xpath_regex(
                 provenance_prefix,
                 provenance_iri,
                 regex_profile,
+                now,
+                entropy_seed,
+                out_receipt,
                 out_buffer,
             )
         })
@@ -736,10 +855,13 @@ unsafe fn query_json_entry(
     provenance_prefix: *const c_char,
     provenance_iri: *const c_char,
     regex_profile: *const c_char,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_buffer: *mut *mut PurrdfBuffer,
 ) -> Result<PurrdfStatus, PurrdfError> {
     unsafe {
-        if dataset.is_null() || query.is_null() || out_buffer.is_null() {
+        if dataset.is_null() || query.is_null() || out_buffer.is_null() || out_receipt.is_null() {
             return Err(PurrdfError::new(
                 PurrdfStatus::NullPointer,
                 format!("null pointer argument to {entry}"),
@@ -748,7 +870,8 @@ unsafe fn query_json_entry(
         let query_text = cstr_to_str(query)?;
         let namespace = decode_provenance_namespace(provenance_prefix, provenance_iri)?;
         let regex = decode_regex_profile(regex_profile)?;
-        let result = run_query(dataset, query, base_iri, regex, geo)?;
+        let coordinates = decode_coordinates(now, entropy_seed)?;
+        let (result, receipt) = run_query(dataset, query, base_iri, regex, geo, &coordinates)?;
         // Delegate to the canonical SPARQL-Results serializer. An
         // empty `ResultProvenance` (no namespace supplied) yields byte-identical
         // pure W3C SRJ for SELECT/ASK; the CONSTRUCT-graph path is rendered by the
@@ -763,8 +886,10 @@ unsafe fn query_json_entry(
                     PurrdfStatus::QueryError,
                     format!("SPARQL results JSON serialization failed: {e}"),
                 )
+                .with_execution_receipt(&purrdf_validate::query::execution_receipt_json(&receipt))
             })?;
         *out_buffer = into_handle(PurrdfBuffer(outcome.bytes));
+        store_execution_receipt(out_receipt, &receipt);
         Ok(PurrdfStatus::Ok)
     }
 }
@@ -858,7 +983,16 @@ pub unsafe extern "C" fn purrdf_query_canon_arrow(
 /// names an ordinary unregistered custom-aggregate IRI, exactly as before this parameter
 /// existed.
 ///
+/// `now` supplies an exact `xsd:dateTime` lexical form, including its fractional
+/// seconds and timezone. `entropy_seed` supplies an unsigned seed for `RAND`,
+/// `UUID` and `STRUUID`; pointed zero is valid. Each null pointer independently
+/// requests the native default for this execution. Both inputs are copied before
+/// execution; no caller memory is retained by results. Malformed time returns
+/// `PURRDF_STATUS_INVALID_ARGUMENT`; invalid UTF-8 returns `PURRDF_STATUS_INVALID_UTF8`.
+///
 /// # Safety
+/// `now` must be null or a NUL-terminated UTF-8 C string live for the call.
+/// `entropy_seed` must be null or point to a readable, aligned `uint64_t`.
 /// `dataset`, `query`, and `governors` must remain live for the call. `out_outcome`,
 /// `out_kind`, `out_evidence`, and `out_partial` must be writable. The shape-specific
 /// result pointer must be writable when that shape is returned. Any enabled cancellation
@@ -871,6 +1005,9 @@ pub unsafe extern "C" fn purrdf_query_governed(
     base_iri: *const c_char,
     aggregate_namespace: *const c_char,
     governors: *const PurrdfQueryGovernors,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_outcome: *mut i32,
     out_kind: *mut i32,
     out_rows: *mut *mut PurrdfRowCursor,
@@ -891,6 +1028,9 @@ pub unsafe extern "C" fn purrdf_query_governed(
                 aggregate_namespace,
                 std::ptr::null(),
                 governors,
+                now,
+                entropy_seed,
+                out_receipt,
                 out_outcome,
                 out_kind,
                 out_rows,
@@ -924,6 +1064,9 @@ pub unsafe extern "C" fn purrdf_query_governed_xpath_regex(
     aggregate_namespace: *const c_char,
     regex_profile: *const c_char,
     governors: *const PurrdfQueryGovernors,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_outcome: *mut i32,
     out_kind: *mut i32,
     out_rows: *mut *mut PurrdfRowCursor,
@@ -944,6 +1087,9 @@ pub unsafe extern "C" fn purrdf_query_governed_xpath_regex(
                 aggregate_namespace,
                 regex_profile,
                 governors,
+                now,
+                entropy_seed,
+                out_receipt,
                 out_outcome,
                 out_kind,
                 out_rows,
@@ -970,6 +1116,9 @@ unsafe fn query_governed_entry(
     aggregate_namespace: *const c_char,
     regex_profile: *const c_char,
     governors: *const PurrdfQueryGovernors,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_outcome: *mut i32,
     out_kind: *mut i32,
     out_rows: *mut *mut PurrdfRowCursor,
@@ -980,6 +1129,7 @@ unsafe fn query_governed_entry(
 ) -> Result<PurrdfStatus, PurrdfError> {
     unsafe {
         if dataset.is_null()
+            || out_receipt.is_null()
             || query.is_null()
             || governors.is_null()
             || out_outcome.is_null()
@@ -995,12 +1145,14 @@ unsafe fn query_governed_entry(
         clear_result_outputs(out_kind, out_rows, out_graph, out_boolean);
         *out_partial = PurrdfPartialCertificate::none();
 
+        let coordinates = decode_coordinates(now, entropy_seed)?;
         let query = cstr_to_str(query)?;
         let base_iri = opt_cstr_to_str(base_iri)?;
         let governors = decode_governors(governors)?;
         let aggregates = decode_aggregate_namespace(aggregate_namespace)?;
         let regex = decode_regex_profile(regex_profile)?;
         let env = aggregate_env(aggregates.as_ref())?;
+        let capture = purrdf_validate::query::ExecutionReceiptCapture::default();
         let outcome = sparql_engine(regex)
             .query_governed_view(
                 PurrdfDataset::handle(dataset).as_ref(),
@@ -1009,17 +1161,19 @@ unsafe fn query_governed_entry(
                     base_iri,
                     substitutions: &[],
                 },
-                query_options(
+                coordinates.apply(query_options(
                     QueryOptions::new()
+                        .with_coordinate_observer(&capture)
                         .with_geo(geo)
                         .with_env(&env)
                         .with_division(PurrdfDataset::division(dataset)),
                     regex,
-                ),
+                )),
                 &governors,
             )
-            .map_err(|diagnostic| query_error(&diagnostic))?;
+            .map_err(|diagnostic| captured_error(query_error(&diagnostic), &capture))?;
 
+        let receipt = outcome.coordinates().clone();
         let (kind, evidence) = store_governed_query_outcome(
             outcome,
             out_kind,
@@ -1030,6 +1184,7 @@ unsafe fn query_governed_entry(
         )?;
         *out_outcome = kind as i32;
         *out_evidence = evidence;
+        store_execution_receipt(out_receipt, &receipt);
         Ok(PurrdfStatus::Ok)
     }
 }
@@ -1068,7 +1223,16 @@ unsafe fn query_governed_entry(
 /// (`purrdf_query_entailment_governed's max_stored_facts`, …); the query governors price the
 /// evaluation over the closure and never become a limit on it.
 ///
+/// `now` supplies an exact `xsd:dateTime` lexical form, including its fractional
+/// seconds and timezone. `entropy_seed` supplies an unsigned seed for `RAND`,
+/// `UUID` and `STRUUID`; pointed zero is valid. Each null pointer independently
+/// requests the native default for this execution. Both inputs are copied before
+/// execution; no caller memory is retained by results. Malformed time returns
+/// `PURRDF_STATUS_INVALID_ARGUMENT`; invalid UTF-8 returns `PURRDF_STATUS_INVALID_UTF8`.
+///
 /// # Safety
+/// `now` must be null or a NUL-terminated UTF-8 C string live for the call.
+/// `entropy_seed` must be null or point to a readable, aligned `uint64_t`.
 /// All input strings and handles must remain live for the synchronous call. Required
 /// out-pointers must be writable; any enabled cancellation handle must remain live until
 /// return. Shape-specific result pointers are required when that shape is returned.
@@ -1094,6 +1258,9 @@ pub unsafe extern "C" fn purrdf_query_entailment_governed(
     max_term_arena_bytes: *const u64,
     aggregate_namespace: *const c_char,
     governors: *const PurrdfQueryGovernors,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_outcome: *mut i32,
     out_kind: *mut i32,
     out_rows: *mut *mut PurrdfRowCursor,
@@ -1125,6 +1292,9 @@ pub unsafe extern "C" fn purrdf_query_entailment_governed(
                 aggregate_namespace,
                 std::ptr::null(),
                 governors,
+                now,
+                entropy_seed,
+                out_receipt,
                 out_outcome,
                 out_kind,
                 out_rows,
@@ -1167,6 +1337,9 @@ pub unsafe extern "C" fn purrdf_query_entailment_governed_xpath_regex(
     aggregate_namespace: *const c_char,
     regex_profile: *const c_char,
     governors: *const PurrdfQueryGovernors,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_outcome: *mut i32,
     out_kind: *mut i32,
     out_rows: *mut *mut PurrdfRowCursor,
@@ -1198,6 +1371,9 @@ pub unsafe extern "C" fn purrdf_query_entailment_governed_xpath_regex(
                 aggregate_namespace,
                 regex_profile,
                 governors,
+                now,
+                entropy_seed,
+                out_receipt,
                 out_outcome,
                 out_kind,
                 out_rows,
@@ -1236,6 +1412,9 @@ unsafe fn query_entailment_governed_entry(
     aggregate_namespace: *const c_char,
     regex_profile: *const c_char,
     governors: *const PurrdfQueryGovernors,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_outcome: *mut i32,
     out_kind: *mut i32,
     out_rows: *mut *mut PurrdfRowCursor,
@@ -1247,6 +1426,7 @@ unsafe fn query_entailment_governed_entry(
 ) -> Result<PurrdfStatus, PurrdfError> {
     unsafe {
         if dataset.is_null()
+            || out_receipt.is_null()
             || query.is_null()
             || regime.is_null()
             || program.is_null()
@@ -1266,6 +1446,7 @@ unsafe fn query_entailment_governed_entry(
         *out_partial = PurrdfPartialCertificate::none();
         *out_report = std::ptr::null_mut();
 
+        let coordinates = decode_coordinates(now, entropy_seed)?;
         let query = cstr_to_str(query)?;
         let base_iri = opt_cstr_to_str(base_iri)?;
         let regime = cstr_to_str(regime)?;
@@ -1292,6 +1473,7 @@ unsafe fn query_entailment_governed_entry(
         let aggregates = decode_aggregate_namespace(aggregate_namespace)?;
         let regex = decode_regex_profile(regex_profile)?;
         let env = aggregate_env(aggregates.as_ref())?;
+        let capture = purrdf_validate::query::ExecutionReceiptCapture::default();
         let outcome = query_with_entailment_closure_governed(
             &sparql_engine(regex),
             PurrdfDataset::handle(dataset).as_ref(),
@@ -1301,13 +1483,14 @@ unsafe fn query_entailment_governed_entry(
                 substitutions: &[],
             },
             &EntailmentClosure::new(plan.entailment(), &imports).with_limits(limits.eval_options()),
-            query_options(
+            coordinates.apply(query_options(
                 QueryOptions::new()
+                    .with_coordinate_observer(&capture)
                     .with_geo(geo)
                     .with_env(&env)
                     .with_division(PurrdfDataset::division(dataset)),
                 regex,
-            ),
+            )),
             // This surface registers no relation at all, so there is none to re-derive
             // over the closure — `NONE` is the accurate claim here, not a default.
             &ClosureRelations::NONE,
@@ -1327,10 +1510,12 @@ unsafe fn query_entailment_governed_entry(
                 ),
             ),
             other => PurrdfError::new(PurrdfStatus::QueryError, other.to_string()),
-        })?;
+        })
+        .map_err(|error| captured_error(error, &capture))?;
 
         match outcome {
             GovernedEntailment::Answered { outcome, report } => {
+                let receipt = outcome.coordinates().clone();
                 let (kind, query_evidence) = store_governed_query_outcome(
                     outcome,
                     out_kind,
@@ -1356,8 +1541,13 @@ unsafe fn query_entailment_governed_entry(
                 *out_report = into_handle(PurrdfBuffer(
                     purrdf_validate::render_reasoning_report(&report).into_bytes(),
                 ));
+                store_execution_receipt(out_receipt, &receipt);
             }
             GovernedEntailment::ClosureStopped { tripped } => {
+                store_execution_receipt(
+                    out_receipt,
+                    &purrdf_sparql_eval::QueryCoordinates::NotStarted,
+                );
                 *out_outcome = PurrdfEntailmentQueryOutcomeKind::ClosureStopped as i32;
                 *out_evidence = PurrdfGovernedEntailmentEvidence {
                     query_ran: 0,
@@ -1396,11 +1586,23 @@ unsafe fn query_entailment_governed_entry(
 /// reachable from a `DELETE`/`INSERT … WHERE` clause through a nested
 /// `SELECT … GROUP BY` — the only place SPARQL UPDATE's grammar admits an aggregate.
 ///
+/// `now` and `entropy_seed` are independently nullable: NULL selects a fresh native
+/// default for this request, while a pointed zero supplies seed zero. Time uses the
+/// exact native `xsd:dateTime` lexical form, retaining fractional seconds and timezone.
+/// Supplied coordinates give the request one fixed time and one progressing random
+/// stream across its operations. Omitted coordinates preserve native defaults. Inputs
+/// are owned before execution; inserted values retain no caller memory.
+/// Invalid time is `PURRDF_STATUS_INVALID_ARGUMENT`; invalid UTF-8 is
+/// `PURRDF_STATUS_INVALID_UTF8`. A refusal leaves the dataset, outcome and evidence
+/// unchanged, including when the request would otherwise mutate it.
+///
 /// # Safety
 /// `dataset` must be a live, exclusively borrowed handle; `request` a NUL-terminated C
 /// string; `governors` live for the call; and both output pointers writable. Any enabled
 /// cancellation handle must remain live until the call returns. `aggregate_namespace`, if
-/// non-null, must be a NUL-terminated UTF-8 C string live for the call.
+/// non-null, must be a NUL-terminated UTF-8 C string live for the call. `now` must be
+/// null or a NUL-terminated C string live for the call; `entropy_seed` must be null
+/// or point to a readable, aligned `uint64_t` live for the call.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn purrdf_update_governed(
     dataset: *mut PurrdfDataset,
@@ -1409,6 +1611,9 @@ pub unsafe extern "C" fn purrdf_update_governed(
     aggregate_namespace: *const c_char,
     graph_existence: i32,
     governors: *const PurrdfQueryGovernors,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_outcome: *mut i32,
     out_evidence: *mut PurrdfGovernorEvidence,
     out_error: *mut *mut PurrdfError,
@@ -1425,6 +1630,9 @@ pub unsafe extern "C" fn purrdf_update_governed(
                 std::ptr::null(),
                 graph_existence,
                 governors,
+                now,
+                entropy_seed,
+                out_receipt,
                 out_outcome,
                 out_evidence,
             )
@@ -1454,6 +1662,9 @@ pub unsafe extern "C" fn purrdf_update_governed_xpath_regex(
     regex_profile: *const c_char,
     graph_existence: i32,
     governors: *const PurrdfQueryGovernors,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_outcome: *mut i32,
     out_evidence: *mut PurrdfGovernorEvidence,
     out_error: *mut *mut PurrdfError,
@@ -1470,6 +1681,9 @@ pub unsafe extern "C" fn purrdf_update_governed_xpath_regex(
                 regex_profile,
                 graph_existence,
                 governors,
+                now,
+                entropy_seed,
+                out_receipt,
                 out_outcome,
                 out_evidence,
             )
@@ -1492,11 +1706,15 @@ unsafe fn update_governed_entry(
     regex_profile: *const c_char,
     graph_existence: i32,
     governors: *const PurrdfQueryGovernors,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_outcome: *mut i32,
     out_evidence: *mut PurrdfGovernorEvidence,
 ) -> Result<PurrdfStatus, PurrdfError> {
     unsafe {
         if dataset.is_null()
+            || out_receipt.is_null()
             || request.is_null()
             || governors.is_null()
             || out_outcome.is_null()
@@ -1513,8 +1731,10 @@ unsafe fn update_governed_entry(
         let base_iri = opt_cstr_to_str(base_iri)?;
         let aggregates = decode_aggregate_namespace(aggregate_namespace)?;
         let regex = decode_regex_profile(regex_profile)?;
+        let coordinates = decode_coordinates(now, entropy_seed)?;
         let env = aggregate_env(aggregates.as_ref())?;
         let division = PurrdfDataset::division(dataset);
+        let capture = purrdf_validate::query::ExecutionReceiptCapture::default();
         let outcome = sparql_engine(regex)
             .update_governed_handle(
                 &mut (*dataset).0,
@@ -1523,19 +1743,21 @@ unsafe fn update_governed_entry(
                     base_iri,
                     substitutions: &[],
                 },
-                query_options(
+                coordinates.apply(query_options(
                     QueryOptions::new()
+                        .with_coordinate_observer(&capture)
                         .with_geo(geo)
                         .with_env(&env)
                         .with_division(division)
                         .with_graph_existence(graph_existence),
                     regex,
-                ),
+                )),
                 &governors,
             )
-            .map_err(|diagnostic| query_error(&diagnostic))?;
+            .map_err(|diagnostic| captured_error(query_error(&diagnostic), &capture))?;
+        let receipt = outcome.coordinates().clone();
         match outcome {
-            GovernedUpdateOutcome::Applied { evidence } => {
+            GovernedUpdateOutcome::Applied { evidence, .. } => {
                 *out_outcome = PurrdfUpdateOutcomeKind::Applied as i32;
                 *out_evidence = encode_evidence(&evidence);
             }
@@ -1544,6 +1766,7 @@ unsafe fn update_governed_entry(
                 *out_evidence = encode_evidence(&evidence);
             }
         }
+        store_execution_receipt(out_receipt, &receipt);
         Ok(PurrdfStatus::Ok)
     }
 }
@@ -1574,7 +1797,7 @@ fn aggregate_env(
 }
 
 /// [`purrdf_query_xpath_regex`] with an explicit immutable geographic session.
-/// A null session selects standard CRS84; `regex_profile` retains the original
+/// A null session selects standard `CRS84`; `regex_profile` retains the original
 /// dated-law selector, so both selections reach the same native query path.
 ///
 /// # Safety
@@ -1587,6 +1810,9 @@ pub unsafe extern "C" fn purrdf_query_with_geo(
     query: *const c_char,
     base_iri: *const c_char,
     regex_profile: *const c_char,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_kind: *mut i32,
     out_rows: *mut *mut PurrdfRowCursor,
     out_graph: *mut *mut PurrdfDataset,
@@ -1602,6 +1828,9 @@ pub unsafe extern "C" fn purrdf_query_with_geo(
                 query,
                 base_iri,
                 regex_profile,
+                now,
+                entropy_seed,
+                out_receipt,
                 out_kind,
                 out_rows,
                 out_graph,
@@ -1612,7 +1841,7 @@ pub unsafe extern "C" fn purrdf_query_with_geo(
 }
 
 /// [`purrdf_query_json_xpath_regex`] with an explicit immutable geographic session.
-/// A null session selects standard CRS84; `regex_profile` retains the original
+/// A null session selects standard `CRS84`; `regex_profile` retains the original
 /// dated-law selector, so both selections reach the same native query path.
 ///
 /// # Safety
@@ -1627,6 +1856,9 @@ pub unsafe extern "C" fn purrdf_query_json_with_geo(
     provenance_prefix: *const c_char,
     provenance_iri: *const c_char,
     regex_profile: *const c_char,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_buffer: *mut *mut PurrdfBuffer,
     out_error: *mut *mut PurrdfError,
 ) -> i32 {
@@ -1641,6 +1873,9 @@ pub unsafe extern "C" fn purrdf_query_json_with_geo(
                 provenance_prefix,
                 provenance_iri,
                 regex_profile,
+                now,
+                entropy_seed,
+                out_receipt,
                 out_buffer,
             )
         })
@@ -1648,7 +1883,7 @@ pub unsafe extern "C" fn purrdf_query_json_with_geo(
 }
 
 /// [`purrdf_query_governed_xpath_regex`] with an explicit immutable geographic session.
-/// A null session selects standard CRS84; `regex_profile` retains the original
+/// A null session selects standard `CRS84`; `regex_profile` retains the original
 /// dated-law selector, so both selections reach the same native query path.
 ///
 /// # Safety
@@ -1663,6 +1898,9 @@ pub unsafe extern "C" fn purrdf_query_governed_with_geo(
     aggregate_namespace: *const c_char,
     regex_profile: *const c_char,
     governors: *const PurrdfQueryGovernors,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_outcome: *mut i32,
     out_kind: *mut i32,
     out_rows: *mut *mut PurrdfRowCursor,
@@ -1683,6 +1921,9 @@ pub unsafe extern "C" fn purrdf_query_governed_with_geo(
                 aggregate_namespace,
                 regex_profile,
                 governors,
+                now,
+                entropy_seed,
+                out_receipt,
                 out_outcome,
                 out_kind,
                 out_rows,
@@ -1696,7 +1937,7 @@ pub unsafe extern "C" fn purrdf_query_governed_with_geo(
 }
 
 /// [`purrdf_query_entailment_governed_xpath_regex`] with an explicit immutable geographic session.
-/// A null session selects standard CRS84; `regex_profile` retains the original
+/// A null session selects standard `CRS84`; `regex_profile` retains the original
 /// dated-law selector, so both selections reach the same native query path.
 ///
 /// # Safety
@@ -1721,6 +1962,9 @@ pub unsafe extern "C" fn purrdf_query_entailment_governed_with_geo(
     aggregate_namespace: *const c_char,
     regex_profile: *const c_char,
     governors: *const PurrdfQueryGovernors,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_outcome: *mut i32,
     out_kind: *mut i32,
     out_rows: *mut *mut PurrdfRowCursor,
@@ -1752,6 +1996,9 @@ pub unsafe extern "C" fn purrdf_query_entailment_governed_with_geo(
                 aggregate_namespace,
                 regex_profile,
                 governors,
+                now,
+                entropy_seed,
+                out_receipt,
                 out_outcome,
                 out_kind,
                 out_rows,
@@ -1766,7 +2013,7 @@ pub unsafe extern "C" fn purrdf_query_entailment_governed_with_geo(
 }
 
 /// [`purrdf_update_governed_xpath_regex`] with an explicit immutable geographic session.
-/// A null session selects standard CRS84; `regex_profile` retains the original
+/// A null session selects standard `CRS84`; `regex_profile` retains the original
 /// dated-law selector, so both selections reach the same native query path.
 ///
 /// # Safety
@@ -1782,6 +2029,9 @@ pub unsafe extern "C" fn purrdf_update_governed_with_geo(
     regex_profile: *const c_char,
     graph_existence: i32,
     governors: *const PurrdfQueryGovernors,
+    now: *const c_char,
+    entropy_seed: *const u64,
+    out_receipt: *mut *mut PurrdfBuffer,
     out_outcome: *mut i32,
     out_evidence: *mut PurrdfGovernorEvidence,
     out_error: *mut *mut PurrdfError,
@@ -1798,6 +2048,9 @@ pub unsafe extern "C" fn purrdf_update_governed_with_geo(
                 regex_profile,
                 graph_existence,
                 governors,
+                now,
+                entropy_seed,
+                out_receipt,
                 out_outcome,
                 out_evidence,
             )
@@ -1858,6 +2111,23 @@ mod tests {
         assert!(year >= 2025, "year(NOW()) = {year}, expected >= 2025");
     }
 
+    mod coordinates;
+    mod update_coordinates;
+
+    /// The bytes of a buffer handle, read through `purrdf_buffer_data`, then the buffer freed.
+    pub(super) fn take_buffer_text(buffer: *mut PurrdfBuffer) -> String {
+        let mut ptr = std::ptr::null();
+        let mut len = 0;
+        assert_eq!(
+            unsafe { purrdf_buffer_data(buffer, &raw mut ptr, &raw mut len) },
+            PurrdfStatus::Ok as i32
+        );
+        let text = String::from_utf8(unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec())
+            .expect("UTF-8 buffer");
+        unsafe { purrdf_buffer_free(buffer) };
+        text
+    }
+
     fn initialized_governors() -> PurrdfQueryGovernors {
         let mut out = MaybeUninit::uninit();
         assert_eq!(unsafe { purrdf_query_governors_init(out.as_mut_ptr()) }, 0);
@@ -1898,8 +2168,9 @@ mod tests {
     #[test]
     fn governed_query_carries_partial_certificate_and_evidence() {
         let dataset = query_dataset();
-        let query = CString::new("SELECT ?s ?o WHERE { ?s <http://example.org/p> ?o }")
-            .expect("query C string");
+        let query =
+            CString::new("SELECT ?s ?o (NOW() AS ?clock) WHERE { ?s <http://example.org/p> ?o }")
+                .expect("query C string");
         let mut governors = initialized_governors();
         governors.enabled = PurrdfGovernorFlag::MaxAnswers as u32;
         governors.max_answers = 1;
@@ -1919,6 +2190,9 @@ mod tests {
                 std::ptr::null(),
                 std::ptr::null(),
                 &raw const governors,
+                c"2020-01-02T03:04:05Z".as_ptr(),
+                &0,
+                &mut crate::receipt::Output::default().0,
                 &raw mut outcome,
                 &raw mut kind,
                 &raw mut rows,
@@ -1950,7 +2224,20 @@ mod tests {
         let mut count = 0;
         loop {
             match unsafe { purrdf_rowcursor_next(rows) } {
-                status if status == PurrdfStatus::Ok as i32 => count += 1,
+                status if status == PurrdfStatus::Ok as i32 => {
+                    count += 1;
+                    let mut term = PurrdfTermView::empty();
+                    let mut bound = 0;
+                    assert_eq!(
+                        unsafe { purrdf_rowcursor_term(rows, 2, &raw mut term, &raw mut bound) },
+                        0
+                    );
+                    assert_eq!(bound, 1);
+                    assert_eq!(
+                        unsafe { term.lexical.as_str() }.expect("clock UTF-8"),
+                        "2020-01-02T03:04:05Z"
+                    );
+                }
                 status if status == PurrdfStatus::CursorExhausted as i32 => break,
                 status => panic!("unexpected row-cursor status {status}"),
             }
@@ -1999,6 +2286,9 @@ mod tests {
                 std::ptr::null(),
                 std::ptr::null(),
                 &raw const governors,
+                std::ptr::null(),
+                std::ptr::null(),
+                &mut crate::receipt::Output::default().0,
                 &raw mut outcome,
                 &raw mut kind,
                 &raw mut rows,
@@ -2106,6 +2396,9 @@ mod tests {
                 std::ptr::null(),
                 std::ptr::null(),
                 &raw const governors,
+                std::ptr::null(),
+                std::ptr::null(),
+                &mut crate::receipt::Output::default().0,
                 &raw mut outcome,
                 &raw mut kind,
                 std::ptr::null_mut(),
@@ -2167,6 +2460,9 @@ mod tests {
                     std::ptr::null(),
                     std::ptr::null(),
                     &raw const governors,
+                    std::ptr::null(),
+                    std::ptr::null(),
+                    &mut crate::receipt::Output::default().0,
                     &raw mut outcome,
                     &raw mut kind,
                     std::ptr::null_mut(),
@@ -2256,6 +2552,9 @@ mod tests {
                 std::ptr::null(),
                 std::ptr::null(),
                 &raw const governors,
+                std::ptr::null(),
+                std::ptr::null(),
+                &mut crate::receipt::Output::default().0,
                 &raw mut outcome,
                 &raw mut kind,
                 std::ptr::null_mut(),
@@ -2364,6 +2663,9 @@ mod tests {
                 std::ptr::null(),
                 namespace.as_ptr(),
                 &raw const governors,
+                std::ptr::null(),
+                std::ptr::null(),
+                &mut crate::receipt::Output::default().0,
                 &raw mut outcome,
                 &raw mut kind,
                 &raw mut rows,
@@ -2430,6 +2732,9 @@ mod tests {
                 std::ptr::null(),
                 crate::graph::PURRDF_GRAPH_EXISTENCE_IMPLICIT,
                 &raw const governors,
+                c"2020-01-02T03:04:05.1234567890123456789Z".as_ptr(),
+                &0u64,
+                &mut crate::receipt::Output::default().0,
                 &raw mut outcome,
                 evidence.as_mut_ptr(),
                 &raw mut error,
@@ -2473,6 +2778,9 @@ mod tests {
                 std::ptr::null(),
                 std::ptr::null(),
                 &raw const governors,
+                std::ptr::null(),
+                std::ptr::null(),
+                &mut crate::receipt::Output::default().0,
                 &raw mut outcome,
                 &raw mut kind,
                 &raw mut rows,
@@ -2548,6 +2856,9 @@ mod tests {
                 std::ptr::null(),
                 namespace.as_ptr(),
                 &raw const governors,
+                std::ptr::null(),
+                std::ptr::null(),
+                &mut crate::receipt::Output::default().0,
                 &raw mut outcome,
                 &raw mut kind,
                 &raw mut rows,
@@ -2615,6 +2926,9 @@ mod tests {
                 std::ptr::null(),
                 std::ptr::null(), // no aggregate_namespace
                 &raw const governors,
+                std::ptr::null(),
+                std::ptr::null(),
+                &mut crate::receipt::Output::default().0,
                 &raw mut outcome,
                 &raw mut kind,
                 &raw mut rows,
@@ -2671,6 +2985,9 @@ mod tests {
                 namespace.as_ptr(),
                 crate::graph::PURRDF_GRAPH_EXISTENCE_IMPLICIT,
                 &raw const governors,
+                std::ptr::null(),
+                std::ptr::null(),
+                &mut crate::receipt::Output::default().0,
                 &raw mut outcome,
                 evidence.as_mut_ptr(),
                 &raw mut error,

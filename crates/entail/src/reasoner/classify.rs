@@ -97,24 +97,39 @@ impl Subsumptions {
         session: &mut Session<'_>,
         classes: &[(u32, u32)],
     ) -> Result<Self, crate::EntailError> {
+        Self::decide_until(session, classes, || true)
+    }
+
+    /// The same matrix, retaining processed cells if the caller cancels.
+    pub(super) fn decide_until(
+        session: &mut Session<'_>,
+        classes: &[(u32, u32)],
+        mut poll: impl FnMut() -> bool,
+    ) -> Result<Self, crate::EntailError> {
         let kb = session.kb();
         let seeds: Vec<u32> = classes.iter().map(|&(_, concept)| concept).collect();
         let taxonomy = saturate(kb, &seeds)?;
         let complete = taxonomy.is_complete();
         let n = classes.len();
-        let mut verdicts = vec![Verdict::False; n * n];
+        let mut verdicts = vec![Verdict::Unknown; n * n];
         // A pair the saturation ruled out on a COMPLETE taxonomy is decided by the saturation
         // too, and its basis says so rather than claiming a run nothing made. Allocated only
         // for a recording session: nothing but `Self::claims` reads it, and nothing but a
         // recording session calls that.
         let records = session.records();
         let mut bases = if records {
-            vec![ClaimBasis::Saturated; n * n]
+            vec![ClaimBasis::NotDecided; n * n]
         } else {
             Vec::new()
         };
-        for (i, &(_, sub)) in classes.iter().enumerate() {
+        'cells: for (i, &(_, sub)) in classes.iter().enumerate() {
             for (j, &(_, sup)) in classes.iter().enumerate() {
+                if !poll() {
+                    break 'cells;
+                }
+                if records {
+                    bases[i * n + j] = ClaimBasis::Saturated;
+                }
                 if i == j {
                     verdicts[i * n + j] = Verdict::True;
                     if records {
@@ -170,6 +185,17 @@ impl Subsumptions {
     /// leave unallocated otherwise: `Reasoner::seal` calls this from inside the closure
     /// `Session::proof` runs only when it has a proof term to put the claims in.
     pub(crate) fn claims(&self, kb: &Kb, classes: &[(u32, u32)]) -> Vec<Claim> {
+        self.claims_with_native_decisions(kb, classes, false)
+    }
+
+    /// Include native negative/undecided runs for the combined service's run binding.
+    /// A negative saturated cell has no signed proof basis and must not become a claim.
+    pub(super) fn claims_with_native_decisions(
+        &self,
+        kb: &Kb,
+        classes: &[(u32, u32)],
+        native_decisions: bool,
+    ) -> Vec<Claim> {
         debug_assert_eq!(
             self.bases.len(),
             self.n * self.n,
@@ -179,7 +205,12 @@ impl Subsumptions {
         let mut out = Vec::new();
         for i in 0..self.n {
             for j in 0..self.n {
-                if i == j || !self.holds(i, j) {
+                let native = native_decisions
+                    && matches!(
+                        self.bases[i * self.n + j],
+                        ClaimBasis::CounterModel { .. } | ClaimBasis::Undecided { .. }
+                    );
+                if i == j || (!self.holds(i, j) && !native) {
                     continue;
                 }
                 out.push(Claim::new(
@@ -231,56 +262,6 @@ impl Subsumptions {
     pub(crate) fn holds(&self, sub: usize, sup: usize) -> bool {
         self.verdict(sub, sup).is_true()
     }
-
-    /// Whether the two classes were established equivalent.
-    pub(crate) fn equivalent(&self, a: usize, b: usize) -> bool {
-        self.holds(a, b) && self.holds(b, a)
-    }
-
-    /// The equivalence classes of the ESTABLISHED mutual-subsumption relation,
-    /// as each index's representative.
-    ///
-    /// The pointwise [`Self::equivalent`] is not an equivalence relation on the
-    /// nose: with an undecided pair in the matrix, `A = B` and `B = C` can both
-    /// hold while `A = C` does not, so "the lowest index I am pointwise
-    /// equivalent to" is not transitive and a whole class can split, handing
-    /// the reduction endpoints that are members of one class. A union-find over
-    /// the matrix's equivalence pairs closes the chain; union always hangs the
-    /// larger root under the smaller, so a component's root IS its lowest
-    /// member and determinism is unchanged.
-    pub(crate) fn representatives(&self) -> Vec<usize> {
-        let mut parent: Vec<usize> = (0..self.n).collect();
-        fn find(parent: &mut Vec<usize>, x: usize) -> usize {
-            let mut root = x;
-            while parent[root] != root {
-                root = parent[root];
-            }
-            let mut at = x;
-            while parent[at] != root {
-                let next = parent[at];
-                parent[at] = root;
-                at = next;
-            }
-            root
-        }
-        for i in 0..self.n {
-            for j in 0..i {
-                if self.equivalent(i, j) {
-                    let (a, b) = (find(&mut parent, i), find(&mut parent, j));
-                    if a != b {
-                        parent[a.max(b)] = a.min(b);
-                    }
-                }
-            }
-        }
-        (0..self.n).map(|i| find(&mut parent, i)).collect()
-    }
-
-    /// Whether `classes[sub]` is strictly below `classes[sup]` — subsumed and not
-    /// equivalent.
-    fn strictly_below(&self, sub: usize, sup: usize) -> bool {
-        self.holds(sub, sup) && !self.holds(sup, sub)
-    }
 }
 
 /// Whether `KB ⊨ sub ⊑ sup`, by refuting `x : sub ⊓ ¬sup` over a fresh anonymous witness.
@@ -312,7 +293,7 @@ pub struct ClassHierarchy {
     /// Named classes established equivalent to `owl:Nothing`.
     unsatisfiable: Vec<TermValue>,
     /// The transitive reduction of [`Self::subsumptions`].
-    direct: Vec<(TermValue, TermValue)>,
+    pub(super) direct: Vec<(TermValue, TermValue)>,
 }
 
 purrdf_hash::debug_non_exhaustive! {
@@ -352,22 +333,25 @@ impl ClassHierarchy {
 
     /// Derive the hierarchy from a decided subsumption matrix.
     pub(crate) fn derive(kb: &Kb, classes: &[(u32, u32)], m: &Subsumptions) -> Self {
+        Self::derive_until(kb, classes, m, || true)
+    }
+
+    /// Preserve all established pairs; cancellation interrupts only direct reduction.
+    pub(super) fn derive_until(
+        kb: &Kb,
+        classes: &[(u32, u32)],
+        m: &Subsumptions,
+        mut poll: impl FnMut() -> bool,
+    ) -> Self {
         let name = |i: usize| kb.interner.value(classes[i].0).clone();
         let n = classes.len();
-
-        let mut subsumptions = Vec::new();
-        let mut equivalences = Vec::new();
+        let mut relations = super::hierarchy::Relations::default();
         for i in 0..n {
-            for j in 0..n {
-                if i == j || !m.holds(i, j) {
-                    continue;
-                }
-                subsumptions.push((name(i), name(j)));
-                if i < j && m.holds(j, i) {
-                    equivalences.push((name(i), name(j)));
-                }
+            for j in i + 1..n {
+                relations.record_pair(name(i), name(j), m.holds(i, j), m.holds(j, i));
             }
         }
+        relations.reduce(n, &name, &|i, j| m.holds(i, j), &mut poll);
 
         // A class is unsatisfiable exactly when it is subsumed by `owl:Nothing`'s concept,
         // which the signature always carries; if the signature somehow lacks it there is
@@ -377,35 +361,11 @@ impl ClassHierarchy {
             (0..n).filter(|&i| m.holds(i, b)).map(name).collect()
         });
 
-        // The transitive reduction over equivalence-class representatives.
-        //
-        // The representatives are computed ONCE into a dense positional vector;
-        // a union-find over the matrix's equivalence pairs (min-root union)
-        // replaces a per-index scan that was not transitive under undecided
-        // pairs — a split class was exactly what emitted a direct edge implied
-        // by another through the split.
-        let representatives: Vec<usize> = m.representatives();
-        let canonical: Vec<usize> = (0..n).filter(|&i| representatives[i] == i).collect();
-        let mut direct = Vec::new();
-        for &i in &canonical {
-            for &j in &canonical {
-                if !m.strictly_below(i, j) {
-                    continue;
-                }
-                let interposed = canonical
-                    .iter()
-                    .any(|&k| m.strictly_below(i, k) && m.strictly_below(k, j));
-                if !interposed {
-                    direct.push((name(i), name(j)));
-                }
-            }
-        }
-
         let mut out = Self {
-            subsumptions,
-            equivalences,
+            subsumptions: relations.subsumptions,
+            equivalences: relations.equivalences,
             unsatisfiable,
-            direct,
+            direct: relations.direct,
         };
         out.sort();
         out

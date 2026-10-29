@@ -26,7 +26,7 @@ pub enum CapacityFailure {
 impl CapacityFailure {
     /// `charge`, `resize`, and native reserve helpers return only these classes.
     /// Adding another workspace failure requires extending this explicit mapping.
-    fn from_workspace(error: &EvalError) -> Self {
+    pub(crate) fn from_workspace(error: &EvalError) -> Self {
         match error {
             EvalError::WorkspaceStopped => Self::Stopped,
             EvalError::WorkspaceBoundOverflow => Self::LayoutOverflow,
@@ -165,26 +165,41 @@ pub(crate) fn data_error(
 }
 
 pub(crate) fn arithmetic_error(
-    domain: bool,
-    message: impl core::fmt::Display,
+    cause: crate::arithmetic::ArithmeticRefusal,
     workspace: Option<&WorkspaceCapability>,
 ) -> TextError {
-    let Some(workspace) = workspace else {
-        return if domain {
-            TextError::domain(message.to_string())
-        } else {
-            TextError::overflow(message.to_string())
-        };
-    };
-    let label = if domain {
-        "fixed-point domain error"
-    } else {
-        "fixed-point overflow"
-    };
-    query_error(
-        workspace,
+    let domain = cause.is_domain();
+    let diagnostic = matches!(
+        cause,
+        crate::arithmetic::ArithmeticRefusal::PartitionRank { .. }
+    ) || workspace.is_some();
+    let resident = WorkspaceCapability::resident();
+    match purrdf_sparql_eval::RetainedNativeFailure::error(
         purrdf_sparql_eval::NativeDiagnosticKind::Function,
-        format_args!("{label}: {message}"),
-    )
-    .unwrap_or_else(|failure| failure)
+        cause,
+        workspace.unwrap_or(&resident),
+    ) {
+        EvalError::RetainedNativeFailure(failure) => {
+            if diagnostic {
+                TextError::RetainedDiagnostic(failure)
+            } else if domain {
+                TextError::Domain(failure)
+            } else {
+                TextError::Overflow(failure)
+            }
+        }
+        error => TextError::Capacity(CapacityFailure::from_workspace(&error)),
+    }
+}
+
+/// Capture the source's original value under the construction API's resident owner.
+pub(crate) fn source_error(cause: impl purrdf_hash::error::NativeError + 'static) -> TextError {
+    match purrdf_sparql_eval::RetainedNativeFailure::error(
+        purrdf_sparql_eval::NativeDiagnosticKind::SourceRead,
+        cause,
+        &WorkspaceCapability::resident(),
+    ) {
+        EvalError::RetainedNativeFailure(failure) => TextError::SourceRead(failure),
+        error => TextError::Capacity(CapacityFailure::from_workspace(&error)),
+    }
 }

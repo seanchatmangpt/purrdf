@@ -35,6 +35,9 @@
 //! Report-only, per this repository's rule: benches exist so a later change has a
 //! number to move, never so a speedup can be asserted. Nothing here fails a build.
 
+#[path = "../src/test_support/closure.rs"]
+mod closure;
+
 use purrdf_testkit::bench::{Bench, BenchmarkId, Throughput, bench_group, bench_main, black_box};
 
 use purrdf_datalog::clause::{ClauseAtom, ClauseTerm, DlClause};
@@ -135,16 +138,6 @@ fn chain_store(n: usize) -> RelationStore {
     store
 }
 
-fn closure_rules() -> Vec<DlClause> {
-    vec![
-        DlClause::datalog(atom("?s", "q", "?o"), vec![atom("?s", "p", "?o")]),
-        DlClause::datalog(
-            atom("?s", "q", "?o"),
-            vec![atom("?s", "p", "?m"), atom("?m", "q", "?o")],
-        ),
-    ]
-}
-
 fn fanout(c: &mut Bench) {
     let mut group = c.benchmark_group("seminaive_fanout");
     for width in [8_usize, 24, 48] {
@@ -172,7 +165,7 @@ fn recursion(c: &mut Bench) {
     for n in [16_usize, 48, 96] {
         let store = chain_store(n);
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |bch, _| {
-            bch.iter(|| black_box(run(closure_rules(), store.clone())));
+            bch.iter(|| black_box(run(closure::closure_rules("p", "q", atom), store.clone())));
         });
     }
     group.finish();
@@ -205,7 +198,7 @@ fn facts_per_second(c: &mut Bench) {
     let store = fanout_store(width);
     group.throughput(Throughput::Elements(derived));
     group.bench_function("derive_1m_facts", |bch| {
-        bch.iter(|| black_box(run(closure_rules(), store.clone())))
+        bch.iter(|| black_box(run(closure::closure_rules("p", "q", atom), store.clone())))
     });
 
     // join_steps_per_sec — the single-pass binary join (`fanout_rules` is not

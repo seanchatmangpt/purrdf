@@ -51,6 +51,10 @@ use crate::{format, ledger, report, sink, source};
 
 /// The resolved `rules` flags.
 pub(crate) struct RulesOptions<'a> {
+    /// Raw supplied time, decoded before any rule or data source is read.
+    pub(crate) now: Option<&'a str>,
+    /// Raw supplied initial rule-sequence seed.
+    pub(crate) entropy_seed: Option<&'a str>,
     /// `--shapes`: the shapes graph whose rules run, or `-`.
     pub(crate) shapes: Option<&'a str>,
     /// `--shapes-from`.
@@ -112,6 +116,18 @@ pub(crate) fn run_rules(
     options: &RulesOptions<'_>,
     ledger_target: &LedgerTarget,
 ) -> Result<(), CliError> {
+    let coordinates =
+        purrdf_validate::query::CoordinateInputs::from_parts(options.now, options.entropy_seed)
+            .map_err(|error| {
+                let flag = match &error {
+                    purrdf_validate::query::CoordinateInputError::Now(_) => "--now",
+                    purrdf_validate::query::CoordinateInputError::EntropySeed(_) => {
+                        "--entropy-seed"
+                    }
+                    _ => "rule coordinates",
+                };
+                CliError::Usage(format!("{flag}: {error}"))
+            })?;
     if options.shapes_graph.is_some() && options.shapes.is_none() {
         return Err(CliError::Usage(
             "--shapes-graph names the graph a SHACL shapes graph's rules see the shapes graph \
@@ -121,6 +137,11 @@ pub(crate) fn run_rules(
         ));
     }
     if let Some(level) = options.check {
+        if options.now.is_some() || options.entropy_seed.is_some() {
+            return Err(CliError::Usage(
+                "--check executes no rules and cannot consume --now or --entropy-seed".to_owned(),
+            ));
+        }
         return run_srl_check(options, level, ledger_target);
     }
     let srl_pairs = if options.srl.is_some() {
@@ -180,6 +201,7 @@ pub(crate) fn run_rules(
         max_stored_facts: options.max_stored_facts,
         max_join_steps: options.max_join_steps,
     };
+    let execution = coordinates.into_rule_options(&limits, cli_limit_knobs());
     let inference: Inference = match &rule_source {
         RuleSource::Shapes {
             path,
@@ -204,7 +226,7 @@ pub(crate) fn run_rules(
             rules_run(
                 purrdf::shapes::RuleSource::Shapes(&shapes),
                 data.as_ref(),
-                &limits,
+                &execution,
                 options.xpath_regex,
                 &format!("--shapes {path}"),
             )?
@@ -220,13 +242,17 @@ pub(crate) fn run_rules(
             rules_run(
                 purrdf::shapes::RuleSource::Srl(&document),
                 data.as_ref(),
-                &limits,
+                &execution,
                 options.xpath_regex,
                 &format!("--srl {path}"),
             )?
         }
     };
 
+    eprintln!(
+        "purrdf-execution {}",
+        purrdf_validate::query::rule_execution_receipt_json(inference.coordinates())
+    );
     let inferred = inference.inferred_dataset()?;
     let ledger = sink::write_rdf(
         &*inferred,
@@ -258,26 +284,40 @@ pub(crate) fn run_rules(
 fn rules_run(
     source: purrdf::shapes::RuleSource<'_>,
     data: &purrdf_core::RdfDataset,
-    limits: &purrdf::shapes::RuleLimits,
+    options: &purrdf::shapes::RuleOptions,
     xpath_regex: Option<Profile>,
     context: &str,
 ) -> Result<Inference, CliError> {
     let Some(profile) = xpath_regex else {
-        return purrdf::shapes::run_rules(source, data, limits, cli_limit_knobs())
-            .map_err(|error| CliError::Runtime(format!("{context}: {error}")));
+        return purrdf::shapes::run_rules_with_options(source, data, options).map_err(|error| {
+            emit_rule_failure(&error);
+            CliError::Runtime(format!("{context}: {error}"))
+        });
     };
-    purrdf::shapes::xpath::run_rules(
-        source,
-        data,
-        limits,
-        cli_limit_knobs(),
-        profile,
-        Limits::new(),
-    )
-    .map_err(|error| match error {
-        XPathValidationError::Shapes(error) => CliError::Runtime(format!("{context}: {error}")),
-        other => xpath_regex_error(profile, &other),
-    })
+    purrdf::shapes::xpath::run_rules_with_options(source, data, options, profile, Limits::new())
+        .map_err(|error| match error {
+            XPathValidationError::RuleExecution { cause, coordinates } => {
+                eprintln!(
+                    "purrdf-execution {}",
+                    purrdf_validate::query::rule_execution_receipt_json(&coordinates)
+                );
+                xpath_regex_error(profile, &cause)
+            }
+            XPathValidationError::Shapes(error) => {
+                emit_rule_failure(&error);
+                CliError::Runtime(format!("{context}: {error}"))
+            }
+            other => xpath_regex_error(profile, &other),
+        })
+}
+
+fn emit_rule_failure(error: &purrdf::shapes::ShapesError) {
+    if let Some(coordinates) = error.execution_coordinates() {
+        eprintln!(
+            "purrdf-execution {}",
+            purrdf_validate::query::rule_execution_receipt_json(coordinates)
+        );
+    }
 }
 
 /// A refusal only the `--xpath-regex` law raises, as the runtime failure (exit 1) it

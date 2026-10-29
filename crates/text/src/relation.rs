@@ -1042,6 +1042,7 @@ impl<P: CorpusProfile> TextSearchRelation<P> {
                 }],
             }],
             depth_placement: None,
+            rank_source: purrdf_sparql_eval::RankSource::Ordinal,
             candidate_position: SEARCH_DOC,
             duplicates: DuplicatePolicy::Unique,
             // Passed through, never asserted here, for the reason `domains` is.
@@ -2470,7 +2471,10 @@ pub fn verify_binding<D: DatasetView, P: CorpusProfile>(
     index: &TextIndex<P>,
     dataset: &D,
     config: &TextIndexConfig<P>,
-) -> Result<(), TextError> {
+) -> Result<(), TextError>
+where
+    D::ReadError: purrdf_hash::error::StructuredError,
+{
     if config != index.config() {
         return Err(TextError::config(
             "the configuration supplied to verify_binding is not the one this index was built \

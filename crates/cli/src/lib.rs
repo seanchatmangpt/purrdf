@@ -361,6 +361,8 @@ fn dispatch(cli: &Cli) -> Result<CliOutcome, CliError> {
             path_relation,
             xpath_regex,
             division,
+            now,
+            entropy_seed,
             query,
         } => query::run(
             &query::QueryOptions {
@@ -395,11 +397,15 @@ fn dispatch(cli: &Cli) -> Result<CliOutcome, CliError> {
                 path_relations: path_relation,
                 xpath_regex: *xpath_regex,
                 division: division.unwrap_or_default(),
+                now: now.as_deref(),
+                entropy_seed: entropy_seed.as_deref(),
             },
             &ledger_target,
             &ReportTarget::decode(report.as_ref()),
         ),
         Command::Update {
+            now,
+            entropy_seed,
             data,
             from,
             output,
@@ -419,6 +425,8 @@ fn dispatch(cli: &Cli) -> Result<CliOutcome, CliError> {
             graph_existence,
         } => update::run(
             &update::UpdateOptions {
+                now: now.as_deref(),
+                entropy_seed: entropy_seed.as_deref(),
                 geo: selected_geo,
                 data,
                 from: *from,
@@ -713,6 +721,8 @@ fn dispatch(cli: &Cli) -> Result<CliOutcome, CliError> {
         }
         .map(|()| CliOutcome::Complete),
         Command::Rules {
+            now,
+            entropy_seed,
             shapes,
             shapes_from,
             shapes_base,
@@ -734,6 +744,8 @@ fn dispatch(cli: &Cli) -> Result<CliOutcome, CliError> {
             output,
         } => shapes_tools::run_rules(
             &shapes_tools::RulesOptions {
+                now: now.as_deref(),
+                entropy_seed: entropy_seed.as_deref(),
                 shapes: shapes.as_deref(),
                 shapes_from: *shapes_from,
                 shapes_base: shapes_base.as_deref(),

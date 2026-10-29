@@ -23,22 +23,144 @@ Regenerate or recompute these stored artifacts; 4.0 readers refuse or miss the
 - Developer-schema compilations cached under an earlier `SchemaCompilation.key`.
 
 Rebuild C clients against the regenerated `purrdf.h`; the 4.0 libraries declare
-C ABI 0.12.0. Several defaults change behavior without a signature change:
+C ABI 0.16.0. Several defaults change behavior without a signature change:
 remembered empty named graphs, model-only Datalog output, exact decimal
-division, WKT parsing resource policies, the SPARQL pre-binding rewrite and specific
+division, WKT and GeoJSON parsing resource policies, the SPARQL pre-binding rewrite and specific
 SPARQL diagnostic codes.
 Each has its own section below.
 
-## WKT parsing resource policies
+## Declared retrieval ranks
 
-`wkt::parse` and the compatibility WKT carrier through `geometry_arg` now apply
+`RankedDeclaration` now requires `rank_source: RankSource`. Existing native
+producers declare `RankSource::Ordinal`. Producers whose distinct subjects
+share a literal rank declare `RankSource::Shared { position }`, naming an
+unbound integer-family output argument. Native execution retains those values
+instead of assigning new subject ranks. Caller-supplied shared-rank query text
+must project `?rank`. Zero, descending, unbound and ill-typed ranks are refused.
+
+`StreamContract::new` takes an explicit `RankLaw` first. Ordinal producers keep
+the contiguous distinct law; shared producers declare positive nondecreasing
+ranks. Duplicate identities remain independent of repeated rank values.
+
+Depths and row bounds still count rows. `DepthReached`, `RowBoundReached` and
+`SuppliedQueryEnded` report the last emitted rank; `Exhausted` counts emitted
+rows. `UnionProducer::last_rank` and `StratumResolution::ranks_pulled` retain
+rank progress separately from `rows_pulled`. The fusion trailer also reports
+`shared_ranks_observed`, excluding those intentional ties from
+`collisions_observed`. Registry fingerprints use schema version 3, so registry
+and dependent plan identities change, including those of empty registries.
+The explicit rank declaration participates in that identity.
+Candidate-union canonical bytes use layout version 3 and
+include the producer's last rank and rank law.
+
+## Explicit unsigned retrieval precision
+
+Fusion uses `Score` and `Precision`, independently of the signed `Fixed` values
+used for numeric request endpoints and BM25. Construct `Precision::new(digits)`
+with zero through 38 decimal fractional digits, then use `precision.score(raw)`
+for unsigned raw weights. `FusionProfile::with_decay(weights, decay, precision)`
+requires the precision explicitly and refuses weights carrying different units.
+The admitted ceiling is the exact checked sum of rank-one contributions, so
+representable full-width scores are accepted even when the raw weight sum would
+overflow. Both decay rules compute directly at the selected scale.
+
+Standalone scores and derived weights retain their raw units and precision.
+The inverse depth helper now takes `weight_for_depth(precision, depth)`; the
+threshold and crossing helpers also take explicit precision, including for empty
+weight lists. Frontier cells retain raw unsigned values under the owning profile.
+`FusionTrailer::certain_prefix` returns `Result<usize, FusionError>` and refuses
+supplied rows or bounds with mismatched precision or invalid interval arithmetic.
+
+Python fusion calls require `scale_digits`; optional compile-time laws require
+all four of `weights`, `k`, `decay` and `scale_digits`, or none. Returned scores,
+contributions, ceiling bounds and derived weights are `{raw, scale_digits}`
+dictionaries. Raw Python weights span `u128`; floats, negative integers and
+integers outside that range are refused. Arithmetic depth/count results remain
+integers or absence. Signed numeric request endpoints retain their existing units.
+
+Regenerate fusion profiles: canonical layout version 2 carries an unsigned
+weight representation and explicit precision and refuses version 1. Candidate
+union layout version 3 carries the precision of every ceiling status. Profile
+identities change with precision. Pure plan identities remain independent of a
+fusion law; reproducible answers carry the separate plan and profile identities.
+
+## Execution coordinates and receipt migration
+
+`QueryCoordinates::Started` retains the actual context time and initial entropy
+seed, including sampled defaults. Use `effective_now()` and
+`effective_entropy_seed()` for those values; `now()` and `entropy_seed()` still
+identify independently supplied inputs. Clones share the original admitted
+exact timestamp owner. `NotStarted` means no evaluation context was constructed,
+not that preparation or storage reads did no work.
+
+`GovernedOutcome::Complete`, `InternedGoverned::Complete`, `BudgetExhausted`,
+`GovernedEvidence`, and both `GovernedUpdateOutcome` arms carry
+`coordinates: QueryCoordinates`. Preserve that field when reconstructing an
+outcome. Ordinary and prepared callers can install an
+`ExecutionCoordinateObserver` through `QueryOptions::with_coordinate_observer`
+to retain the actual receipt on success or failure. EXPLAIN uses the same capture.
+
+UPDATE captures its first WHERE context before random draws and retains that
+receipt across rollback. Observers see each context in program order. Data-only,
+LOAD and graph operations do not construct WHERE contexts, so an UPDATE may
+apply with `NotStarted`. Rule receipts bind the typed program, shapes and data
+snapshots, execution options, and ordered query-context receipts.
+
+Execution identities bind the request, effective coordinates, source snapshot,
+and known execution policies. Opaque callbacks, producers and external sources
+leave the execution identity absent unless the Rust caller certifies their code
+and captured sources with `QueryOptions::with_implementation_identity`. Native
+snapshot identities include retained dictionary content because blank-name
+collision avoidance observes unused terms. Missing identity is explicit; it is
+never inferred from output bytes. Query-text provenance remains separate.
+
+JavaScript package results own `executionReceipt`. `ask` returns an object with
+`boolean`; `construct` and `describe` return an object with `dataset`; `update`
+returns `{ dataset, executionReceipt }`. Raw query methods, `Dataset.query` and
+EXPLAIN return `{ body, executionReceipt }`; async twins use the same envelopes.
+`queryRawBytesAsync` places bytes in `body`. Low-level handles expose
+`executionReceiptJson`; serialized jobs use `takeRawResult()` instead of
+`takeRawBytes()`. Free that result handle after reading it. Running async jobs
+reject cancellation with an error carrying the original signal reason as
+`cause`, beside the receipt and evidence. An already-aborted signal still
+rejects before job creation with its original reason.
+
+Python query results and outcomes expose `execution_receipt_json`.
+`MutableDataset.update` now returns an owned `UpdateOutcome` instead of `None`;
+its ordinary ungoverned lane has `evidence is None`. Rule dictionaries carry
+`execution_receipt_json`. Failed executions retain receipts on their original
+exception classes. CLI execution records use stderr, leaving RDF stdout intact.
+
+## C query, UPDATE and rule coordinates
+
+ABI 0.16.0 requires a separate `PurrdfBuffer **out_receipt` immediately after
+`entropy_seed` on ordinary, JSON, governed and entailment queries, governed
+UPDATE, and rule execution, including their XPath and geographic variants.
+Recompile all affected callers. Initialize a receipt pointer to `NULL`, pass its
+address, inspect the returned JSON with `purrdf_buffer_data`, and release it
+with `purrdf_buffer_free`. Payload and receipt have independent ownership.
+The receipt slot is written only on success. Use
+`purrdf_error_execution_receipt_json(error)` after failure for a receipt borrowed until the
+error handle is freed.
+
+The preceding `now` and `entropy_seed` inputs remain independently nullable.
+Time accepts an exact `xsd:dateTime` lexical form, including negative years,
+fractional seconds and timezone. A pointer to zero supplies seed zero. Each
+call owns its parsed inputs before evaluation; outputs retain no caller memory.
+Effective seeds cross receipt JSON as decimal strings and unavailable identities
+as JSON nulls. Malformed coordinates keep the existing argument-error classes.
+
+## WKT and GeoJSON parsing resource policies
+
+`wkt::parse`, `geojson::parse` and their compatibility carriers through `geometry_arg` now apply
 `ExecutionPolicy::geometry()`. Input scanning, aggregate exact-decimal
-construction and coordinate count can exhaust that policy even for valid WKT.
+construction and coordinate count can exhaust that policy even for valid input.
 Refusals retain their original `WorkExhausted`, `MemoryExhausted` or
 `OutputExhausted` reason. Accepted coordinates and CRS metadata remain exact.
 
-Use `wkt::parse_in_policy` or `geometry_arg_in_policy` for caller-selected limits.
-Use `wkt::parse_unbounded` when the caller accepts unrestricted construction.
+Use `wkt::parse_in_policy`, `geojson::parse_in_policy` or `geometry_arg_in_policy`
+for caller-selected limits. Use `wkt::parse_unbounded` or
+`geojson::parse_unbounded` when the caller accepts unrestricted construction.
 Large exponents or trusted generated text with hundreds of decimal places can
 require either route. Producing a value under one operation's budget does not
 guarantee that a separately budgeted parse can reconstruct it.
@@ -46,6 +168,11 @@ guarantee that a separately budgeted parse can reconstruct it.
 Existing supplied-policy, metered and storage ingress keeps its original account.
 Collections still use a heap stack with no separate nesting-depth ceiling;
 their scanning and construction consume the selected policy's resources.
+GeoJSON foreign members and coordinates preceding their type share that scan
+allowance. With sufficient resources, malformed JSON still takes priority over
+deferred shape errors. The inherited rational exponent ceiling is unchanged.
+These limits admit conservative logical source, work, construction and output
+costs; they do not promise exact retained-heap accounting or cancellation.
 
 ## Shape-map syntax refusals and Unicode positions
 
@@ -456,9 +583,11 @@ list. A consumer that needs such a list can clone the shared view's names at
 that boundary; expanding every nested wildcard snapshot recreates the repeated
 prefix work the compact representation avoids.
 
-## Segmented data profile 6
+## Segmented data profile 7
 
-Segmented stores use data profile 6 (`PURRSEG6`). The reverse index stores
+Segmented stores use data profile 7 (`PURRSEG7`). Authenticated annotation
+value intervals extend the block summaries to 104 bytes and the header to
+456 bytes, so range scans can reject payload blocks before admission. The reverse index stores
 identifiers into the forward dictionary, dictionary blocks read their first key
 from the record instead of a second stored fence, source directories use sparse
 authenticated prefixes, and oversized terms live in authenticated overflow
@@ -721,3 +850,20 @@ IRI and language failures keep their existing native variants. `Shexj` remains f
 caller-provided diagnostics such as CLI import lookup; it is no longer the library
 materializer's fallback. This change adds no success-path DOM copy or whole-parser
 allocation guarantee.
+
+
+## Python prepared query bindings and execution coordinates
+
+`PreparedQuery.run(**bindings)` is replaced by
+`PreparedQuery.run(bindings=None, *, now=None, entropy_seed=None)`. Pass SPARQL
+parameters in a dictionary: `prepared.run({"this": node})` replaces
+`prepared.run(this=node)`. There is no legacy keyword-binding path. Names such
+as `now`, `entropy_seed` and `bindings` remain valid SPARQL parameter names
+inside the dictionary.
+
+Every run may select a fresh exact `xsd:dateTime` string and unsigned 64-bit
+Python integer seed. Omitted values use native defaults for that run, and all
+parameter slots are reset before applying its dictionary. No execution inputs
+are retained from a previous call. Ordinary, RDFLib, governed and entailment
+query methods accept the same coordinate keywords; parser/provider settings
+remain preparation-time configuration. See the [Python API reference](book/src/reference/python-api.md#supplied-query-time-and-entropy).

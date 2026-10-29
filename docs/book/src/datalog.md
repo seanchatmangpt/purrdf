@@ -53,6 +53,57 @@ withholds every conclusion that mentions a witness at the materialization
 boundary and reports the withholding, rather than inventing an answer the caller
 did not ask for.
 
+## Querying a stratified rule program
+
+`datalog::demand::evaluate_demanded` answers one `ClauseAtom<N>` goal over
+`DlClause<N>` rules and a consumed `RelationStore<D, N>`, for triples (`N = 3`)
+or quads (`N = 4`). Bound subjects, objects and graph names propagate through
+recursive rules, so asking what one place or graph contains can avoid deriving
+disconnected closures. The transformation emits
+ordinary clauses and runs the existing compiler and semi-naive evaluator.
+
+The returned `DemandAnswer<D, N>` owns the original dictionary and complete matching
+rows, exposed through `answers()` in subject/predicate/object/graph order (without
+the graph position for triples). Its default arity remains three. IDs keep their original meaning;
+`dictionary()` provides read-only resolution. Authored inputs can be dropped.
+Constants and repeated variables in the original goal remain filters even when
+a broader demand relation is shared, including equalities between a graph and
+another position. A free graph visits every compatible partition; the default
+graph is a bound graph identity with its original empty-string surface, distinct
+from a free graph and internal demand terms. Authored rules retain their local or
+cross-graph relationships. The internal closure is not exposed as a
+complete model of the authored program. Dictionary failures remain errors during
+preparation, execution and answer access, including empty answers.
+
+This entry point admits stratified relational rules with fixed IRI predicates and
+one range-restricted atomic head. It validates the whole program before execution,
+including unreachable rules. Guards, base or model reads, variable predicates
+and other head forms are refused. A head graph variable must have a
+positive relational binder, like every other head variable. Maintained demand
+revisions remain outside this entry point's contract.
+
+Negated atoms and guard-free negated conjunctions retain their native semantics.
+Demand discovery uses an isolated positive shadow: it overapproximates possible
+bindings without using negative filters. Original input rows seed that shadow
+with the same subject, object and graph IDs; exact derived facts never feed it.
+Exact authored rules retain their negative conditions, so native stratification
+completes the demanded lower relations before absence is decided. This can
+request more than the minimal slice, but does not unconditionally materialize
+entire negative-support relations. Each conjunction keeps its existential
+bindings local.
+
+Preparation and the vector returned by `answers()` use resident allocation.
+Execution uses the supplied `EvalOptions` and `StopSignal`; cancellation or an
+exceeded budget returns no partial answer owner. `work()` and `budget()` describe
+the transformed execution, including shadow and demand derivations. For programs
+with negation, `preparation()` separately reports original input rows and terms,
+and additional shadow input rows and terms. Stored-fact and arena totals include
+that augmented input; the generated-term allowance starts from its transformed
+term count, not the original source count. Preparation allocation is not execution
+work. Positive-only programs add no shadow input. Internal predicates use a framed native digest of the program, goal
+and sorted binding descriptors, with collision checks against the full dictionary
+and authored constants before any term is minted.
+
 ## Determinism
 
 Use `Guard::not_equal("?left", "?right")` for native term inequality, without a

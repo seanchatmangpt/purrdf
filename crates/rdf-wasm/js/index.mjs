@@ -294,6 +294,8 @@ function normalizeQueryOptions(options) {
     provenancePrefix,
     provenanceIri,
     xpathRegex: normalizeXpathRegex(options.xpathRegex),
+    now: options.now ?? undefined,
+    entropySeed: options.entropySeed ?? undefined,
   };
 }
 
@@ -312,6 +314,8 @@ function normalizeGovernedOptions(options) {
     base: options.base ?? undefined,
     aggregateNamespace: normalizeAggregateNamespace(options.aggregateNamespace),
     xpathRegex: normalizeXpathRegex(options.xpathRegex),
+    now: options.now ?? undefined,
+    entropySeed: options.entropySeed ?? undefined,
     fuel: governorCeiling(options.fuel, "fuel"),
     deadlineMs: governorCeiling(options.deadlineMs, "deadlineMs"),
     maxAnswers: governorCeiling(options.maxAnswers, "maxAnswers"),
@@ -435,22 +439,32 @@ function selectResultToObject(raw) {
 
 function queryResultToObject(raw) {
   try {
+    const receipt = raw.executionReceiptJson;
+    const executionReceipt = receipt === undefined ? undefined : JSON.parse(receipt);
     switch (raw.kind) {
       case "select": {
         const select = raw.takeSelect();
         if (select === undefined) throw new Error("SELECT result was already consumed");
-        return selectResultToObject(select);
+        return { ...selectResultToObject(select), executionReceipt };
       }
       case "ask":
-        return { kind: "ask", boolean: raw.boolean };
+        return { kind: "ask", boolean: raw.boolean, executionReceipt };
       case "graph": {
         const dataset = raw.takeDataset();
         if (dataset === undefined) throw new Error("graph result was already consumed");
-        return { kind: "graph", dataset };
+        return { kind: "graph", dataset, executionReceipt };
       }
       default:
         throw new Error(`unknown SPARQL result kind ${raw.kind}`);
     }
+  } finally {
+    raw.free?.();
+  }
+}
+
+function rawQueryResultToObject(raw) {
+  try {
+    return { body: raw.body, executionReceipt: JSON.parse(raw.executionReceiptJson) };
   } finally {
     raw.free?.();
   }
@@ -563,6 +577,7 @@ function queryOutcomeToObject(raw) {
   let trippedRaw;
   let evidenceRaw;
   try {
+    const executionReceipt = JSON.parse(raw.executionReceiptJson);
     // `isComplete` is read before anything is moved out: the discriminator has to survive
     // the drain, and a trip is an OUTCOME here — nothing on this path throws.
     const isComplete = raw.isComplete;
@@ -591,6 +606,7 @@ function queryOutcomeToObject(raw) {
       resultRaw = undefined;
       return {
         isComplete,
+        executionReceipt,
         result: queryResultToObject(resultHandle),
         partial: undefined,
         tripped,
@@ -607,6 +623,7 @@ function queryOutcomeToObject(raw) {
     partialRaw = undefined;
     return {
       isComplete,
+      executionReceipt,
       result: undefined,
       partial: partialAnswersToObject(partialHandle),
       tripped,
@@ -626,6 +643,7 @@ function negotiatedOutcomeToObject(raw) {
   let trippedRaw;
   let evidenceRaw;
   try {
+    const executionReceipt = JSON.parse(raw.executionReceiptJson);
     const isComplete = raw.isComplete;
     const format = raw.format;
     const mediaType = raw.mediaType;
@@ -649,6 +667,7 @@ function negotiatedOutcomeToObject(raw) {
       }
       return {
         isComplete,
+        executionReceipt,
         body: { bytes, format, mediaType },
         partial: undefined,
         tripped,
@@ -662,6 +681,7 @@ function negotiatedOutcomeToObject(raw) {
     partialRaw = undefined;
     return {
       isComplete,
+      executionReceipt,
       body: undefined,
       partial: partialAnswersToObject(partialHandle),
       tripped,
@@ -722,6 +742,7 @@ function updateOutcomeToObject(raw) {
   let trippedRaw;
   let evidenceRaw;
   try {
+    const executionReceipt = JSON.parse(raw.executionReceiptJson);
     const isApplied = raw.isApplied;
     trippedRaw = raw.takeTripped();
     evidenceRaw = raw.takeEvidence();
@@ -735,6 +756,7 @@ function updateOutcomeToObject(raw) {
     trippedRaw = undefined;
     return {
       isApplied,
+      executionReceipt,
       tripped:
         trippedHandle === undefined ? undefined : trippedGovernorToObject(trippedHandle),
       evidence,
@@ -882,8 +904,8 @@ function jobFailure(job, signal) {
   let error;
   switch (kind) {
     case "cancelled":
-      error = abortRejection(signal, message);
-      if (signal !== undefined && error === signal.reason) return error;
+      error = namedError(message, signal?.reason?.name === "TimeoutError" ? "TimeoutError" : "AbortError");
+      if (signal !== undefined && signal.reason !== undefined) error.cause = signal.reason;
       break;
     case "deadline":
       error = namedError(message, "TimeoutError");
@@ -900,6 +922,8 @@ function jobFailure(job, signal) {
   if (diagnosticJson !== undefined) error.diagnostic = JSON.parse(diagnosticJson);
   const presentation = job.errorPresentation;
   if (presentation !== undefined) error.presentation = JSON.parse(presentation);
+  const receipt = job.errorExecutionReceiptJson;
+  if (receipt !== undefined) error.executionReceipt = JSON.parse(receipt);
   error.evidence = evidence;
   return error;
 }
@@ -943,23 +967,11 @@ async function driveAsyncJob(kind, options, argument, begin, settle, fail = jobF
 }
 
 function takeAsk(job) {
-  const raw = job.takeQueryResult("ask");
-  try {
-    return raw.boolean;
-  } finally {
-    raw.free?.();
-  }
+  return queryResultToObject(job.takeQueryResult("ask"));
 }
 
 function takeGraph(job, expect) {
-  const raw = job.takeQueryResult(expect);
-  try {
-    const dataset = raw.takeDataset();
-    if (dataset === undefined) throw new Error("graph result was already consumed");
-    return dataset;
-  } finally {
-    raw.free?.();
-  }
+  return queryResultToObject(job.takeQueryResult(expect));
 }
 
 const utf8 = new TextDecoder();
@@ -990,6 +1002,8 @@ function shaclRefusalFailure(job, signal) {
   if (job.errorKind === "error") {
     const refusal = job.takeShaclRefusal() ?? job.takeShaclImportError();
     if (refusal !== undefined) {
+      const receipt = job.errorExecutionReceiptJson;
+      if (receipt !== undefined) refusal.executionReceipt = JSON.parse(receipt);
       refusal.evidence = { async: asyncEvidenceToObject(job.takeEvidence()) };
       return refusal;
     }
@@ -1241,34 +1255,34 @@ export async function ready(wasmBytesOrUrl) {
       wasmSetGeoSession.call(this, session);
     };
     QueryEngine.prototype.query = function (dataset, sparql, options) {
-      const { base, xpathRegex } = normalizeQueryOptions(options);
-      return queryResultToObject(wasmQuery.call(this, dataset, sparql, base, xpathRegex));
+      const { base, xpathRegex, now, entropySeed } = normalizeQueryOptions(options);
+      return queryResultToObject(wasmQuery.call(this, dataset, sparql, base, xpathRegex, now, entropySeed));
     };
     QueryEngine.prototype.select = function (dataset, sparql, options) {
-      const { base, xpathRegex } = normalizeQueryOptions(options);
-      return selectResultToObject(wasmSelect.call(this, dataset, sparql, base, xpathRegex));
+      const { base, xpathRegex, now, entropySeed } = normalizeQueryOptions(options);
+      return queryResultToObject(wasmSelect.call(this, dataset, sparql, base, xpathRegex, now, entropySeed));
     };
     QueryEngine.prototype.ask = function (dataset, sparql, options) {
-      const { base, xpathRegex } = normalizeQueryOptions(options);
-      return wasmAsk.call(this, dataset, sparql, base, xpathRegex);
+      const { base, xpathRegex, now, entropySeed } = normalizeQueryOptions(options);
+      return queryResultToObject(wasmAsk.call(this, dataset, sparql, base, xpathRegex, now, entropySeed));
     };
     QueryEngine.prototype.construct = function (dataset, sparql, options) {
-      const { base, xpathRegex } = normalizeQueryOptions(options);
-      return wasmConstruct.call(this, dataset, sparql, base, xpathRegex);
+      const { base, xpathRegex, now, entropySeed } = normalizeQueryOptions(options);
+      return queryResultToObject(wasmConstruct.call(this, dataset, sparql, base, xpathRegex, now, entropySeed));
     };
     QueryEngine.prototype.describe = function (dataset, sparql, options) {
-      const { base, xpathRegex } = normalizeQueryOptions(options);
-      return wasmDescribe.call(this, dataset, sparql, base, xpathRegex);
+      const { base, xpathRegex, now, entropySeed } = normalizeQueryOptions(options);
+      return queryResultToObject(wasmDescribe.call(this, dataset, sparql, base, xpathRegex, now, entropySeed));
     };
     QueryEngine.prototype.update = function (dataset, sparql, options) {
-      const { base, xpathRegex } = normalizeQueryOptions(options);
-      wasmUpdate.call(this, dataset, sparql, base, xpathRegex);
-      return dataset;
+      const { base, xpathRegex, now, entropySeed } = normalizeQueryOptions(options);
+      const receipt = wasmUpdate.call(this, dataset, sparql, base, xpathRegex, now, entropySeed);
+      return { dataset, executionReceipt: JSON.parse(receipt) };
     };
     QueryEngine.prototype.queryRaw = function (dataset, sparql, options) {
-      const { base, format, provenancePrefix, provenanceIri, xpathRegex } =
+      const { base, format, provenancePrefix, provenanceIri, xpathRegex, now, entropySeed } =
         normalizeQueryOptions(options);
-      return wasmQueryRaw.call(
+      return rawQueryResultToObject(wasmQueryRaw.call(
         this,
         dataset,
         sparql,
@@ -1277,8 +1291,16 @@ export async function ready(wasmBytesOrUrl) {
         provenancePrefix,
         provenanceIri,
         xpathRegex,
-      );
+        now,
+        entropySeed,
+      ));
     };
+    for (const name of ["queryRawConfigured", "queryRawWithContext"]) {
+      const original = QueryEngine.prototype[name];
+      QueryEngine.prototype[name] = function (...args) {
+        return rawQueryResultToObject(original.apply(this, args));
+      };
+    }
     QueryEngine.prototype.queryCanonArrow = function (dataset, sparql, options) {
       if (options != null && typeof options === "object" && options.format != null) {
         throw new TypeError(
@@ -1316,6 +1338,8 @@ export async function ready(wasmBytesOrUrl) {
           o.cancel,
           o.noCeiling,
           o.xpathRegex,
+          o.now,
+          o.entropySeed,
         ),
       );
     };
@@ -1350,6 +1374,8 @@ export async function ready(wasmBytesOrUrl) {
           o.cancel,
           o.noCeiling,
           o.xpathRegex,
+          o.now,
+          o.entropySeed,
         ),
       );
     };
@@ -1374,12 +1400,14 @@ export async function ready(wasmBytesOrUrl) {
           o.cancel,
           o.noCeiling,
           o.xpathRegex,
+          o.now,
+          o.entropySeed,
         ),
       );
     };
     QueryEngine.prototype.explainQuery = function (dataset, sparql, options) {
-      const { base, xpathRegex } = normalizeQueryOptions(options);
-      return wasmExplainQuery.call(this, dataset, sparql, base, xpathRegex);
+      const { base, xpathRegex, now, entropySeed } = normalizeQueryOptions(options);
+      return rawQueryResultToObject(wasmExplainQuery.call(this, dataset, sparql, base, xpathRegex, now, entropySeed));
     };
     QueryEngine.prototype.__purrdfPackageRootApi = true;
   }
@@ -1449,7 +1477,10 @@ export async function ready(wasmBytesOrUrl) {
         options,
         undefined,
         beginWith(this, dataset, AsyncOperationKind.Raw, sparql),
-        (job) => job.takeRawBytes(),
+        (job) => {
+          const result = rawQueryResultToObject(job.takeRawResult());
+          return { ...result, body: new TextEncoder().encode(result.body) };
+        },
       );
     };
     QueryEngine.prototype.queryRawAsync = async function (dataset, sparql, options) {
@@ -1459,7 +1490,7 @@ export async function ready(wasmBytesOrUrl) {
         options,
         undefined,
         beginWith(this, dataset, AsyncOperationKind.Raw, sparql),
-        (job) => utf8.decode(job.takeRawBytes()),
+        (job) => rawQueryResultToObject(job.takeRawResult()),
       );
     };
     QueryEngine.prototype.queryRawWithContextAsync = async function (
@@ -1489,7 +1520,7 @@ export async function ready(wasmBytesOrUrl) {
             jobOptions,
             context,
           ),
-        (job) => utf8.decode(job.takeRawBytes()),
+        (job) => rawQueryResultToObject(job.takeRawResult()),
       );
     };
     QueryEngine.prototype.queryGovernedAsync = async function (dataset, sparql, options) {
@@ -1562,7 +1593,7 @@ export async function ready(wasmBytesOrUrl) {
         options,
         undefined,
         beginWith(this, dataset, AsyncOperationKind.Explain, sparql),
-        (job) => utf8.decode(job.takeRawBytes()),
+        (job) => rawQueryResultToObject(job.takeRawResult()),
       );
     };
     // An asynchronous update claims its dataset until it is finished: a second one begun
@@ -1575,8 +1606,9 @@ export async function ready(wasmBytesOrUrl) {
         undefined,
         beginWith(this, dataset, AsyncOperationKind.Update, sparql),
         (job) => {
-          job.commitUpdate(dataset);
-          return dataset;
+          const executionReceipt = JSON.parse(job.takeUpdateReceiptJson());
+          try { job.commitUpdate(dataset); } catch (error) { error.executionReceipt = executionReceipt; throw error; }
+          return { dataset, executionReceipt };
         },
       );
     };
@@ -1594,12 +1626,22 @@ export async function ready(wasmBytesOrUrl) {
           const outcome = updateOutcomeToObject(job.takeUpdateOutcome());
           outcome.evidence.async = evidence;
           // A tripped request applied nothing and offers nothing to commit.
-          if (outcome.isApplied) job.commitUpdate(dataset);
+          if (outcome.isApplied) {
+            try { job.commitUpdate(dataset); } catch (error) { error.executionReceipt = outcome.executionReceipt; throw error; }
+          }
           return outcome;
         },
       );
     };
     QueryEngine.prototype.__purrdfAsyncApi = true;
+  }
+
+  if (!Dataset.prototype.__purrdfReceiptQuery) {
+    const originalQuery = Dataset.prototype.query;
+    Dataset.prototype.query = function (...args) {
+      return rawQueryResultToObject(originalQuery.apply(this, args));
+    };
+    Dataset.prototype.__purrdfReceiptQuery = true;
   }
 
   if (!Dataset.prototype.queryAsync) {
@@ -1615,7 +1657,7 @@ export async function ready(wasmBytesOrUrl) {
           undefined,
           (jobOptions) =>
             engine.beginAsync(this, AsyncOperationKind.Raw, sparql, jobOptions),
-          (job) => utf8.decode(job.takeRawBytes()),
+          (job) => rawQueryResultToObject(job.takeRawResult()),
         );
       } finally {
         engine.free();

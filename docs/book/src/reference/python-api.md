@@ -78,7 +78,7 @@ Use lexical forms for exact decimal and temporal values rather than converting t
 
 ## Prepared queries
 
-Declare parameter names with `Store.prepare(..., parameters=[...])`. Every run must bind every declared name to an RDF term. An unknown name or a missing binding raises an error. Configuration is fixed at preparation; source rows are read from the store for each run. Parameter names are supplied without `?`.
+Declare parameter names with `Store.prepare(..., parameters=[...])`. Every run must bind every declared name to an RDF term. An unknown name or a missing binding raises an error. Parser and provider configuration is fixed at preparation; source rows and optional time/entropy inputs are selected for each run. Parameter names are supplied without `?`.
 
 ```python
 prepared = store.prepare(
@@ -86,9 +86,54 @@ prepared = store.prepare(
     parameters=["person"],
 )
 assert prepared.parameters == ["person"]
-rows = list(prepared.run(person=purrdf.NamedNode("https://example.org/alice")))
+rows = list(prepared.run({"person": purrdf.NamedNode("https://example.org/alice")}))
 assert rows[0]["name"].value == "Alice"
 ```
+
+## Supplied query and UPDATE time and entropy
+
+`query`, `query_rdflib`, `query_governed`, `query_entailment_governed`,
+`update` and `update_governed`
+accept keyword-only `now: str | None` and `entropy_seed: int | None` on both
+`Store` and `MutableDataset`. The RDFLib-compatible `Graph.query`,
+`Graph.update` and their processors forward the same inputs, including through
+Dataset and context receivers. `now` is a native `xsd:dateTime` lexical
+form, preserving exact fractional seconds, declared timezone and negative
+years without conversion through Python `datetime` or `float`. The seed is
+an unsigned 64-bit Python integer; zero is valid. Omission or `None` requests
+the native clock or entropy default for that execution.
+
+A prepared handle accepts fresh inputs on each call:
+
+```python
+rows = prepared.run(
+    {"person": purrdf.NamedNode("https://example.org/alice")},
+    now="2024-01-02T03:04:05.123456789012345678901+05:30",
+    entropy_seed=0,
+)
+```
+
+Bindings are an explicit dictionary, so parameter names such as `now`,
+`entropy_seed` and `bindings` do not collide with execution options. Each call
+replaces all bindings and both coordinate selections; omitted values never
+reuse a preceding run's settings. Preparing a query samples neither input.
+
+Malformed time raises `ValueError` naming `now`, with `message_id` and
+`presentation` set to `None`. Wrong Python argument types raise `TypeError`;
+negative or overflowing seeds raise `OverflowError`. Coordinate conversion
+precedes snapshot and execution work. Governor trips, partial answers and
+entailment reports retain their existing contracts. These controls do not
+serialize an execution receipt or change the serializer's caller-supplied
+opaque `query_hash`.
+
+UPDATE uses one request-wide entropy stream across its operations and the
+same supplied time in each WHERE clause. Repeating an identical request on
+identical starting data with the same coordinates repeats its generated values.
+A governed trip still applies nothing. Malformed coordinates fail before any
+snapshot, provider execution or mutation; existing engine-configuration errors
+retain their precedence. RDFLib first performs its nonmutating namespace and
+`initBindings` string preprocessing, then forwards coordinates for native
+decoding. Successful updates retain the existing literal reconciliation.
 
 ## Governors and incomplete answers
 
@@ -379,13 +424,32 @@ validation does not redefine that checkpoint.
 
 `shapes.entail` applies a shapes graph's default rule set and returns base plus
 inferred triples. It differs from `purrdf.entail.materialize`, which uses a
-regime's rule table without a shapes graph. `shapes.apply_rules` runs an SRL
+regime's rule table without a shapes graph. `shapes.apply_rules` runs a shapes graph or SRL
 document and returns only the inference graph, with proof text when
 `explain=True`. `check_rules` admits a rule set at the selected checking level:
 `level` accepts `syntax`, `well-formed` or `stratified`; omission selects
 `stratified`. It reports declarations, imports, versions and strata. Stored-fact, join-step,
 generated-term and generating-round controls are explicit keyword arguments;
 exhaustion raises a limit-specific `ValueError`.
+
+`shapes.entail` and `shapes.apply_rules` accept keyword-only `now` and
+`entropy_seed`, including the SHACL and SRL rule sources and the `shacl` aliases.
+They use the same exact `xsd:dateTime` strings and unsigned 64-bit integers as
+query and UPDATE execution. Both inputs are independently optional; zero is a
+valid seed. A supplied time reaches every rule query without losing fractional
+seconds, timezone or negative years. The seed selects a reproducible sequence
+for the rule execution's queries. Repeating identical input documents and
+coordinates repeats the inferred output.
+
+These controls work with the default or an explicitly selected `xpath_regex`
+law. Coordinate decoding follows XPath selection and precedes document/import
+parsing and detached execution. Malformed time raises `ValueError` naming `now`,
+wrong Python types raise `TypeError`, and negative or overflowing seeds raise
+`OverflowError`. The four rule limits and their diagnostic keyword names remain
+in force. Imports, shapes-graph selection, proof output and mandatory diagnostics
+retain their existing contracts. Static `check_rules` refuses these execution
+keywords. These controls do not add execution receipts or extend shape validation,
+node expressions or the separate `purrdf.entail` regime API.
 
 `eval_node_expr` selects exactly one expression: a named IRI/blank label,
 a unique walk from `expr_at` through `expr_via`, or a one-root inline
