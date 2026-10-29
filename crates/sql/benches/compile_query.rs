@@ -22,11 +22,10 @@
 use purrdf_sql::compile_turtle;
 use purrdf_testkit::bench::{Bench, BenchmarkId, Throughput, bench_group, bench_main, black_box};
 
-/// Projection widths exercised: 64 columns (~133 triples) keeps the per-column
-/// admission cost visible; 240 columns (~485 triples) is the ~500-triple class
-/// the OPT bench-goal named. Both stay inside every SHACL envelope (the shapes
-/// cap per-property counts, not list length).
-const COLUMNS: [usize; 2] = [64, 240];
+/// Projection widths exercised: 16 columns keeps the per-column
+/// admission cost visible; 64 columns is the maximum list length
+/// permitted under the SQL projection recursion limit (64 items).
+const COLUMNS: [usize; 2] = [16, 64];
 
 /// The admitted statement graph for `columns` projections over one table, with
 /// one integer WHERE literal. Byte-documented provenance: derived from the
