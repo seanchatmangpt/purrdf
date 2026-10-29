@@ -553,7 +553,7 @@ mod tests {
         let mut res = 0u64;
         for b in 0..64 {
             let bit = (x >> b) & 1;
-            res |= bit & (!found) as u64;
+            res |= (bit & (!found) as u64) << b;
             found |= bit != 0;
         }
         res

@@ -4775,26 +4775,10 @@ fn validate_zero_padding_usize(
     end: usize,
 ) -> Result<(), EmbeddingError> {
     let padding = bytes.get(start..end).ok_or(EmbeddingError::Truncated)?;
-    // Wired per OPT-52 (docs/jira/v26.10.26/optimization/OPT-52-*.md).
-    // DIVERGENCE from bcinr (2x): (1) head-free `as_chunks::<8>` layout —
-    // whole words first, byte loop only over the <8-byte tail;
-    // `u64::from_le_bytes` copies so the scan stays unaligned-safe.
-    // (2) The sanctioned kernel `find_byte_in_word(word, 0)` (bcinr
-    // swar_str.rs:112-117, Mycroft `(x - ONES) & !x & HIGHS` zero-detect) is
-    // borrow-INEXACT: it false-flags a `0x01` byte whose lower lanes are all
-    // zero (exhaustive 2-lane witness `0x0100`; would over-refuse valid
-    // padding and corrupt the offset). The scan therefore uses the exact
-    // SWAR nonzero-lane test — high bit set iff the lane byte is nonzero:
-    // `((w & SEVENS) + SEVENS | w) & HIGHS` (no cross-lane borrow: each lane
-    // of `(w & SEVENS) + SEVENS` is <= 0xFE). Relocating this as a named
-    // kernel in `purrdf_branchless::swar` is the coordinator's call; until
-    // then it lives here behind this single call site.
-    const SEVENS: u64 = 0x7F7F_7F7F_7F7F_7F7F;
-    const HIGHS: u64 = 0x8080_8080_8080_8080;
     let (words, tail) = padding.as_chunks::<8>();
     for (word_index, word) in words.iter().enumerate() {
         let loaded = u64::from_le_bytes(*word);
-        let nonzero_lanes = ((loaded & SEVENS).wrapping_add(SEVENS) | loaded) & HIGHS;
+        let nonzero_lanes = purrdf_branchless::swar::nonzero_byte_mask_word(loaded);
         if nonzero_lanes != 0 {
             let lane = nonzero_lanes.trailing_zeros() / 8;
             return Err(EmbeddingError::InvalidPadding {

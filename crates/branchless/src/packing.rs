@@ -489,27 +489,22 @@ pub const fn hilbert_encode_2d(x: u32, y: u32, level: u8) -> u64 {
 pub const fn hilbert_decode_2d(d: u64, level: u8) -> (u32, u32) {
     let level = crate::select::min_u32((level) as u32, 30);
     let n = 1u64 << level;
-    // Align the top digit of the level-digit stream to bits 63..62.
-    // wrapping_shl masks the shift: level == 0 → shift 64 → 0, which is
-    // harmless because every step is gated inactive at level 0.
-    let mut t = d.wrapping_shl(64u32.wrapping_sub(2 * (level) as u32));
+    let mut t = d;
     let mut x = 0u64;
     let mut y = 0u64;
-    let mut step = 32u32;
-    while step > 0 {
-        let s = 1u64 << (step - 1);
-        step -= 1;
-        let active = 0u64.wrapping_sub((s < n) as u64);
-        let rx = t >> 63;
-        let ry = ((t >> 62) & 1) ^ rx;
-        t = t.wrapping_shl(2);
-        let ry0 = ry.wrapping_sub(1);
-        let reflect = ry0 & 0u64.wrapping_sub(rx) & active;
-        let swap = ry0 & active;
+    let mut s = 1u64;
+    while s < n {
+        let rx = (t >> 1) & 1;
+        let ry = (t ^ rx) & 1;
+        let ry0 = ry.wrapping_sub(1); // all-ones iff ry == 0
+        let reflect = ry0 & 0u64.wrapping_sub(rx);
+        let swap = ry0;
         let nx = (s.wrapping_sub(1).wrapping_sub(x) & reflect) | (x & !reflect);
         let ny = (s.wrapping_sub(1).wrapping_sub(y) & reflect) | (y & !reflect);
-        x = ((ny & swap) | (nx & !swap)).wrapping_add(s.wrapping_mul(rx) & active);
-        y = ((nx & swap) | (ny & !swap)).wrapping_add(s.wrapping_mul(ry) & active);
+        x = ((ny & swap) | (nx & !swap)).wrapping_add(s.wrapping_mul(rx));
+        y = ((nx & swap) | (ny & !swap)).wrapping_add(s.wrapping_mul(ry));
+        t >>= 2;
+        s <<= 1;
     }
     (x as u32, y as u32)
 }
@@ -876,7 +871,7 @@ mod tests {
     #[test]
     fn morton_3d_matches_bit_oracle_and_roundtrips() {
         for x in [0u32, 1, 0x1F_FFFF, 0x15_5555, 0x0010_0000] {
-            for y in [0u32, 1, 0x1F_FFFF, 0x2A_2A2A] {
+            for y in [0u32, 1, 0x1F_FFFF, 0x0A_2A2A] {
                 for z in [0u32, 1, 0x1F_FFFF, 0x3] {
                     assert_eq!(morton_spread_3d(x), morton_spread_3d_ref(x));
                     let m = morton_encode_3d(x, y, z);

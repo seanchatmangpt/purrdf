@@ -493,8 +493,12 @@ mod tests {
     fn assert_queue_matches_oracle(q: &FixedTopK8, o: &TopKOracle) {
         assert_eq!(q.len(), o.live.len(), "cardinality");
         assert_eq!(q.is_empty(), o.live.is_empty(), "is_empty");
-        // full data image: the oracle's 8 smallest priorities in order
-        assert_eq!(&q.data[..], &o.image()[..], "full data image");
+        // full data image: the oracle's 8 smallest priorities in order, padded with u32::MAX
+        let mut expected = [u32::MAX; 8];
+        for (slot, &val) in expected.iter_mut().zip(o.image().iter()) {
+            *slot = val;
+        }
+        assert_eq!(q.data, expected, "full data image");
     }
 
     #[test]

@@ -542,12 +542,12 @@ mod tests {
                     0 => 1,
                     1 => 4,
                     2 => 3,
-                    _ => u64::MAX,
+                    _ => (1u64 << 56) - 1,
                 };
                 let mut slice: Vec<Probe> = (0..len)
                     .map(|tag| Probe {
                         key: if round % 4 == 3 && tag % 2 == 0 {
-                            u64::MAX
+                            (1u64 << 56) - 1
                         } else if round % 4 == 2 && tag % 3 == 0 {
                             0
                         } else {

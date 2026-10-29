@@ -742,7 +742,6 @@ mod tests {
     #[test]
     fn first_nonfinite_index_differential() {
         extern crate std;
-        use std::vec;
         use std::vec::Vec;
 
         let bits = f64::to_bits;
@@ -796,7 +795,6 @@ mod tests {
     #[test]
     fn first_nonfinite_slice_helpers_differential() {
         extern crate std;
-        use std::vec;
         use std::vec::Vec;
 
         let mut f32_corpora: Vec<Vec<f32>> = std::vec![

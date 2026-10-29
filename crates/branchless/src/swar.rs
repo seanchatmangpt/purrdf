@@ -43,6 +43,16 @@ pub fn byte_lane_in_range(word: u64, lo: u8, hi: u8) -> u64 {
     ge_lo & !over & msb_clear
 }
 
+/// Mask with `0x80` set in every byte lane where `word` is nonzero.
+///
+/// Exact borrow-free SWAR test: each lane of `(w & LO7) + LO7` is `<= 0xFE`,
+/// so no cross-lane borrow or carry can occur.
+#[inline]
+#[must_use]
+pub const fn nonzero_byte_mask_word(word: u64) -> u64 {
+    ((word & LO7).wrapping_add(LO7) | word) & HIGHS
+}
+
 /// Mask with `0x80` set in every byte lane where `word` holds `byte`.
 ///
 /// from bcinr swar_str.rs:112-117 (`find_byte_in_word`); `const` added so
@@ -610,7 +620,7 @@ pub const fn prefix_max_u32x16(arr: [u32; 16]) -> [u32; 16] {
     while i < 16 {
         let prev = out[i - 1];
         let cur = out[i];
-        out[i] = cur ^ ((prev ^ cur) & ((prev < cur) as u32).wrapping_neg());
+        out[i] = cur ^ ((prev ^ cur) & ((prev > cur) as u32).wrapping_neg());
         i += 1;
     }
     out

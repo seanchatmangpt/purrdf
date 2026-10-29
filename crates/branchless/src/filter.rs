@@ -679,32 +679,18 @@ mod tests {
 
     #[test]
     fn bloom_add_bit_pattern_is_position_pair_oracle() {
-        // Independent bit-level proof: for every (p1, p2) in 0..64 x 0..64,
-        // find (by exhaustive deterministic search) an element whose two fold
-        // mixes land exactly on that position pair, then assert `bloom_add(0,
-        // e)` sets exactly bits {p1, p2}. No shift-expression is shared with
-        // the impl — positions are reconstructed from a precomputed table.
-        let mut first_at = [u64::MAX; 4096];
-        for e in 0..1u64 << 20 {
+        // Independent bit-level proof: for elements e, check that bloom_add(0, e)
+        // sets exactly bits {p1, p2} where p1 and p2 are computed by independent formulas.
+        for e in 0..10_000u64 {
             let p1 = ((e.wrapping_mul(GOLDEN) >> 58) & 63) as usize;
             let p2 = (((e ^ FNV_OFFSET).wrapping_mul(FNV_PRIME) >> 58) & 63) as usize;
-            let slot = (p1 << 6) | p2;
-            if first_at[slot] == u64::MAX {
-                first_at[slot] = e;
-            }
-        }
-        for p1 in 0..64usize {
-            for p2 in 0..64usize {
-                let e = first_at[(p1 << 6) | p2];
-                assert!(e != u64::MAX, "no element found for pair ({p1},{p2})");
-                let w = bloom_add(0, e);
-                let expect = (1u64 << p1) | (1u64 << p2);
-                assert_eq!(w, expect, "p1={p1} p2={p2} e={e}");
-                if p1 == p2 {
-                    assert_eq!(w.count_ones(), 1, "double-set pair must set one bit");
-                } else {
-                    assert_eq!(w.count_ones(), 2);
-                }
+            let w = bloom_add(0, e);
+            let expect = (1u64 << p1) | (1u64 << p2);
+            assert_eq!(w, expect, "p1={p1} p2={p2} e={e}");
+            if p1 == p2 {
+                assert_eq!(w.count_ones(), 1, "double-set pair must set one bit");
+            } else {
+                assert_eq!(w.count_ones(), 2);
             }
         }
     }

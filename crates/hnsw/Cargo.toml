@@ -13,6 +13,7 @@ keywords = ["hnsw", "ann", "vector", "search", "deterministic"]
 categories = ["algorithms", "data-structures"]
 
 [dependencies]
+purrdf-branchless = { workspace = true }
 purrdf-core = { workspace = true }
 purrdf-sparql-eval = { workspace = true }
 # The XSD value space, for the relation's canonical `xsd:double` distances and its

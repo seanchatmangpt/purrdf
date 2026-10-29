@@ -134,15 +134,24 @@ pub fn first_equal_lane_u64x8(lanes: &[u64], target: u64) -> Option<usize> {
     // Unrolled 8-lane equality: straight-line mask arithmetic, no control
     // flow. Missing lanes (len < 8) read as zero padding — see the padding
     // contract above; lanes past index 7 are ignored.
+    let l0 = lanes.first().copied().unwrap_or(0);
+    let l1 = lanes.get(1).copied().unwrap_or(0);
+    let l2 = lanes.get(2).copied().unwrap_or(0);
+    let l3 = lanes.get(3).copied().unwrap_or(0);
+    let l4 = lanes.get(4).copied().unwrap_or(0);
+    let l5 = lanes.get(5).copied().unwrap_or(0);
+    let l6 = lanes.get(6).copied().unwrap_or(0);
+    let l7 = lanes.get(7).copied().unwrap_or(0);
+
     let mut hits = 0u64;
-    hits |= ((lanes.get(0).copied() == Some(target)) as u64).wrapping_neg();
-    hits |= ((lanes.get(1).copied() == Some(target)) as u64).wrapping_neg();
-    hits |= ((lanes.get(2).copied() == Some(target)) as u64).wrapping_neg();
-    hits |= ((lanes.get(3).copied() == Some(target)) as u64).wrapping_neg();
-    hits |= ((lanes.get(4).copied() == Some(target)) as u64).wrapping_neg();
-    hits |= ((lanes.get(5).copied() == Some(target)) as u64).wrapping_neg();
-    hits |= ((lanes.get(6).copied() == Some(target)) as u64).wrapping_neg();
-    hits |= ((lanes.get(7).copied() == Some(target)) as u64).wrapping_neg();
+    hits |= ((l0 == target) as u64) << 0;
+    hits |= ((l1 == target) as u64) << 1;
+    hits |= ((l2 == target) as u64) << 2;
+    hits |= ((l3 == target) as u64) << 3;
+    hits |= ((l4 == target) as u64) << 4;
+    hits |= ((l5 == target) as u64) << 5;
+    hits |= ((l6 == target) as u64) << 6;
+    hits |= ((l7 == target) as u64) << 7;
     // Miss (hits == 0) => trailing_zeros() == 64, which `usize::try_from`
     // would happily accept as Some(64) even on 32-bit targets — bound the
     // result to the 8-lane domain so a miss is `None` on every width.

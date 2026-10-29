@@ -126,13 +126,9 @@ impl Vectors {
     /// Healthy inputs perform no additional value capture.
     fn first_non_finite(&self) -> Option<(usize, ComponentValue)> {
         match self {
-            Self::F32(data) => data
-                .iter()
-                .position(|value| !value.is_finite())
+            Self::F32(data) => purrdf_branchless::simd_fallback::first_nonfinite_f32(data)
                 .map(|index| (index, ComponentValue::Binary32Bits(data[index].to_bits()))),
-            Self::F64(data) => data
-                .iter()
-                .position(|value| !value.is_finite())
+            Self::F64(data) => purrdf_branchless::simd_fallback::first_nonfinite_f64(data)
                 .map(|index| (index, ComponentValue::Binary64Bits(data[index].to_bits()))),
         }
     }

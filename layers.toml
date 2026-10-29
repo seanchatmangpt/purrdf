@@ -264,6 +264,7 @@ deps = [
 [[crate]]
 name = "purrdf-hnsw"
 deps = [
+    "purrdf-branchless",
     "purrdf-core",
     "purrdf-hash",
     "purrdf-lex",
@@ -391,6 +392,7 @@ deps = [
     "purrdf-hash",
     "purrdf-rdf",
     "purrdf-sql",
+    "purrdf-xsd",
 ]
 
 [[crate]]
