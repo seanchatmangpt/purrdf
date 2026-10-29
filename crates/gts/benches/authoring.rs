@@ -665,7 +665,7 @@ fn bench_reader_decryption(c: &mut Bench) {
     for (index, length) in [256, 65536, 1_048_576].into_iter().enumerate() {
         let plaintext = deterministic_payload(length);
         let iv = [u8::try_from(index).unwrap(); 12];
-        let envelope = encrypt0(&plaintext, "reader-benchmark", &key, &iv);
+        let envelope = encrypt0(&plaintext, b"reader-benchmark", &key, &iv);
         let mut writer = Writer::new("generic");
         writer
             .add_frame_with_options(

@@ -441,7 +441,7 @@ fn dependency_closure_refuses_unknown_seed() {
     ));
 
     // The refusal is per-seed and names the seed.
-    let mixed = vec![a_iri.clone(), unknown];
+    let mixed = vec![a_iri.clone(), unknown.clone()];
     let err = dependency_closure(&catalog, &edges, &mixed)
         .expect_err("a mixed seed list with one unknown seed must be refused");
     match err {
