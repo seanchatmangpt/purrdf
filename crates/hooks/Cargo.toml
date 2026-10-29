@@ -16,5 +16,13 @@ purrdf-duckdb = { path = "../duckdb", version = "3.0.1" }
 blake3 = "1.5"
 thiserror = "2.0"
 
+[dev-dependencies]
+cucumber = { version = "0.21", features = ["macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+[[test]]
+name = "cucumber_hooks"
+harness = false
+
 [lints]
 workspace = true
