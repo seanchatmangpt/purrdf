@@ -123,7 +123,7 @@ purrdf-sparql-algebra = { path = "crates/sparql-algebra", version = "3.0.1" }
 purrdf-sparql-eval = { path = "crates/sparql-eval", version = "3.0.1" }
 purrdf-sparql-results = { path = "crates/sparql-results", version = "3.0.1" }
 purrdf-sql = { path = "crates/sql", version = "3.0.1" }
-frozen-duckdb = { version = "2.0.2" }
+frozen-duckdb = { version = "2.0.3" }
 # DEV-ONLY test support (`publish = false`): goldens, temporary paths under the
 # target directory, frozen differential vectors and the `harness = false`
 # runner. PATH-ONLY with NO `version`, for the reason given for
@@ -375,7 +375,7 @@ opt-level = 3
 # path patch keeps bench/dev builds on the same sources that
 # ~/.frozen-duckdb/cache (prebuilt mega-libs) was produced from — no repaying
 # the crates.io resolve or re-downloading the DuckDB binary per target dir.
-# Version-matched (2.0.2 == 2.0.2); publishing purrdf is unaffected (patches
+# Version-matched (2.0.3 == 2.0.3); publishing purrdf is unaffected (patches
 # are workspace-local and ignored by crates.io).
 [patch.crates-io]
 frozen-duckdb = { path = "/Users/sac/frozen-duckdb/crates/frozen-duckdb" }
