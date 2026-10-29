@@ -6,7 +6,14 @@
 //! ABI suite — they call the exact C entry points with C-shaped inputs and
 //! assert on status codes, out-params, and free ordering.
 
+use purrdf::buffer;
+#[path = "support/receipt.rs"]
+mod receipt;
+
 use std::ffi::CString;
+
+#[path = "abi/rule_coordinates.rs"]
+mod rule_coordinates;
 
 use sha2::{Digest, Sha256};
 
@@ -174,7 +181,7 @@ fn abi_version_is_the_current_minor() {
     // from the previous, differently-shaped one. `tests/abi_signatures.rs` holds the
     // exact prototype list this triple describes, so *which* signature moved is
     // reported there rather than as an opaque digest mismatch.
-    assert_eq!((version.major, version.minor, version.patch), (0, 12, 0));
+    assert_eq!((version.major, version.minor, version.patch), (0, 16, 0));
 }
 
 /// Every place this crate SPELLS the ABI version in prose agrees with the constants.
@@ -1528,10 +1535,14 @@ unsafe fn run_select(dataset: *const PurrdfDataset, query: &str) -> *mut PurrdfR
         let mut graph: *mut PurrdfDataset = std::ptr::null_mut();
         let mut boolean: u8 = 0;
         let mut error: *mut PurrdfError = std::ptr::null_mut();
+        let mut receipt = receipt::Output::default();
         let status = purrdf_query(
             dataset,
             cq.as_ptr(),
             std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            &raw mut receipt.0,
             &raw mut kind,
             &raw mut rows,
             &raw mut graph,
@@ -1540,6 +1551,11 @@ unsafe fn run_select(dataset: *const PurrdfDataset, query: &str) -> *mut PurrdfR
         );
         assert_eq!(status, PurrdfStatus::Ok as i32);
         assert!(error.is_null());
+        assert!(
+            String::from_utf8(buffer_bytes(receipt.0))
+                .unwrap()
+                .contains("\"state\":\"started\"")
+        );
         assert_eq!(kind, 0, "expected a SELECT (Solutions) result");
         rows
     }
@@ -1725,6 +1741,9 @@ fn ask_returns_boolean() {
             dataset,
             cq.as_ptr(),
             std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            &mut receipt::Output::default().0,
             &raw mut kind,
             &raw mut rows,
             &raw mut graph,
@@ -1752,6 +1771,9 @@ fn construct_returns_graph() {
             dataset,
             cq.as_ptr(),
             std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            &mut receipt::Output::default().0,
             &raw mut kind,
             &raw mut rows,
             &raw mut graph,
@@ -1789,6 +1811,9 @@ fn construct_graph_result_keeps_its_graph_name() {
             dataset,
             cq.as_ptr(),
             std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            &mut receipt::Output::default().0,
             &raw mut kind,
             &raw mut rows,
             &raw mut graph,
@@ -1854,6 +1879,9 @@ fn describe_graph_result_keeps_its_graph_name_on_every_layer() {
             dataset,
             cq.as_ptr(),
             std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            &mut receipt::Output::default().0,
             &raw mut kind,
             &raw mut rows,
             &raw mut graph,
@@ -2070,6 +2098,9 @@ fn query_json_has_sparql_results_shape() {
             std::ptr::null(),
             std::ptr::null(),
             std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            &mut receipt::Output::default().0,
             &raw mut buffer,
             &raw mut error,
         );
@@ -2118,6 +2149,9 @@ fn query_json_construct_into_a_named_graph_keeps_the_graph() {
                 dataset,
                 cq.as_ptr(),
                 std::ptr::null(),
+                std::ptr::null(),
+                std::ptr::null(),
+                &mut receipt::Output::default().0,
                 &raw mut kind,
                 &raw mut rows,
                 &raw mut graph,
@@ -2168,6 +2202,9 @@ fn query_json_construct_into_a_named_graph_keeps_the_graph() {
                 std::ptr::null(),
                 std::ptr::null(),
                 std::ptr::null(),
+                std::ptr::null(),
+                std::ptr::null(),
+                &mut receipt::Output::default().0,
                 &raw mut buffer,
                 &raw mut error,
             ),
@@ -2223,6 +2260,9 @@ fn query_json_describe_over_trig_keeps_every_layers_graph() {
                 std::ptr::null(),
                 std::ptr::null(),
                 std::ptr::null(),
+                std::ptr::null(),
+                std::ptr::null(),
+                &mut receipt::Output::default().0,
                 &raw mut buffer,
                 &raw mut error,
             ),
@@ -2267,6 +2307,9 @@ fn query_json_provenance_namespace_populates_and_round_trips() {
             std::ptr::null(),
             prefix.as_ptr(),
             iri.as_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            &mut receipt::Output::default().0,
             &raw mut buffer,
             &raw mut error,
         );
@@ -2306,6 +2349,9 @@ fn query_json_lone_provenance_half_is_refused() {
             std::ptr::null(),
             prefix.as_ptr(),
             std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            &mut receipt::Output::default().0,
             &raw mut buffer,
             &raw mut error,
         );
@@ -2806,6 +2852,9 @@ unsafe fn sha3_row_over_the_c_abi(spelling: impl Fn(&str) -> String) -> purrdf_l
             std::ptr::null(),
             std::ptr::null(),
             std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            &mut receipt::Output::default().0,
             &raw mut buffer,
             &raw mut error,
         );
@@ -2877,6 +2926,9 @@ fn a_spaced_sha3_hyphen_is_an_error_over_the_c_abi() {
             std::ptr::null(),
             std::ptr::null(),
             std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            &mut receipt::Output::default().0,
             &raw mut buffer,
             &raw mut error,
         );
@@ -3038,6 +3090,9 @@ fn query_parse_refusals_carry_typed_presentations() {
                 dataset,
                 cq.as_ptr(),
                 std::ptr::null(),
+                std::ptr::null(),
+                std::ptr::null(),
+                &mut receipt::Output::default().0,
                 &raw mut kind,
                 &raw mut rows,
                 &raw mut graph,
@@ -3127,6 +3182,9 @@ fn governed_update_parse_refusals_carry_typed_presentations() {
                 std::ptr::null(),
                 purrdf::graph::PURRDF_GRAPH_EXISTENCE_IMPLICIT,
                 &raw const governors,
+                std::ptr::null(),
+                std::ptr::null(),
+                &mut receipt::Output::default().0,
                 &raw mut outcome,
                 evidence.as_mut_ptr(),
                 &raw mut error,
@@ -3294,6 +3352,9 @@ unsafe fn governed_update_in(
                 c"xpath-3.1-2017-03-21".as_ptr(),
                 graph_existence,
                 &raw const governors,
+                std::ptr::null(),
+                std::ptr::null(),
+                &mut receipt::Output::default().0,
                 &raw mut outcome,
                 &raw mut evidence,
                 &raw mut error,
@@ -3307,6 +3368,9 @@ unsafe fn governed_update_in(
                 c"xpath-3.1-2017-03-21".as_ptr(),
                 graph_existence,
                 &raw const governors,
+                std::ptr::null(),
+                std::ptr::null(),
+                &mut receipt::Output::default().0,
                 &raw mut outcome,
                 &raw mut evidence,
                 &raw mut error,
@@ -3319,6 +3383,9 @@ unsafe fn governed_update_in(
                 std::ptr::null(),
                 graph_existence,
                 &raw const governors,
+                std::ptr::null(),
+                std::ptr::null(),
+                &mut receipt::Output::default().0,
                 &raw mut outcome,
                 &raw mut evidence,
                 &raw mut error,

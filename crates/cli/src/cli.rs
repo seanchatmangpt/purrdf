@@ -727,11 +727,27 @@ pub(crate) enum Command {
         /// Omitted, exact when terminating or eighteen digits rounded half to even.
         #[arg(long, value_name = "POLICY", value_parser = crate::query::parse_division)]
         division: Option<purrdf_sparql_eval::DivisionPolicy>,
+        /// Supply the exact `xsd:dateTime` returned by NOW(), including its fraction
+        /// and timezone. Omitted, execution samples the host clock.
+        #[arg(long, value_name = "XSD_DATE_TIME", allow_hyphen_values = true)]
+        now: Option<String>,
+        /// Supply the unsigned 64-bit seed for RAND(), UUID() and STRUUID().
+        /// Zero is valid. Omitted, execution samples host entropy.
+        #[arg(long, value_name = "U64", allow_hyphen_values = true)]
+        entropy_seed: Option<String>,
         /// The SPARQL query text.
         query: String,
     },
     /// Apply a SPARQL UPDATE and serialize the resulting RDF dataset.
     Update {
+        /// Exact supplied `xsd:dateTime` for every WHERE operation's `NOW()`.
+        /// Omitted, native host-clock behavior is unchanged.
+        #[arg(long, value_name = "XSD_DATE_TIME", allow_hyphen_values = true)]
+        now: Option<String>,
+        /// Initial seed for one random stream across this UPDATE request.
+        /// Zero is a supplied seed; omitted, native entropy behavior is unchanged.
+        #[arg(long, value_name = "U64", allow_hyphen_values = true)]
+        entropy_seed: Option<String>,
         /// Input dataset path; format is inferred from its extension unless `--from` is set.
         #[arg(long)]
         data: String,
@@ -1559,7 +1575,7 @@ pub(crate) enum Command {
     /// The output is the inferred triples alone — SHACL 1.2 Inference Rules' "inferred
     /// triples", SPARQL 1.2 RL's "graph GI of inferred triples" — never the data graph they
     /// were inferred from, serialized in the `--to` syntax in one canonical order, so two
-    /// runs over the same inputs write identical bytes. Both frontends lower to the one
+    /// runs with the same supplied coordinates and inputs write identical bytes. Both frontends lower to the one
     /// rules engine every PurRDF host reaches (`purrdf_shapes::infer`,
     /// `purrdf_shapes::srl::infer`).
     ///
@@ -1581,6 +1597,24 @@ pub(crate) enum Command {
     /// (naming the stage), and **2** for a usage error or an `--import` pair the closure
     /// never reaches, exactly as a run would.
     Rules {
+        /// Exact caller-supplied `xsd:dateTime` for every rule query's `NOW()`.
+        /// Omitted, the native host-clock behavior is unchanged.
+        #[arg(
+            long,
+            value_name = "XSD_DATE_TIME",
+            allow_hyphen_values = true,
+            conflicts_with = "check"
+        )]
+        now: Option<String>,
+        /// Initial unsigned seed for the rule execution's query-seed sequence.
+        /// Zero is a supplied seed; omitted, native entropy behavior is unchanged.
+        #[arg(
+            long,
+            value_name = "U64",
+            allow_hyphen_values = true,
+            conflicts_with = "check"
+        )]
+        entropy_seed: Option<String>,
         /// The SHACL shapes graph `FILE` whose rules run (its default rule set), or `-` for
         /// stdin (which requires `--shapes-from`). Exactly one of this and `--srl` is
         /// required: a shapes graph and a SPARQL 1.2 RL rule set are two rule sets, and

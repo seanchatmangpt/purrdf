@@ -338,25 +338,19 @@ impl Request {
         prepared: &crate::engine::PreparedShapes,
     ) -> Result<Option<Self>, crate::report::CompleteValidationError> {
         let options = &prepared.shapes().validation_options;
-        // Precedence: an explicitly supplied `options.xpath_regex` selection wins
-        // over the thread-local native configuration (resolve_xpath preserves
-        // every supplied limit verbatim); with no caller override, the
-        // thread-local native limits are preferred over `Limits::default()`.
-        let selection = if let Some((profile, limits)) = options.xpath_regex {
-            options
-                .shacl_profile
-                .resolve_xpath(Some((profile, limits)))
-                .map_err(crate::report::CompleteValidationError::XPathProfile)?
-        } else if let Some(native) = crate::xpath::current() {
+        let requested = options
+            .shacl_profile
+            .resolve_xpath(options.xpath_regex)
+            .map_err(crate::report::CompleteValidationError::XPathProfile)?;
+        let selection = if requested.is_some()
+            && let Some(native) = crate::xpath::current()
+        {
             options
                 .shacl_profile
                 .resolve_xpath(Some((native.profile, native.limits)))
                 .map_err(crate::report::CompleteValidationError::XPathProfile)?
         } else {
-            options
-                .shacl_profile
-                .resolve_xpath(None)
-                .map_err(crate::report::CompleteValidationError::XPathProfile)?
+            requested
         };
         if options.shacl_profile == ShaclProfile::LEGACY && selection.is_none() {
             return Ok(None);
@@ -398,7 +392,10 @@ impl Request {
             if let Some(state) = crate::sparql::current_governors()
                 && let Some(error) = crate::report::CompleteValidationError::resource(&state)
             {
-                return Err(error);
+                return Err(match outcome {
+                    Err(original) => error.with_rule_coordinates(original),
+                    Ok(_) => error,
+                });
             }
             let failure = scope
                 .runtime
@@ -406,10 +403,11 @@ impl Request {
                 .and_then(|runtime| runtime.take_failure());
             match outcome {
                 Ok(value) => failure.map_or(Ok(value), |failure| Err(failure.into_public())),
-                // A concurrently captured runtime failure always surfaces: when the
-                // operation failed, the failure replaces (Execution/Shapes) or now also
-                // joins (all other variants) the error instead of being discarded.
-                Err(error) => Err(failure.map_or(error, crate::report::ReportFailure::into_public)),
+                Err(error) if error.is_generic_execution() => Err(match failure {
+                    Some(failure) => failure.into_public().with_rule_coordinates(error),
+                    None => error,
+                }),
+                Err(error) => Err(error),
             }
         };
         match &self.native {

@@ -129,7 +129,7 @@ export type XPathRegexLaw = "xpath-2.0-2010-12-14" | "xpath-3.1-2017-03-21";
  */
 export type ShaclLaw = "shacl-rec-2017-07-20" | "shacl-wd-2026-09-18" | "shacl-ed-2026-10-16";
 
-export interface QueryOptions {
+interface EvaluationOptions {
   readonly base?: string | null;
   /**
    * The dated native XPath law `REGEX` and `REPLACE` evaluate under, by its stable name.
@@ -142,6 +142,11 @@ export interface QueryOptions {
    */
   readonly xpathRegex?: XPathRegexLaw | null;
 }
+
+export interface QueryOptions extends EvaluationOptions, QueryCoordinateOptions {}
+
+/** Exact execution coordinates apply to the complete UPDATE request. */
+export interface UpdateOptions extends EvaluationOptions, QueryCoordinateOptions {}
 
 /**
  * Anchors the additive `purrdf` provenance extension on a SELECT/ASK result
@@ -184,6 +189,9 @@ export interface GovernedQueryOptions
   extends QueryOptions,
     GovernorOptions,
     AggregateNamespaceOption {}
+
+export interface GovernedUpdateOptions
+  extends UpdateOptions, GovernorOptions, AggregateNamespaceOption {}
 
 export interface EntailmentQueryOptions extends GovernedQueryOptions {
   /** RIF-in-XML program for the `rif` regime; invalid on every fixed regime. */
@@ -345,7 +353,21 @@ export interface PartialAnswers {
  * throwing it would discard the rows the budget already paid for and tell the caller the
  * engine misbehaved.
  */
+/** Actual execution coordinates; decimal seed strings retain every unsigned bit. */
+export type ExecutionReceipt =
+  | { readonly state: "not-started" }
+  | {
+      readonly state: "started";
+      readonly now: string;
+      readonly entropySeed: string;
+      readonly suppliedNow: boolean;
+      readonly suppliedEntropySeed: boolean;
+      readonly executionIdentity: string | null;
+      readonly snapshotIdentity: string | null;
+    };
+
 export interface QueryOutcome {
+  readonly executionReceipt: ExecutionReceipt;
   readonly isComplete: boolean;
   /** The COMPLETE result. Absent when a governor stopped the execution. */
   readonly result?: QueryResult;
@@ -375,6 +397,7 @@ export interface EntailmentQueryOutcome {
  * `isApplied === false` means NOTHING applied, never "not all of it applied".
  */
 export interface UpdateOutcome {
+  readonly executionReceipt: ExecutionReceipt;
   readonly isApplied: boolean;
   readonly tripped?: TrippedGovernor;
   readonly evidence: GovernorEvidence;
@@ -410,6 +433,7 @@ export interface QueryBindingRows extends IterableIterator<QueryBindingRow> {
 }
 
 export interface SelectResult {
+  readonly executionReceipt?: ExecutionReceipt;
   readonly kind: "select";
   readonly variables: string[];
   readonly rowCount: number;
@@ -419,14 +443,20 @@ export interface SelectResult {
 }
 
 export interface AskResult {
+  readonly executionReceipt?: ExecutionReceipt;
   readonly kind: "ask";
   readonly boolean: boolean;
 }
 
 export interface GraphResult {
+  readonly executionReceipt?: ExecutionReceipt;
   readonly kind: "graph";
   readonly dataset: Dataset;
 }
+
+export interface RawQueryResult { readonly body: string; readonly executionReceipt: ExecutionReceipt; }
+export interface RawQueryBytesResult { readonly body: Uint8Array; readonly executionReceipt: ExecutionReceipt; }
+export interface AppliedUpdateResult { readonly dataset: Dataset; readonly executionReceipt: ExecutionReceipt; }
 
 export type QueryResult = SelectResult | AskResult | GraphResult;
 
@@ -791,14 +821,14 @@ export class Dataset implements Iterable<Quad> {
    * `xpathRegex` selects the dated native XPath law `REGEX`/`REPLACE` evaluate under, as
    * {@link QueryOptions.xpathRegex} does.
    */
-  query(sparql: string, base?: string | null, xpathRegex?: XPathRegexLaw | null): string;
+  query(sparql: string, base?: string | null, xpathRegex?: XPathRegexLaw | null, now?: string | null, entropySeed?: bigint | number | null): RawQueryResult;
   /**
    * The asynchronous twin of `query`: the same document (SPARQL Results JSON for
    * SELECT/ASK, Turtle — TriG for a result carrying a named graph — for
    * CONSTRUCT/DESCRIBE), evaluated as an asynchronous job, so `options` can supply the
    * `SERVICE`/`LOAD` handlers and an `AbortSignal`. Needs JSPI — see `hasAsyncQueries`.
    */
-  queryAsync(sparql: string, options?: AsyncQueryOptions | null): Promise<string>;
+  queryAsync(sparql: string, options?: AsyncQueryOptions | null): Promise<RawQueryResult>;
   /**
    * This dataset's identity: unique within the wasm instance, fixed for its lifetime,
    * never reused.
@@ -1128,11 +1158,11 @@ export class QueryEngine {
   divisionPolicy: string;
   query(dataset: Dataset, sparql: string, options?: QueryOptions | null): QueryResult;
   select(dataset: Dataset, sparql: string, options?: QueryOptions | null): SelectResult;
-  ask(dataset: Dataset, sparql: string, options?: QueryOptions | null): boolean;
-  construct(dataset: Dataset, sparql: string, options?: QueryOptions | null): Dataset;
-  describe(dataset: Dataset, sparql: string, options?: QueryOptions | null): Dataset;
-  update(dataset: Dataset, sparql: string, options?: QueryOptions | null): Dataset;
-  queryRaw(dataset: Dataset, sparql: string, options?: QueryRawOptions | null): string;
+  ask(dataset: Dataset, sparql: string, options?: QueryOptions | null): AskResult;
+  construct(dataset: Dataset, sparql: string, options?: QueryOptions | null): GraphResult;
+  describe(dataset: Dataset, sparql: string, options?: QueryOptions | null): GraphResult;
+  update(dataset: Dataset, sparql: string, options?: UpdateOptions | null): AppliedUpdateResult;
+  queryRaw(dataset: Dataset, sparql: string, options?: QueryRawOptions | null): RawQueryResult;
   /**
    * Run a SPARQL SELECT/ASK query and serialize it to the `canon-arrow` frame, returned
    * as a `Uint8Array` byte-exact — the binary twin of `queryRaw`.
@@ -1199,7 +1229,7 @@ export class QueryEngine {
   updateGoverned(
     dataset: Dataset,
     sparql: string,
-    options?: GovernedQueryOptions | null,
+    options?: GovernedUpdateOptions | null,
   ): UpdateOutcome;
   /**
    * The engine's charge ledger for a query, rendered as text: the join orders it chose,
@@ -1207,7 +1237,7 @@ export class QueryEngine {
    * a budget is sized before it is set — the query runs metered, not bounded, so the
    * numbers are measurements rather than predictions.
    */
-  explainQuery(dataset: Dataset, sparql: string, options?: QueryOptions | null): string;
+  explainQuery(dataset: Dataset, sparql: string, options?: QueryOptions | null): RawQueryResult;
   queryRawConfigured(
     dataset: Dataset,
     sparql: string,
@@ -1215,7 +1245,9 @@ export class QueryEngine {
     format: "jsonld" | "yamlld" | string,
     optionsJson: string,
     xpathRegex?: XPathRegexLaw | null,
-  ): string;
+    now?: string | null,
+    entropySeed?: bigint | number | null,
+  ): RawQueryResult;
   queryRawWithContext(
     dataset: Dataset,
     sparql: string,
@@ -1224,7 +1256,9 @@ export class QueryEngine {
     context: CompiledJsonLdContext,
     yamlSchemaUrl?: string | null,
     xpathRegex?: XPathRegexLaw | null,
-  ): string;
+    now?: string | null,
+    entropySeed?: bigint | number | null,
+  ): RawQueryResult;
 
   // The asynchronous twins. Each runs the operation its synchronous twin runs, over a
   // snapshot of `dataset` taken when the call starts, as a job that suspends on the
@@ -1241,7 +1275,8 @@ export class QueryEngine {
   // (the fixed budget kept under the JavaScript engine's call stack, which V8 sizes the
   // same for a job as for the synchronous lane) are the synchronous twin's refusals word
   // for word; a cancellation through `signal` rejects with
-  // `signal.reason` (an `AbortError` without one); a handler that threw, rejected or
+  // an `AbortError` carrying `signal.reason` as `cause` (`TimeoutError` for a timeout
+  // signal); a handler that threw, rejected or
   // answered something unrecognizable fails its own invocation (`native-sparql-host-fault`
   // or `native-sparql-load-fault` without `SILENT`); a fault — a broken delivery protocol,
   // or frames no stack check guards running outside the job's region or past its base —
@@ -1271,19 +1306,19 @@ export class QueryEngine {
     options?: AsyncQueryOptions | null,
   ): Promise<SelectResult>;
   /** The twin of `ask`. */
-  askAsync(dataset: Dataset, sparql: string, options?: AsyncQueryOptions | null): Promise<boolean>;
+  askAsync(dataset: Dataset, sparql: string, options?: AsyncQueryOptions | null): Promise<AskResult>;
   /** The twin of `construct`. */
   constructAsync(
     dataset: Dataset,
     sparql: string,
     options?: AsyncQueryOptions | null,
-  ): Promise<Dataset>;
+  ): Promise<GraphResult>;
   /** The twin of `describe`. */
   describeAsync(
     dataset: Dataset,
     sparql: string,
     options?: AsyncQueryOptions | null,
-  ): Promise<Dataset>;
+  ): Promise<GraphResult>;
   /**
    * The twin of `queryRaw` — and, with `optionsJson` (which needs `format`), of
    * `queryRawConfigured`.
@@ -1292,13 +1327,13 @@ export class QueryEngine {
     dataset: Dataset,
     sparql: string,
     options?: AsyncQueryRawOptions | null,
-  ): Promise<string>;
+  ): Promise<RawQueryResult>;
   /** `queryRawAsync` delivered as the document's UTF-8 bytes, for a host that sends them on. */
   queryRawBytesAsync(
     dataset: Dataset,
     sparql: string,
     options?: AsyncQueryRawOptions | null,
-  ): Promise<Uint8Array>;
+  ): Promise<RawQueryBytesResult>;
   /** The twin of `queryRawWithContext`. */
   queryRawWithContextAsync(
     dataset: Dataset,
@@ -1306,7 +1341,7 @@ export class QueryEngine {
     format: "jsonld" | "yamlld" | string,
     context: CompiledJsonLdContext,
     options?: AsyncQueryRawWithContextOptions | null,
-  ): Promise<string>;
+  ): Promise<RawQueryResult>;
   /**
    * The twin of `queryGoverned`. `deadlineMs` spans the time spent awaiting the host's
    * handlers as well as evaluation.
@@ -1351,7 +1386,7 @@ export class QueryEngine {
     dataset: Dataset,
     sparql: string,
     options?: AsyncQueryOptions | null,
-  ): Promise<string>;
+  ): Promise<RawQueryResult>;
   /**
    * The twin of `update`: resolves to `dataset` once the update is applied. One
    * asynchronous update of a dataset may be in flight at a time: beginning another while
@@ -1363,7 +1398,7 @@ export class QueryEngine {
     dataset: Dataset,
     sparql: string,
     options?: AsyncUpdateOptions | null,
-  ): Promise<Dataset>;
+  ): Promise<AppliedUpdateResult>;
   /**
    * The twin of `updateGoverned`, claiming and applied as `updateAsync` is. `maxAnswers`
    * is refused, exactly as on `updateGoverned`.
@@ -1371,7 +1406,7 @@ export class QueryEngine {
   updateGovernedAsync(
     dataset: Dataset,
     sparql: string,
-    options?: AsyncGovernedQueryOptions | null,
+    options?: (GovernedUpdateOptions & AsyncHostOptions) | null,
   ): Promise<AsyncUpdateOutcome>;
   free(): void;
 }
@@ -1429,6 +1464,8 @@ export class ServiceCatalog {
  * (`purrdf-wasm-options`, `purrdf-wasm-usage`, …). Switch on `code`, never on `message`.
  */
 export interface PurrdfError extends Error {
+  readonly executionReceipt?: ExecutionReceipt;
+  readonly executionReceiptJson?: string;
   readonly code: string;
   /**
    * Original `purrdf-diagnostic-v1` record for native storage refusal. Its optional
@@ -1762,9 +1799,17 @@ export interface AsyncHostOptions {
   readonly cancel?: never;
 }
 
-export interface AsyncQueryOptions extends QueryOptions, AsyncHostOptions {}
+/** Caller inputs for query, UPDATE or rule execution; omitted fields retain native defaults. */
+export interface QueryCoordinateOptions {
+  /** Exact native xsd:dateTime, including fractional seconds and the declared timezone. */
+  readonly now?: string | null;
+  /** Unsigned 64-bit seed: bigint, or a non-negative safe integral number. Zero is supplied. */
+  readonly entropySeed?: bigint | number | null;
+}
 
-export interface AsyncQueryRawOptions extends QueryRawOptions, AsyncHostOptions {
+export interface AsyncQueryOptions extends QueryOptions, AsyncHostOptions, QueryCoordinateOptions {}
+
+export interface AsyncQueryRawOptions extends QueryRawOptions, AsyncHostOptions, QueryCoordinateOptions {
   /**
    * A `JsonLdSerializeOptions` document (`JSON.stringify` it) configuring a JSON-LD or
    * YAML-LD `format`, as `queryRawConfigured` takes it. Needs `format`; not combinable
@@ -1773,12 +1818,13 @@ export interface AsyncQueryRawOptions extends QueryRawOptions, AsyncHostOptions 
   readonly optionsJson?: string | null;
 }
 
-export interface AsyncQueryRawWithContextOptions extends QueryOptions, AsyncHostOptions {
+export interface AsyncQueryRawWithContextOptions extends QueryOptions, AsyncHostOptions, QueryCoordinateOptions {
   readonly yamlSchemaUrl?: string | null;
 }
 
 export interface AsyncGovernedQueryOptions
   extends QueryOptions,
+    QueryCoordinateOptions,
     Omit<GovernorOptions, "cancel">,
     AggregateNamespaceOption,
     AsyncHostOptions {}
@@ -1800,7 +1846,7 @@ export interface AsyncEntailmentQueryOptions extends AsyncGovernedQueryOptions {
   readonly maxTermArenaBytes?: bigint | number | null;
 }
 
-export interface AsyncUpdateOptions extends QueryOptions, AsyncHostOptions {}
+export interface AsyncUpdateOptions extends UpdateOptions, AsyncHostOptions {}
 
 export interface AsyncNegotiatedQueryOptions extends AsyncGovernedQueryOptions {
   /** The client's `Accept` header; absent means the SPARQL Protocol defaults. */
@@ -1867,6 +1913,7 @@ export interface NegotiatedBody {
  * exhausted budget carrying the typed partial answers it reached. Never a thrown trip.
  */
 export interface AsyncNegotiatedQueryOutcome {
+  readonly executionReceipt: ExecutionReceipt;
   readonly isComplete: boolean;
   /** The complete answer. Absent when a governor stopped the execution. */
   readonly body?: NegotiatedBody;
@@ -1887,7 +1934,7 @@ export interface AsyncUpdateOutcome extends UpdateOutcome {
  * `"Error"` for a failure or a fault, `"AbortError"` for a cancellation without a
  * `signal.reason`, `"TimeoutError"` for an ungoverned job's deadline, and
  * `"NotAcceptableError"` for a negotiated query whose result no acceptable format can carry.
- * A cancellation with a `signal.reason` rejects with that reason itself, untouched.
+ * A cancellation rejects with an AbortError carrying the original `signal.reason` as its cause.
  * `code` is the stable code the failure is reported under (see `PurrdfError`).
  */
 export interface AsyncJobError extends PurrdfError {
@@ -2509,6 +2556,7 @@ export class ShaclImportError {
  * law's grammar refuses behaves as an ill-formed pattern always does; a resource refusal
  * throws with the resource's code and no dataset.
  */
+/** Exact `now` and unsigned `entropySeed` follow XPath; null or omission selects each native default independently. */
 export function shaclEntail(
   shapesTtl: string,
   dataNt: string,
@@ -2521,6 +2569,8 @@ export function shaclEntail(
   maxStoredFacts?: bigint,
   maxJoinSteps?: bigint,
   xpathRegex?: XPathRegexLaw,
+  now?: string | null,
+  entropySeed?: bigint | number | null,
 ): ShaclEntailment;
 
 /**
@@ -2528,6 +2578,7 @@ export function shaclEntail(
  * memory: call `free()`.
  */
 export class ShaclEntailment {
+  readonly executionReceiptJson: string;
   free(): void;
   /**
    * The MATERIALIZED dataset — the base graph plus every inferred triple — as canonical
@@ -2546,6 +2597,7 @@ export class ShaclEntailment {
  * wasm memory: call `free()`.
  */
 export class ShaclRulesInference {
+  readonly executionReceiptJson: string;
   free(): void;
   /**
    * The INFERENCE GRAPH — the inferred triples only, never the data graph — as
@@ -2608,6 +2660,7 @@ export class ShaclRulesInference {
  * law's grammar refuses behaves as an ill-formed pattern always does; a resource refusal
  * throws with the resource's code and no inference.
  */
+/** Exact `now` and unsigned `entropySeed` follow XPath; null or omission selects each native default independently. */
 export function shaclApplyRules(
   dataNt: string,
   shapesTtl?: string,
@@ -2623,6 +2676,8 @@ export function shaclApplyRules(
   maxStoredFacts?: bigint,
   maxJoinSteps?: bigint,
   xpathRegex?: XPathRegexLaw,
+  now?: string | null,
+  entropySeed?: bigint | number | null,
 ): ShaclRulesInference;
 
 /**
@@ -3131,14 +3186,22 @@ export function shaclProductValidateToSarifExpecting(
 /**
  * The host options a SHACL asynchronous twin accepts, and nothing else. A synchronous
  * SHACL entry takes no ceiling, so neither does its twin: a deadline is a `signal`
- * (`AbortSignal.timeout(ms)`). Every argument of the synchronous twin stays positional,
- * where the synchronous twin takes it; the host options follow them.
+ * (`AbortSignal.timeout(ms)`). Document and limit arguments stay positional; XPath law and execution inputs
+ * travel in the options object.
  */
-export interface AsyncShaclOptions extends AsyncHostOptions {}
+export interface AsyncShaclOptions extends AsyncHostOptions {
+  readonly now?: never;
+  readonly entropySeed?: never;
+}
+
+/** Execution inputs apply only to the entailment and rule-application twins. */
+export interface AsyncShaclRuleOptions extends AsyncHostOptions, QueryCoordinateOptions {
+  readonly xpathRegex?: XPathRegexLaw | null;
+  readonly shaclProfile?: never;
+}
 
 /**
- * The options of a SHACL twin that evaluates patterns — every validation, entailment, rules
- * and node-expression twin: the host options, and `xpathRegex`, the dated pattern law its
+ * The options of a SHACL validation or node-expression twin: the host options, and `xpathRegex`, the dated pattern law its
  * synchronous twin takes as its trailing argument. It travels in the options object so
  * the options keep following the positional arguments.
  */
@@ -3213,7 +3276,7 @@ export function shaclEntailAsync(
   maxGeneratedTerms?: bigint | null,
   maxStoredFacts?: bigint | null,
   maxJoinSteps?: bigint | null,
-  options?: AsyncShaclValidationOptions | null,
+  options?: AsyncShaclRuleOptions | null,
 ): Promise<ShaclEntailment>;
 
 /**
@@ -3235,7 +3298,7 @@ export function shaclApplyRulesAsync(
   maxGeneratedTerms?: bigint | null,
   maxStoredFacts?: bigint | null,
   maxJoinSteps?: bigint | null,
-  options?: AsyncShaclValidationOptions | null,
+  options?: AsyncShaclRuleOptions | null,
 ): Promise<ShaclRulesInference>;
 
 /**

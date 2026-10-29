@@ -137,7 +137,7 @@ the IRI failure without parsing English. The error message and the record's
   When an error out-pointer is supplied, a failure stores an owned `PurrdfError`
   there.
 - **SemVer-frozen ABI.** The status enum is append-only; new fields/functions are
-  additive. The current ABI is **0.12.0 (beta)** — the freeze *discipline* is in
+  additive. The current ABI is **0.16.0 (beta)** — the freeze *discipline* is in
   place, but the version stays pre-1.0 until a real C consumer and the rdflib
   shim exercise it. `purrdf_abi_version` reports it.
 - **An incompatible change is declared, not smuggled.** Pre-1.0 the project
@@ -251,6 +251,43 @@ the IRI failure without parsing English. The error message and the record's
   services and all three governed entailment-query variants. Rebuild affected C
   callers against the new header; `NULL` retains the default. Refusals preserve
   original byte counts and name this parameter on the function called.
+
+  `0.12.0` → `0.13.0` adds nullable `const char *now` and
+  `const uint64_t *entropy_seed` immediately before the first output on all twelve
+  ordinary, JSON, governed and entailment query entries, including XPath and
+  geographic variants. Rebuild every query caller. Each `NULL` independently uses
+  the native default; a pointed zero supplies seed zero. Time is an exact
+  `xsd:dateTime` lexical form, retaining fractional seconds, timezone and negative
+  years. Inputs are copied for execution and results retain no caller memory.
+
+  `0.13.0` → `0.14.0` adds the same independently nullable `now` and
+  `entropy_seed` inputs after governors and before the first output on all three
+  governed UPDATE entries: plain, dated XPath and geographic. Rebuild UPDATE
+  callers. Supplied coordinates give one request a fixed exact time and a
+  progressing random stream across its operations; omissions retain native defaults.
+  Invalid coordinates preserve the dataset and untouched
+  outcome/evidence outputs; budget exhaustion still publishes nothing. Caller
+  input memory is not retained by the resulting dataset.
+
+  `0.14.0` → `0.15.0` adds independently nullable `now` and `entropy_seed`
+  pointers before the first output on both rule execution APIs and their XPath
+  variants. Rule application accepts either SHACL or SRL. Supplied time stays
+  exact, and the seed selects a reproducible sequence for the rule queries.
+  Outputs own their values; malformed coordinates leave non-error output slots untouched.
+  All four limits, import handling, proofs and diagnostics retain their contracts.
+  Static rule checking, validation and node-expression APIs are unchanged.
+
+  `0.15.0` → `0.16.0` inserts required `PurrdfBuffer **out_receipt` immediately
+  after `entropy_seed` on all query, governed UPDATE and rule execution entries,
+  including XPath and geographic variants. Recompile every affected caller.
+  Initialize a separate receipt pointer to `NULL`, pass its address, read its JSON
+  through `purrdf_buffer_data` on success, and release it with `purrdf_buffer_free`.
+  The payload buffer or result handle and receipt buffer are independent owners.
+  The receipt slot is written only on success; read a failed execution's receipt with
+  `purrdf_error_execution_receipt_json(error)`, borrowed until `purrdf_error_free`.
+  No context means `state: "not-started"`; an UPDATE without a WHERE context can
+  still apply. The effective seed is a decimal string and unavailable identities
+  are explicit JSON nulls. Rule receipts include ordered query contexts.
 
 ## Shapes-graph tools
 

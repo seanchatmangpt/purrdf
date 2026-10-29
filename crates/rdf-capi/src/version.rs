@@ -273,7 +273,35 @@ pub const PURRDF_ABI_MAJOR: u32 = 0;
 /// inserts an argument before existing controls/out-pointers and requires every
 /// affected C caller to rebuild. Null retains the engine default; a supplied
 /// limit is enforced and arena refusals name the actual calling parameter.
-pub const PURRDF_ABI_MINOR: u32 = 12;
+///
+/// # `0.12.0` → `0.13.0`: supplied query coordinates
+///
+/// All twelve ordinary, JSON, governed and entailment query prototypes, including
+/// XPath and geographic variants, gain nullable `now` and `entropy_seed` pointers
+/// immediately before their first output. Callers must rebuild; each null pointer
+/// independently requests the native default, and a pointed zero is a supplied seed.
+///
+/// # `0.13.0` → `0.14.0`: supplied UPDATE coordinates
+///
+/// The three governed UPDATE entries add independently nullable `now` and
+/// `entropy_seed` inputs after governors and before the first output. Rebuild C
+/// callers against the new header. Exact time and the copied unsigned seed are
+/// owned for the request; NULL independently retains a fresh native default.
+///
+/// # `0.14.0` → `0.15.0`: supplied rule execution coordinates
+///
+/// Both entailment and rule-application entries, including their XPath variants,
+/// gain nullable `now` and `entropy_seed` inputs immediately before their first
+/// output. Callers must rebuild. Rule application covers both SHACL and SRL;
+/// owned inputs retain exact time and the unsigned seed while preserving request limits.
+///
+/// # `0.15.0` → `0.16.0`: owned execution receipts
+///
+/// Every query, UPDATE and rule execution export requires an independent
+/// `out_receipt` buffer slot after the seed input. Release it with
+/// `purrdf_buffer_free`. Failed executions expose their receipt through
+/// `purrdf_error_execution_receipt_json` on the original error handle.
+pub const PURRDF_ABI_MINOR: u32 = 16;
 /// ABI patch version. Reset to `0` by the MINOR bump documented above.
 pub const PURRDF_ABI_PATCH: u32 = 0;
 

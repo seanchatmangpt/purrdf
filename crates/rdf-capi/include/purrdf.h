@@ -305,8 +305,36 @@
  * inserts an argument before existing controls/out-pointers and requires every
  * affected C caller to rebuild. Null retains the engine default; a supplied
  * limit is enforced and arena refusals name the actual calling parameter.
+ *
+ * # `0.12.0` → `0.13.0`: supplied query coordinates
+ *
+ * All twelve ordinary, JSON, governed and entailment query prototypes, including
+ * XPath and geographic variants, gain nullable `now` and `entropy_seed` pointers
+ * immediately before their first output. Callers must rebuild; each null pointer
+ * independently requests the native default, and a pointed zero is a supplied seed.
+ *
+ * # `0.13.0` → `0.14.0`: supplied UPDATE coordinates
+ *
+ * The three governed UPDATE entries add independently nullable `now` and
+ * `entropy_seed` inputs after governors and before the first output. Rebuild C
+ * callers against the new header. Exact time and the copied unsigned seed are
+ * owned for the request; NULL independently retains a fresh native default.
+ *
+ * # `0.14.0` → `0.15.0`: supplied rule execution coordinates
+ *
+ * Both entailment and rule-application entries, including their XPath variants,
+ * gain nullable `now` and `entropy_seed` inputs immediately before their first
+ * output. Callers must rebuild. Rule application covers both SHACL and SRL;
+ * owned inputs retain exact time and the unsigned seed while preserving request limits.
+ *
+ * # `0.15.0` → `0.16.0`: owned execution receipts
+ *
+ * Every query, UPDATE and rule execution export requires an independent
+ * `out_receipt` buffer slot after the seed input. Release it with
+ * `purrdf_buffer_free`. Failed executions expose their receipt through
+ * `purrdf_error_execution_receipt_json` on the original error handle.
  */
-#define PURRDF_ABI_MINOR 12
+#define PURRDF_ABI_MINOR 16
 
 /**
  * ABI patch version. Reset to `0` by the MINOR bump documented above.
@@ -2310,6 +2338,14 @@ int32_t purrdf_reasoner_explain_conclusion(const PurrdfReasoner *reasoner,
                                            PurrdfError **out_error);
 
 /**
+ * Borrow a failed execution's JSON receipt, or null when no execution was attempted.
+ *
+ * # Safety
+ * `error` must be null or a live error handle; the returned text lives with it.
+ */
+const char *purrdf_error_execution_receipt_json(const PurrdfError *error);
+
+/**
  * Return the status code carried by an error, or `Panic` if `err` is null.
  *
  * # Safety
@@ -2725,13 +2761,25 @@ int32_t purrdf_dataset_division_policy(const PurrdfDataset *dataset,
  * is `0`/`1`. Exactly one output is set per kind. `base_iri` may be null. The query runs
  * under the dataset's division policy (`purrdf_dataset_set_division_policy`).
  *
+ * `now` supplies an exact `xsd:dateTime` lexical form, including its fractional
+ * seconds and timezone. `entropy_seed` supplies an unsigned seed for `RAND`,
+ * `UUID` and `STRUUID`; pointed zero is valid. Each null pointer independently
+ * requests the native default for this execution. Both inputs are copied before
+ * execution; no caller memory is retained by results. Malformed time returns
+ * `PURRDF_STATUS_INVALID_ARGUMENT`; invalid UTF-8 returns `PURRDF_STATUS_INVALID_UTF8`.
+ *
  * # Safety
+ * `now` must be null or a NUL-terminated UTF-8 C string live for the call.
+ * `entropy_seed` must be null or point to a readable, aligned `uint64_t`.
  * `dataset` must be a live handle; `query` must be a NUL-terminated C string;
  * the out-params must be writable.
  */
 int32_t purrdf_query(const PurrdfDataset *dataset,
                      const char *query,
                      const char *base_iri,
+                     const char *now,
+                     const uint64_t *entropy_seed,
+                     PurrdfBuffer **out_receipt,
                      int32_t *out_kind,
                      PurrdfRowCursor **out_rows,
                      PurrdfDataset **out_graph,
@@ -2762,6 +2810,9 @@ int32_t purrdf_query_xpath_regex(const PurrdfDataset *dataset,
                                  const char *query,
                                  const char *base_iri,
                                  const char *regex_profile,
+                                 const char *now,
+                                 const uint64_t *entropy_seed,
+                                 PurrdfBuffer **out_receipt,
                                  int32_t *out_kind,
                                  PurrdfRowCursor **out_rows,
                                  PurrdfDataset **out_graph,
@@ -2820,7 +2871,16 @@ int32_t purrdf_query_xpath_regex(const PurrdfDataset *dataset,
  * (it is not a SPARQL-results document). Read the extension back with
  * `purrdf_sparql_results::provenance_from_json` under the SAME namespace.
  *
+ * `now` supplies an exact `xsd:dateTime` lexical form, including its fractional
+ * seconds and timezone. `entropy_seed` supplies an unsigned seed for `RAND`,
+ * `UUID` and `STRUUID`; pointed zero is valid. Each null pointer independently
+ * requests the native default for this execution. Both inputs are copied before
+ * execution; no caller memory is retained by results. Malformed time returns
+ * `PURRDF_STATUS_INVALID_ARGUMENT`; invalid UTF-8 returns `PURRDF_STATUS_INVALID_UTF8`.
+ *
  * # Safety
+ * `now` must be null or a NUL-terminated UTF-8 C string live for the call.
+ * `entropy_seed` must be null or point to a readable, aligned `uint64_t`.
  * `dataset` must be a live handle; `query` must be a NUL-terminated C string;
  * the out-params must be writable. `provenance_prefix`/`provenance_iri`, if non-null,
  * must be NUL-terminated UTF-8 C strings live for the call.
@@ -2830,6 +2890,9 @@ int32_t purrdf_query_json(const PurrdfDataset *dataset,
                           const char *base_iri,
                           const char *provenance_prefix,
                           const char *provenance_iri,
+                          const char *now,
+                          const uint64_t *entropy_seed,
+                          PurrdfBuffer **out_receipt,
                           PurrdfBuffer **out_buffer,
                           PurrdfError **out_error);
 
@@ -2851,6 +2914,9 @@ int32_t purrdf_query_json_xpath_regex(const PurrdfDataset *dataset,
                                       const char *provenance_prefix,
                                       const char *provenance_iri,
                                       const char *regex_profile,
+                                      const char *now,
+                                      const uint64_t *entropy_seed,
+                                      PurrdfBuffer **out_receipt,
                                       PurrdfBuffer **out_buffer,
                                       PurrdfError **out_error);
 
@@ -2907,7 +2973,16 @@ int32_t purrdf_query_canon_arrow(const PurrdfDataset *dataset,
  * names an ordinary unregistered custom-aggregate IRI, exactly as before this parameter
  * existed.
  *
+ * `now` supplies an exact `xsd:dateTime` lexical form, including its fractional
+ * seconds and timezone. `entropy_seed` supplies an unsigned seed for `RAND`,
+ * `UUID` and `STRUUID`; pointed zero is valid. Each null pointer independently
+ * requests the native default for this execution. Both inputs are copied before
+ * execution; no caller memory is retained by results. Malformed time returns
+ * `PURRDF_STATUS_INVALID_ARGUMENT`; invalid UTF-8 returns `PURRDF_STATUS_INVALID_UTF8`.
+ *
  * # Safety
+ * `now` must be null or a NUL-terminated UTF-8 C string live for the call.
+ * `entropy_seed` must be null or point to a readable, aligned `uint64_t`.
  * `dataset`, `query`, and `governors` must remain live for the call. `out_outcome`,
  * `out_kind`, `out_evidence`, and `out_partial` must be writable. The shape-specific
  * result pointer must be writable when that shape is returned. Any enabled cancellation
@@ -2919,6 +2994,9 @@ int32_t purrdf_query_governed(const PurrdfDataset *dataset,
                               const char *base_iri,
                               const char *aggregate_namespace,
                               const PurrdfQueryGovernors *governors,
+                              const char *now,
+                              const uint64_t *entropy_seed,
+                              PurrdfBuffer **out_receipt,
                               int32_t *out_outcome,
                               int32_t *out_kind,
                               PurrdfRowCursor **out_rows,
@@ -2949,6 +3027,9 @@ int32_t purrdf_query_governed_xpath_regex(const PurrdfDataset *dataset,
                                           const char *aggregate_namespace,
                                           const char *regex_profile,
                                           const PurrdfQueryGovernors *governors,
+                                          const char *now,
+                                          const uint64_t *entropy_seed,
+                                          PurrdfBuffer **out_receipt,
                                           int32_t *out_outcome,
                                           int32_t *out_kind,
                                           PurrdfRowCursor **out_rows,
@@ -2993,7 +3074,16 @@ int32_t purrdf_query_governed_xpath_regex(const PurrdfDataset *dataset,
  * (`purrdf_query_entailment_governed's max_stored_facts`, …); the query governors price the
  * evaluation over the closure and never become a limit on it.
  *
+ * `now` supplies an exact `xsd:dateTime` lexical form, including its fractional
+ * seconds and timezone. `entropy_seed` supplies an unsigned seed for `RAND`,
+ * `UUID` and `STRUUID`; pointed zero is valid. Each null pointer independently
+ * requests the native default for this execution. Both inputs are copied before
+ * execution; no caller memory is retained by results. Malformed time returns
+ * `PURRDF_STATUS_INVALID_ARGUMENT`; invalid UTF-8 returns `PURRDF_STATUS_INVALID_UTF8`.
+ *
  * # Safety
+ * `now` must be null or a NUL-terminated UTF-8 C string live for the call.
+ * `entropy_seed` must be null or point to a readable, aligned `uint64_t`.
  * All input strings and handles must remain live for the synchronous call. Required
  * out-pointers must be writable; any enabled cancellation handle must remain live until
  * return. Shape-specific result pointers are required when that shape is returned.
@@ -3018,6 +3108,9 @@ int32_t purrdf_query_entailment_governed(const PurrdfDataset *dataset,
                                          const uint64_t *max_term_arena_bytes,
                                          const char *aggregate_namespace,
                                          const PurrdfQueryGovernors *governors,
+                                         const char *now,
+                                         const uint64_t *entropy_seed,
+                                         PurrdfBuffer **out_receipt,
                                          int32_t *out_outcome,
                                          int32_t *out_kind,
                                          PurrdfRowCursor **out_rows,
@@ -3057,6 +3150,9 @@ int32_t purrdf_query_entailment_governed_xpath_regex(const PurrdfDataset *datase
                                                      const char *aggregate_namespace,
                                                      const char *regex_profile,
                                                      const PurrdfQueryGovernors *governors,
+                                                     const char *now,
+                                                     const uint64_t *entropy_seed,
+                                                     PurrdfBuffer **out_receipt,
                                                      int32_t *out_outcome,
                                                      int32_t *out_kind,
                                                      PurrdfRowCursor **out_rows,
@@ -3087,11 +3183,23 @@ int32_t purrdf_query_entailment_governed_xpath_regex(const PurrdfDataset *datase
  * reachable from a `DELETE`/`INSERT … WHERE` clause through a nested
  * `SELECT … GROUP BY` — the only place SPARQL UPDATE's grammar admits an aggregate.
  *
+ * `now` and `entropy_seed` are independently nullable: NULL selects a fresh native
+ * default for this request, while a pointed zero supplies seed zero. Time uses the
+ * exact native `xsd:dateTime` lexical form, retaining fractional seconds and timezone.
+ * Supplied coordinates give the request one fixed time and one progressing random
+ * stream across its operations. Omitted coordinates preserve native defaults. Inputs
+ * are owned before execution; inserted values retain no caller memory.
+ * Invalid time is `PURRDF_STATUS_INVALID_ARGUMENT`; invalid UTF-8 is
+ * `PURRDF_STATUS_INVALID_UTF8`. A refusal leaves the dataset, outcome and evidence
+ * unchanged, including when the request would otherwise mutate it.
+ *
  * # Safety
  * `dataset` must be a live, exclusively borrowed handle; `request` a NUL-terminated C
  * string; `governors` live for the call; and both output pointers writable. Any enabled
  * cancellation handle must remain live until the call returns. `aggregate_namespace`, if
- * non-null, must be a NUL-terminated UTF-8 C string live for the call.
+ * non-null, must be a NUL-terminated UTF-8 C string live for the call. `now` must be
+ * null or a NUL-terminated C string live for the call; `entropy_seed` must be null
+ * or point to a readable, aligned `uint64_t` live for the call.
  */
 int32_t purrdf_update_governed(PurrdfDataset *dataset,
                                const char *request,
@@ -3099,6 +3207,9 @@ int32_t purrdf_update_governed(PurrdfDataset *dataset,
                                const char *aggregate_namespace,
                                int32_t graph_existence,
                                const PurrdfQueryGovernors *governors,
+                               const char *now,
+                               const uint64_t *entropy_seed,
+                               PurrdfBuffer **out_receipt,
                                int32_t *out_outcome,
                                PurrdfGovernorEvidence *out_evidence,
                                PurrdfError **out_error);
@@ -3125,13 +3236,16 @@ int32_t purrdf_update_governed_xpath_regex(PurrdfDataset *dataset,
                                            const char *regex_profile,
                                            int32_t graph_existence,
                                            const PurrdfQueryGovernors *governors,
+                                           const char *now,
+                                           const uint64_t *entropy_seed,
+                                           PurrdfBuffer **out_receipt,
                                            int32_t *out_outcome,
                                            PurrdfGovernorEvidence *out_evidence,
                                            PurrdfError **out_error);
 
 /**
  * [`purrdf_query_xpath_regex`] with an explicit immutable geographic session.
- * A null session selects standard CRS84; `regex_profile` retains the original
+ * A null session selects standard `CRS84`; `regex_profile` retains the original
  * dated-law selector, so both selections reach the same native query path.
  *
  * # Safety
@@ -3143,6 +3257,9 @@ int32_t purrdf_query_with_geo(const PurrdfGeoSession *geo,
                               const char *query,
                               const char *base_iri,
                               const char *regex_profile,
+                              const char *now,
+                              const uint64_t *entropy_seed,
+                              PurrdfBuffer **out_receipt,
                               int32_t *out_kind,
                               PurrdfRowCursor **out_rows,
                               PurrdfDataset **out_graph,
@@ -3151,7 +3268,7 @@ int32_t purrdf_query_with_geo(const PurrdfGeoSession *geo,
 
 /**
  * [`purrdf_query_json_xpath_regex`] with an explicit immutable geographic session.
- * A null session selects standard CRS84; `regex_profile` retains the original
+ * A null session selects standard `CRS84`; `regex_profile` retains the original
  * dated-law selector, so both selections reach the same native query path.
  *
  * # Safety
@@ -3165,12 +3282,15 @@ int32_t purrdf_query_json_with_geo(const PurrdfGeoSession *geo,
                                    const char *provenance_prefix,
                                    const char *provenance_iri,
                                    const char *regex_profile,
+                                   const char *now,
+                                   const uint64_t *entropy_seed,
+                                   PurrdfBuffer **out_receipt,
                                    PurrdfBuffer **out_buffer,
                                    PurrdfError **out_error);
 
 /**
  * [`purrdf_query_governed_xpath_regex`] with an explicit immutable geographic session.
- * A null session selects standard CRS84; `regex_profile` retains the original
+ * A null session selects standard `CRS84`; `regex_profile` retains the original
  * dated-law selector, so both selections reach the same native query path.
  *
  * # Safety
@@ -3184,6 +3304,9 @@ int32_t purrdf_query_governed_with_geo(const PurrdfGeoSession *geo,
                                        const char *aggregate_namespace,
                                        const char *regex_profile,
                                        const PurrdfQueryGovernors *governors,
+                                       const char *now,
+                                       const uint64_t *entropy_seed,
+                                       PurrdfBuffer **out_receipt,
                                        int32_t *out_outcome,
                                        int32_t *out_kind,
                                        PurrdfRowCursor **out_rows,
@@ -3195,7 +3318,7 @@ int32_t purrdf_query_governed_with_geo(const PurrdfGeoSession *geo,
 
 /**
  * [`purrdf_query_entailment_governed_xpath_regex`] with an explicit immutable geographic session.
- * A null session selects standard CRS84; `regex_profile` retains the original
+ * A null session selects standard `CRS84`; `regex_profile` retains the original
  * dated-law selector, so both selections reach the same native query path.
  *
  * # Safety
@@ -3219,6 +3342,9 @@ int32_t purrdf_query_entailment_governed_with_geo(const PurrdfGeoSession *geo,
                                                   const char *aggregate_namespace,
                                                   const char *regex_profile,
                                                   const PurrdfQueryGovernors *governors,
+                                                  const char *now,
+                                                  const uint64_t *entropy_seed,
+                                                  PurrdfBuffer **out_receipt,
                                                   int32_t *out_outcome,
                                                   int32_t *out_kind,
                                                   PurrdfRowCursor **out_rows,
@@ -3231,7 +3357,7 @@ int32_t purrdf_query_entailment_governed_with_geo(const PurrdfGeoSession *geo,
 
 /**
  * [`purrdf_update_governed_xpath_regex`] with an explicit immutable geographic session.
- * A null session selects standard CRS84; `regex_profile` retains the original
+ * A null session selects standard `CRS84`; `regex_profile` retains the original
  * dated-law selector, so both selections reach the same native query path.
  *
  * # Safety
@@ -3246,6 +3372,9 @@ int32_t purrdf_update_governed_with_geo(const PurrdfGeoSession *geo,
                                         const char *regex_profile,
                                         int32_t graph_existence,
                                         const PurrdfQueryGovernors *governors,
+                                        const char *now,
+                                        const uint64_t *entropy_seed,
+                                        PurrdfBuffer **out_receipt,
                                         int32_t *out_outcome,
                                         PurrdfGovernorEvidence *out_evidence,
                                         PurrdfError **out_error);
@@ -3824,6 +3953,18 @@ int32_t purrdf_shacl_validate_changes_to_sarif_xpath_regex(const char *shapes_tt
  * `max_generated_terms`, `max_stored_facts` and `max_join_steps` must each be null or
  * readable; `out_buffer` must be a writable pointer; `out_diagnostics` and `out_error`
  * must each be null or writable.
+ *
+ * `now` and `entropy_seed` are independently nullable execution inputs. A supplied
+ * time retains the exact native `xsd:dateTime` value; a pointed zero is a seed.
+ * The seed selects the reproducible sequence of the rule execution's queries.
+ * Omitted inputs retain native defaults. Invalid time returns
+ * `PURRDF_STATUS_INVALID_ARGUMENT`; invalid UTF-8 returns `PURRDF_STATUS_INVALID_UTF8`.
+ * Coordinate decoding follows the existing pointer, UTF-8, import-array, limit and
+ * XPath checks and precedes document parsing. Failure leaves non-error output slots untouched.
+ * Successful buffers own their values after input storage is released.
+ *
+ * The coordinate pointers must be null or live for this call: `now` points to a
+ * NUL-terminated string and `entropy_seed` to a readable, aligned `uint64_t`.
  */
 int32_t purrdf_shacl_entail_to_ntriples(const char *shapes_ttl,
                                         const char *shapes_base_iri,
@@ -3836,6 +3977,9 @@ int32_t purrdf_shacl_entail_to_ntriples(const char *shapes_ttl,
                                         const uint64_t *max_generated_terms,
                                         const uint64_t *max_stored_facts,
                                         const uint64_t *max_join_steps,
+                                        const char *now,
+                                        const uint64_t *entropy_seed,
+                                        PurrdfBuffer **out_receipt,
                                         PurrdfBuffer **out_buffer,
                                         PurrdfBuffer **out_diagnostics,
                                         PurrdfError **out_error);
@@ -3869,6 +4013,9 @@ int32_t purrdf_shacl_entail_to_ntriples_xpath_regex(const char *shapes_ttl,
                                                     const uint64_t *max_stored_facts,
                                                     const uint64_t *max_join_steps,
                                                     const char *regex_profile,
+                                                    const char *now,
+                                                    const uint64_t *entropy_seed,
+                                                    PurrdfBuffer **out_receipt,
                                                     PurrdfBuffer **out_buffer,
                                                     PurrdfBuffer **out_diagnostics,
                                                     PurrdfError **out_error);
@@ -3933,6 +4080,18 @@ int32_t purrdf_shacl_entail_to_ntriples_xpath_regex(const char *shapes_ttl,
  * Each line is `diagnostic `, the RULE (`in-minListLength` or `xone-minListLength`), one
  * space, then the SHAPE as an N-Triples term, then `\n` — the rule first and the shape
  * second, the field order every host's structured value (`{rule, shape}`) carries.
+ *
+ * `now` and `entropy_seed` are independently nullable execution inputs. A supplied
+ * time retains the exact native `xsd:dateTime` value; a pointed zero is a seed.
+ * The seed selects the reproducible sequence of the rule execution's queries.
+ * Omitted inputs retain native defaults. Invalid time returns
+ * `PURRDF_STATUS_INVALID_ARGUMENT`; invalid UTF-8 returns `PURRDF_STATUS_INVALID_UTF8`.
+ * Coordinate decoding follows the existing pointer, UTF-8, import-array, limit and
+ * XPath checks and precedes document parsing. Failure leaves non-error output slots untouched.
+ * Successful buffers own their values after input storage is released.
+ *
+ * The coordinate pointers must be null or live for this call: `now` points to a
+ * NUL-terminated string and `entropy_seed` to a readable, aligned `uint64_t`.
  */
 int32_t purrdf_shacl_apply_rules(const char *data_nt,
                                  const char *shapes_ttl,
@@ -3947,6 +4106,9 @@ int32_t purrdf_shacl_apply_rules(const char *data_nt,
                                  const char *const *import_iris,
                                  const char *const *import_documents,
                                  size_t import_count,
+                                 const char *now,
+                                 const uint64_t *entropy_seed,
+                                 PurrdfBuffer **out_receipt,
                                  PurrdfBuffer **out_inferred,
                                  PurrdfBuffer **out_proof,
                                  PurrdfBuffer **out_diagnostics,
@@ -3984,6 +4146,9 @@ int32_t purrdf_shacl_apply_rules_xpath_regex(const char *data_nt,
                                              const char *const *import_documents,
                                              size_t import_count,
                                              const char *regex_profile,
+                                             const char *now,
+                                             const uint64_t *entropy_seed,
+                                             PurrdfBuffer **out_receipt,
                                              PurrdfBuffer **out_inferred,
                                              PurrdfBuffer **out_proof,
                                              PurrdfBuffer **out_diagnostics,

@@ -176,6 +176,11 @@ impl PyQuadStore {
     /// `FILTER` drops the row), while a native resource refusal (a `xpath-*` code, under
     /// the finite production bounds) aborts the call with `ValueError` rather than
     /// answering empty or false.
+    ///
+    /// `now` supplies an exact native `xsd:dateTime` lexical form, and
+    /// `entropy_seed` an unsigned 64-bit Python integer for RAND/UUID/STRUUID.
+    /// Either may be omitted to use the native default on this call. Inputs are
+    /// decoded before snapshot work, and owned across detached execution.
     #[pyo3(signature = (
         query,
         *,
@@ -188,7 +193,7 @@ impl PyQuadStore {
         path_relations=None,
         aggregate_namespace=None,
         xpath_regex=None, geo=None,
-        division=None,
+        division=None, now=None, entropy_seed=None,
     ))]
     #[allow(
         clippy::too_many_arguments,
@@ -209,6 +214,8 @@ impl PyQuadStore {
         xpath_regex: Option<&str>,
         geo: Option<&Bound<'_, PyAny>>,
         division: Option<String>,
+        now: Option<&str>,
+        entropy_seed: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         self.query_impl(
             py,
@@ -224,12 +231,14 @@ impl PyQuadStore {
             xpath_regex,
             geo,
             division,
+            now,
+            entropy_seed,
             (),
         )
     }
 
     /// Execute RDFLib contextual assignment semantics through the native compiler.
-    #[pyo3(signature = (query, *, substitutions=None, extension_namespaces=None, property_fn_namespaces=None, standpoint_predicates=None, relations=None, relations_from_graph=None, path_relations=None, aggregate_namespace=None, xpath_regex=None, geo=None, division=None, named_graphs=true, default_graph=None, default_union=false))]
+    #[pyo3(signature = (query, *, substitutions=None, extension_namespaces=None, property_fn_namespaces=None, standpoint_predicates=None, relations=None, relations_from_graph=None, path_relations=None, aggregate_namespace=None, xpath_regex=None, geo=None, division=None, now=None, entropy_seed=None, named_graphs=true, default_graph=None, default_union=false))]
     #[allow(
         clippy::too_many_arguments,
         reason = "each engine-configuration axis is named explicitly at the call site"
@@ -249,6 +258,8 @@ impl PyQuadStore {
         xpath_regex: Option<&str>,
         geo: Option<&Bound<'_, PyAny>>,
         division: Option<String>,
+        now: Option<&str>,
+        entropy_seed: Option<u64>,
         named_graphs: bool,
         default_graph: Option<&Bound<'_, PyAny>>,
         default_union: bool,
@@ -267,6 +278,8 @@ impl PyQuadStore {
             xpath_regex,
             geo,
             division,
+            now,
+            entropy_seed,
             (named_graphs, default_graph, default_union),
         )
     }
@@ -310,7 +323,7 @@ impl PyQuadStore {
         path_relations=None,
         aggregate_namespace=None,
         xpath_regex=None, geo=None,
-        division=None,
+        division=None, now=None, entropy_seed=None,
         fuel=None,
         deadline_ms=None,
         max_answers=None,
@@ -340,6 +353,8 @@ impl PyQuadStore {
         xpath_regex: Option<&str>,
         geo: Option<&Bound<'_, PyAny>>,
         division: Option<String>,
+        now: Option<&str>,
+        entropy_seed: Option<u64>,
         fuel: Option<u64>,
         deadline_ms: Option<u64>,
         max_answers: Option<u64>,
@@ -350,6 +365,7 @@ impl PyQuadStore {
         cancel: Option<&PyCancellationToken>,
     ) -> PyResult<Py<PyQueryOutcome>> {
         presentation::settled(move || {
+            let coordinates = super::env::query_coordinates(now, entropy_seed)?;
             // Parsed before any work, so an unreadable policy runs nothing.
             let division = division_policy(division.as_deref())?;
             let subs = collect_substitutions(substitutions)?;
@@ -373,6 +389,8 @@ impl PyQuadStore {
             let inner = &self.inner;
             // Snapshot + engine build + governed evaluation run detached (GIL released), so
             // the thread holding `cancel` keeps running while this one is in the engine.
+            let capture = purrdf_validate::query::ExecutionReceiptCapture::default();
+            let capture_ref = &capture;
             let outcome = run_governed(py, args, cancel, move |governors| {
                 let dataset = inner
                     .freeze()
@@ -391,23 +409,27 @@ impl PyQuadStore {
                             base_iri: None,
                             substitutions: &subs,
                         },
-                        purrdf_sparql_eval::QueryOptions::new()
-                            .with_geo(
-                                geo.as_deref()
-                                    .unwrap_or(&purrdf_validate::geo::STANDARD_PROFILE),
-                            )
-                            .with_env(&extension_env(
-                                parser_options,
-                                registry.as_ref(),
-                                aggregates.as_ref(),
-                            )?)
-                            .with_division(division),
+                        coordinates.apply(
+                            purrdf_sparql_eval::QueryOptions::new()
+                                .with_geo(
+                                    geo.as_deref()
+                                        .unwrap_or(&purrdf_validate::geo::STANDARD_PROFILE),
+                                )
+                                .with_env(&extension_env(
+                                    parser_options,
+                                    registry.as_ref(),
+                                    aggregates.as_ref(),
+                                )?)
+                                .with_division(division)
+                                .with_coordinate_observer(capture_ref),
+                        ),
                         governors,
                     )
                     .map_err(|e| {
                         presentation::value_error(format!("query evaluation error: {e}"), &e)
                     })
-            })?;
+            });
+            let (outcome, _) = presentation::observed_result(py, capture, outcome)?;
             materialize_outcome(py, outcome)
         })
     }
@@ -468,7 +490,7 @@ impl PyQuadStore {
         path_relations=None,
         aggregate_namespace=None,
         xpath_regex=None, geo=None,
-        division=None,
+        division=None, now=None, entropy_seed=None,
         fuel=None,
         deadline_ms=None,
         max_answers=None,
@@ -504,6 +526,8 @@ impl PyQuadStore {
         xpath_regex: Option<&str>,
         geo: Option<&Bound<'_, PyAny>>,
         division: Option<String>,
+        now: Option<&str>,
+        entropy_seed: Option<u64>,
         fuel: Option<u64>,
         deadline_ms: Option<u64>,
         max_answers: Option<u64>,
@@ -514,6 +538,7 @@ impl PyQuadStore {
         cancel: Option<&PyCancellationToken>,
     ) -> PyResult<Py<PyEntailmentQueryOutcome>> {
         presentation::settled(move || {
+            let coordinates = super::env::query_coordinates(now, entropy_seed)?;
             // Parsed before any work, so an unreadable policy runs nothing.
             let division = division_policy(division.as_deref())?;
             let subs = collect_substitutions(substitutions)?;
@@ -547,6 +572,8 @@ impl PyQuadStore {
                 xpath_regex: crate::xpath_regex::selection(xpath_regex)?,
                 geo: Some(crate::py_geo::decode(geo)?),
             };
+            let capture = purrdf_validate::query::ExecutionReceiptCapture::default();
+            let capture_ref = &capture;
             let outcome = run_governed(py, args, cancel, move |governors| {
                 let dataset = inner
                     .freeze()
@@ -584,17 +611,20 @@ impl PyQuadStore {
                     },
                     &EntailmentClosure::new(plan.entailment(), &imports)
                         .with_limits(limits.eval_options()),
-                    purrdf_sparql_eval::QueryOptions::new()
-                        .with_geo(
-                            geo.as_deref()
-                                .unwrap_or(&purrdf_validate::geo::STANDARD_PROFILE),
-                        )
-                        .with_env(&extension_env(
-                            parser_options,
-                            registry.as_ref(),
-                            aggregates.as_ref(),
-                        )?)
-                        .with_division(division),
+                    coordinates.apply(
+                        purrdf_sparql_eval::QueryOptions::new()
+                            .with_geo(
+                                geo.as_deref()
+                                    .unwrap_or(&purrdf_validate::geo::STANDARD_PROFILE),
+                            )
+                            .with_env(&extension_env(
+                                parser_options,
+                                registry.as_ref(),
+                                aggregates.as_ref(),
+                            )?)
+                            .with_division(division)
+                            .with_coordinate_observer(capture_ref),
+                    ),
                     &relations,
                     governors,
                 )
@@ -616,7 +646,8 @@ impl PyQuadStore {
                     ),
                     _ => PyValueError::new_err(format!("entailment query failed: {failure}")),
                 })
-            })?;
+            });
+            let (outcome, _) = presentation::observed_result(py, capture, outcome)?;
             materialize_entailment_outcome(py, outcome)
         })
     }
@@ -641,6 +672,7 @@ impl PyQuadStore {
         aggregate_namespace=None,
         xpath_regex=None, geo=None,
         division=None,
+        now=None, entropy_seed=None,
     ))]
     #[allow(
         clippy::too_many_arguments,
@@ -660,7 +692,9 @@ impl PyQuadStore {
         xpath_regex: Option<&str>,
         geo: Option<&Bound<'_, PyAny>>,
         division: Option<String>,
-    ) -> PyResult<()> {
+        now: Option<&str>,
+        entropy_seed: Option<u64>,
+    ) -> PyResult<Py<PyUpdateOutcome>> {
         presentation::settled(move || {
             // Parsed before any work, so an unreadable policy runs nothing.
             let division = division_policy(division.as_deref())?;
@@ -672,10 +706,13 @@ impl PyQuadStore {
                 xpath_regex: crate::xpath_regex::selection(xpath_regex)?,
                 geo: Some(crate::py_geo::decode(geo)?),
             };
+            let coordinates = super::env::query_coordinates(now, entropy_seed)?;
             // Snapshot + evaluation run detached (GIL released); the fresh frozen
             // base is adopted after reacquiring.
             let inner = &self.inner;
             let mode = inner.graph_existence();
+            let capture = purrdf_validate::query::ExecutionReceiptCapture::default();
+            let capture_ref = &capture;
             let dataset = py.detach(move || {
                 let mut dataset = inner
                     .freeze()
@@ -694,32 +731,36 @@ impl PyQuadStore {
                             base_iri: None,
                             substitutions: &[],
                         },
-                        purrdf_sparql_eval::QueryOptions::new()
-                            .with_geo(
-                                geo.as_deref()
-                                    .unwrap_or(&purrdf_validate::geo::STANDARD_PROFILE),
-                            )
-                            .with_graph_existence(mode)
-                            .with_env(&extension_env(
-                                parser_options,
-                                registry.as_ref(),
-                                aggregates.as_ref(),
-                            )?)
-                            .with_division(division),
+                        coordinates.apply(
+                            purrdf_sparql_eval::QueryOptions::new()
+                                .with_geo(
+                                    geo.as_deref()
+                                        .unwrap_or(&purrdf_validate::geo::STANDARD_PROFILE),
+                                )
+                                .with_graph_existence(mode)
+                                .with_env(&extension_env(
+                                    parser_options,
+                                    registry.as_ref(),
+                                    aggregates.as_ref(),
+                                )?)
+                                .with_division(division)
+                                .with_coordinate_observer(capture_ref),
+                        ),
                     )
                     .map_err(|e| {
                         presentation::value_error(format!("update evaluation error: {e}"), &e)
                     })?;
                 Ok::<_, PyErr>(dataset)
-            })?;
+            });
+            let (dataset, receipt) = presentation::observed_result(py, capture, dataset)?;
             // The UPDATE produced a fresh frozen base; adopt it as the new COW base.
             self.inner = MutableDataset::new_with_graph_existence(dataset, mode);
-            Ok(())
+            super::query::materialize_ordinary_update(py, receipt)
         })
     }
 
     /// Run a SPARQL UPDATE under caller-supplied execution governors, returning an
-    /// `UpdateOutcome` rather than `None`.
+    /// `UpdateOutcome` with governor evidence beside the execution receipt.
     ///
     /// The governor keywords are those of
     /// [`query_governed`](Self::query_governed) minus `max_answers`, which bounds an
@@ -745,6 +786,7 @@ impl PyQuadStore {
         aggregate_namespace=None,
         xpath_regex=None, geo=None,
         division=None,
+        now=None, entropy_seed=None,
         fuel=None,
         deadline_ms=None,
         max_intermediate_cells=None,
@@ -772,6 +814,8 @@ impl PyQuadStore {
         xpath_regex: Option<&str>,
         geo: Option<&Bound<'_, PyAny>>,
         division: Option<String>,
+        now: Option<&str>,
+        entropy_seed: Option<u64>,
         fuel: Option<u64>,
         deadline_ms: Option<u64>,
         max_intermediate_cells: Option<u64>,
@@ -791,6 +835,7 @@ impl PyQuadStore {
                 xpath_regex: crate::xpath_regex::selection(xpath_regex)?,
                 geo: Some(crate::py_geo::decode(geo)?),
             };
+            let coordinates = super::env::query_coordinates(now, entropy_seed)?;
             let args = GovernorArgs {
                 fuel,
                 deadline_ms,
@@ -803,7 +848,9 @@ impl PyQuadStore {
             let inner = &self.inner;
             let mode = inner.graph_existence();
             // Snapshot + governed evaluation run detached (GIL released).
-            let (outcome, dataset) = run_governed(py, args, cancel, move |governors| {
+            let capture = purrdf_validate::query::ExecutionReceiptCapture::default();
+            let capture_ref = &capture;
+            let outcome = run_governed(py, args, cancel, move |governors| {
                 let mut dataset = inner
                     .freeze()
                     .map_err(|e| PyValueError::new_err(format!("store snapshot failed: {e}")))?;
@@ -820,25 +867,29 @@ impl PyQuadStore {
                             base_iri: None,
                             substitutions: &[],
                         },
-                        purrdf_sparql_eval::QueryOptions::new()
-                            .with_geo(
-                                geo.as_deref()
-                                    .unwrap_or(&purrdf_validate::geo::STANDARD_PROFILE),
-                            )
-                            .with_graph_existence(mode)
-                            .with_env(&extension_env(
-                                parser_options,
-                                registry.as_ref(),
-                                aggregates.as_ref(),
-                            )?)
-                            .with_division(division),
+                        coordinates.apply(
+                            purrdf_sparql_eval::QueryOptions::new()
+                                .with_geo(
+                                    geo.as_deref()
+                                        .unwrap_or(&purrdf_validate::geo::STANDARD_PROFILE),
+                                )
+                                .with_graph_existence(mode)
+                                .with_env(&extension_env(
+                                    parser_options,
+                                    registry.as_ref(),
+                                    aggregates.as_ref(),
+                                )?)
+                                .with_division(division)
+                                .with_coordinate_observer(capture_ref),
+                        ),
                         governors,
                     )
                     .map_err(|e| {
                         presentation::value_error(format!("update evaluation error: {e}"), &e)
                     })?;
                 Ok((outcome, dataset))
-            })?;
+            });
+            let ((outcome, dataset), _) = presentation::observed_result(py, capture, outcome)?;
             // The engine publishes into its own `Arc` only on the applied path, so adopting
             // the returned base on a trip would adopt a base nothing was written to. Adopt it
             // only when the request applied, and the tripped path leaves this store's COW
@@ -1085,9 +1136,12 @@ impl PyQuadStore {
         xpath_regex: Option<&str>,
         geo: Option<&Bound<'_, PyAny>>,
         division: Option<String>,
+        now: Option<&str>,
+        entropy_seed: Option<u64>,
         mode: M,
     ) -> PyResult<Py<PyAny>> {
         presentation::settled(move || {
+            let coordinates = super::env::query_coordinates(now, entropy_seed)?;
             // Parsed before any work, so an unreadable policy runs nothing.
             let division = division_policy(division.as_deref())?;
             let selection = mode.selection()?;
@@ -1105,6 +1159,8 @@ impl PyQuadStore {
             let inner = &self.inner;
             // Snapshot + engine build + evaluation run detached (GIL released);
             // results are materialized into Python objects after reacquiring.
+            let capture = purrdf_validate::query::ExecutionReceiptCapture::default();
+            let capture_ref = &capture;
             let result = py.detach(move || {
                 let dataset = inner
                     .freeze()
@@ -1117,13 +1173,16 @@ impl PyQuadStore {
                 let geo = config.geo.clone();
                 let engine = build_engine(config);
                 let env = extension_env(parser_options, registry.as_ref(), aggregates.as_ref())?;
-                let options = purrdf_sparql_eval::QueryOptions::new()
-                    .with_geo(
-                        geo.as_deref()
-                            .unwrap_or(&purrdf_validate::geo::STANDARD_PROFILE),
-                    )
-                    .with_env(&env)
-                    .with_division(division);
+                let options = coordinates.apply(
+                    purrdf_sparql_eval::QueryOptions::new()
+                        .with_geo(
+                            geo.as_deref()
+                                .unwrap_or(&purrdf_validate::geo::STANDARD_PROFILE),
+                        )
+                        .with_env(&env)
+                        .with_division(division)
+                        .with_coordinate_observer(capture_ref),
+                );
                 let request = SparqlRequest {
                     query,
                     base_iri: None,
@@ -1142,8 +1201,18 @@ impl PyQuadStore {
                 result.map_err(|e| {
                     presentation::value_error(format!("query evaluation error: {e}"), &e)
                 })
+            });
+            let receipt = capture
+                .into_coordinates()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            let result = result.map_err(|error| {
+                presentation::with_execution_receipt(
+                    py,
+                    error,
+                    purrdf_validate::query::execution_receipt_json(&receipt),
+                )
             })?;
-            materialize_results(py, result)
+            materialize_results(py, result, Some(&receipt))
         })
     }
 }

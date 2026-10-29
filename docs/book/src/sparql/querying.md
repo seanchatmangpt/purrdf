@@ -2213,7 +2213,8 @@ nearest equivalent optional-string configuration:
 
   ```c
   purrdf_query_governed(dataset, query, /* base_iri */ NULL,
-                         "https://ex.example/agg#", &governors, /* … */);
+                         "https://ex.example/agg#", &governors,
+                         /* now */ NULL, /* entropy_seed */ NULL, /* … */);
   ```
 
 `namespace` stays caller-supplied configuration with no fabricated default on
@@ -2307,3 +2308,42 @@ non-pass is a typed, ledgered expected-failure. See
 [Conformance & Testing](../project/conformance.md) and
 [`docs/CONFORMANCE.md`](https://github.com/Blackcat-Informatics/purrdf/blob/main/docs/CONFORMANCE.md)
 for the live matrix.
+
+## Supplied query time and entropy
+
+The CLI accepts `purrdf query --now XSD_DATE_TIME --entropy-seed U64`.
+`--now` supplies the value of `NOW()`, retaining exact fractional seconds and
+the declared timezone under the native `xsd:dateTime` contract.
+`--entropy-seed` supplies the unsigned 64-bit seed for `RAND()`, `UUID()` and
+`STRUUID()`; zero is valid. Either flag may be omitted, leaving that input to
+the native host clock or entropy source. Repeating a seed alone does not fix
+the query time.
+
+Both controls apply to ordinary, governed, `--explain` and `--entailment`
+queries over text and pack sources. Invalid inputs are usage errors before
+query data, imports or rules are read; global profile and JSON-LD setup retain
+their existing precedence. Governor limits and partial-result behavior remain
+in force.
+
+These are supplied execution inputs, not a returned execution receipt. The
+optional provenance `query_hash` continues to identify only the exact query
+text, independently of these inputs and the dataset. Hosts decode the strings
+through `purrdf_validate::query::CoordinateInputs`; applying that owner replaces
+both coordinate selections, clears omitted selections to native defaults and
+preserves unrelated query options.
+
+The same flags apply to `purrdf update`, including ordinary, governed and
+`--no-ceiling` execution over text, stdin and pack sources, with the selected
+XPath pattern law. Every WHERE operation uses the exact supplied time. A
+supplied seed starts one stream for the whole request: successive operations
+advance it, so their UUIDs and random draws do not restart at the initial seed.
+Omitting either input preserves that input's existing native host behavior.
+Invalid coordinates fail before UPDATE data is read, after the existing global
+initialization. Native callers supply the same `QueryOptions` to
+`update_with_options`, `update_governed` or `update_governed_handle`.
+
+UPDATE remains transactional: a later-operation failure or governor trip
+publishes no mutation and the CLI writes no partial dataset. Existing governor
+and expression-error evidence retains its meaning; these flags add no
+execution receipt or proof schema. The native UPDATE path retains its existing
+resident storage contract.

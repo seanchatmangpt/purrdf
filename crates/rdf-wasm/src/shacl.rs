@@ -154,6 +154,14 @@ impl From<&purrdf_validate::ShapesImportError> for ShaclImportError {
 /// [`shapes_error_message`] for anything else.
 fn shapes_rejection(error: ShapesError) -> JsValue {
     match error {
+        ShapesError::RuleExecution(error) => {
+            let receipt = purrdf_validate::query::rule_execution_receipt_json(&error.coordinates);
+            let rejection = match error.into_cause() {
+                purrdf_shapes::rules::RulesError::Shapes(cause) => shapes_rejection(cause),
+                cause => JsError::new(&cause.to_string()).into(),
+            };
+            crate::operation::attach_execution_receipt(rejection, &receipt)
+        }
         ShapesError::Imports(error) => ShaclImportError::from(&error).into(),
         ShapesError::Storage(error) => crate::operation::diagnostic_to_js(error.into()),
         other => JsError::new(&shapes_error_message(&other)).into(),
@@ -164,6 +172,7 @@ fn shapes_rejection(error: ShapesError) -> JsValue {
 /// synchronous and the asynchronous lane alike.
 pub(crate) fn shapes_error_message(error: &ShapesError) -> String {
     match error {
+        ShapesError::RuleExecution(error) => error.to_string(),
         ShapesError::Storage(error) => purrdf_core::RdfDiagnostic::from(*error).to_string(),
         ShapesError::Imports(error) => error.to_string(),
         ShapesError::Recursion(refusal) => refusal.to_string(),
@@ -187,13 +196,28 @@ pub(crate) enum ShaclRefusal {
     /// The shapes graph's `owl:imports` closure is not in hand, or the import table
     /// cannot be used.
     Import(ShaclImportError),
+    Execution(Box<Self>, String),
 }
 
 impl ShaclRefusal {
+    pub(crate) fn execution_receipt(&self) -> Option<&str> {
+        match self {
+            Self::Execution(_, receipt) => Some(receipt),
+            _ => None,
+        }
+    }
+    pub(crate) fn into_cause(self) -> Self {
+        match self {
+            Self::Execution(inner, _) => inner.into_cause(),
+            other => other,
+        }
+    }
+
     /// The stable code the job's failure is reported under: a product refusal's own
     /// native XPath resource code when it carries one, `fallback` otherwise.
     pub(crate) fn code<'a>(&'a self, fallback: &'a str) -> &'a str {
         match self {
+            Self::Execution(inner, _) => inner.code(fallback),
             Self::Product(ShaclProductRefusal {
                 code: Some(code), ..
             }) => code,
@@ -204,6 +228,7 @@ impl ShaclRefusal {
     /// The refusal's message, as its class's `toString()` spells it.
     pub(crate) fn to_js_string(&self) -> String {
         match self {
+            Self::Execution(inner, _) => inner.to_js_string(),
             Self::Product(refusal) => refusal.to_js_string(),
             Self::Import(error) => error.to_js_string(),
         }
@@ -441,9 +466,10 @@ pub(crate) fn entail_to_ntriples_impl(
     shapes_graph: Option<&str>,
     limits: purrdf_validate::RuleLimits,
     profile: Option<Profile>,
+    coordinates: purrdf_validate::query::CoordinateInputs,
 ) -> Result<purrdf_validate::EntailOutcome, XPathValidationError> {
     let imports = shapes_import_pairs(import_iris, import_documents)?;
-    purrdf_validate::entail_to_ntriples_with_xpath_regex(
+    purrdf_validate::entail_to_ntriples_with_coordinates(
         &purrdf_validate::EntailRequest {
             shapes_ttl,
             shapes_base,
@@ -457,6 +483,7 @@ pub(crate) fn entail_to_ntriples_impl(
             host: purrdf_validate::RulesHost::Wasm,
         },
         profile,
+        coordinates,
     )
 }
 
@@ -468,6 +495,7 @@ pub(crate) fn entail_to_ntriples_impl(
 #[wasm_bindgen]
 #[derive(Debug)]
 pub struct ShaclEntailment {
+    coordinates: purrdf_shapes::RuleCoordinates,
     /// The materialized dataset as N-Triples.
     ntriples: String,
     /// The mandatory diagnostics.
@@ -477,6 +505,7 @@ pub struct ShaclEntailment {
 impl From<purrdf_validate::EntailOutcome> for ShaclEntailment {
     fn from(outcome: purrdf_validate::EntailOutcome) -> Self {
         Self {
+            coordinates: outcome.coordinates,
             diagnostics: diagnostic_values(&outcome.diagnostics),
             ntriples: outcome.ntriples,
         }
@@ -485,6 +514,13 @@ impl From<purrdf_validate::EntailOutcome> for ShaclEntailment {
 
 #[wasm_bindgen]
 impl ShaclEntailment {
+    /// The exact native rule execution transcript, including sampled defaults.
+    #[wasm_bindgen(getter, js_name = executionReceiptJson)]
+    #[must_use]
+    pub fn execution_receipt_json(&self) -> String {
+        purrdf_validate::query::rule_execution_receipt_json(&self.coordinates)
+    }
+
     /// The MATERIALIZED dataset — the base graph plus every inferred triple — as canonical
     /// N-Triples.
     #[wasm_bindgen(getter)]
@@ -514,6 +550,7 @@ impl ShaclEntailment {
 #[wasm_bindgen]
 #[derive(Debug)]
 pub struct ShaclRulesInference {
+    coordinates: purrdf_shapes::RuleCoordinates,
     /// The inference graph as N-Triples.
     inferred: String,
     /// The proof text, when `explain` was set.
@@ -524,6 +561,13 @@ pub struct ShaclRulesInference {
 
 #[wasm_bindgen]
 impl ShaclRulesInference {
+    /// The native rule execution transcript, independent of proof selection.
+    #[wasm_bindgen(getter, js_name = executionReceiptJson)]
+    #[must_use]
+    pub fn execution_receipt_json(&self) -> String {
+        purrdf_validate::query::rule_execution_receipt_json(&self.coordinates)
+    }
+
     /// The INFERENCE GRAPH — the inferred triples only, never the data graph — as
     /// N-Triples 1.2, one triple per line, in canonical order.
     #[wasm_bindgen(getter)]
@@ -556,6 +600,7 @@ impl ShaclRulesInference {
 impl From<purrdf_validate::RulesOutcome> for ShaclRulesInference {
     fn from(outcome: purrdf_validate::RulesOutcome) -> Self {
         Self {
+            coordinates: outcome.coordinates,
             diagnostics: diagnostic_values(&outcome.diagnostics),
             inferred: outcome.inferred_ntriples,
             proof: outcome.proof,
@@ -564,15 +609,16 @@ impl From<purrdf_validate::RulesOutcome> for ShaclRulesInference {
 }
 
 /// Run a rule set over a data graph. Native-testable core of [`shacl_apply_rules`]: the
-/// work is [`purrdf_validate::apply_rules_to_ntriples_with_xpath_regex`].
+/// work is [`purrdf_validate::apply_rules_to_ntriples_with_coordinates`].
 ///
 /// `profile` is the dated XPath law the request selected, or `None` for the
 /// compatibility regular expressions.
 pub(crate) fn apply_rules_impl(
     request: &purrdf_validate::RulesRequest<'_>,
     profile: Option<Profile>,
+    coordinates: purrdf_validate::query::CoordinateInputs,
 ) -> Result<purrdf_validate::RulesOutcome, XPathValidationError> {
-    purrdf_validate::apply_rules_to_ntriples_with_xpath_regex(request, profile)
+    purrdf_validate::apply_rules_to_ntriples_with_coordinates(request, profile, coordinates)
 }
 
 /// The outcome of `shaclCheckRules`: a SPARQL 1.2 RL rule set that passed every check
@@ -1340,16 +1386,20 @@ fn expected_identity(expect_identity: &str) -> Result<[u8; 32], ShaclProductRefu
 /// or reordering an argument is one edit here.
 ///
 /// Every entry evaluates patterns, so each is declared `selecting xpath_regex`: it also
-/// takes the dated XPath law (`xpathRegex`) as its synchronous entry's trailing argument
+/// takes the dated XPath law (`xpathRegex`) after its synchronous document and limit arguments
 /// (`None` keeping the compatibility law). Its asynchronous twin
 /// takes the law in its options object instead, so the host options keep following the
 /// positional arguments where they always have: the constructor leaves it unset and the
 /// job installs it from its options ([`ShaclRequest::select_xpath_regex`]).
+/// Rule entries append raw coordinate arguments only on the synchronous export; their
+/// constructors retain their arity and the job installs owned inputs from its options.
 macro_rules! shacl_entries {
     ($(
         $(#[$meta:meta])*
         $js:ident: fn $sync:ident($($param:ident: $ty:ty),* $(,)?)
-            selecting $selection:ident $(law $law:ident)? -> Result<$out:ty, $err:ty>
+            selecting $selection:ident $(law $law:ident)?
+            $(coordinates($now:ident, $seed:ident) as $coordinates:ident)?
+            -> Result<$out:ty, $err:ty>
             => $variant:ident, $ctor_js:ident / $ctor:ident
             $body:block
     )*) => {
@@ -1366,6 +1416,7 @@ macro_rules! shacl_entries {
                 #[allow(clippy::needless_pass_by_value)] // the request owns its arguments
                 pub(crate) fn $ctor(
                     $($param: $ty,)* $selection: Option<String> $(, $law: Option<String>)?
+                    $(, $coordinates: purrdf_validate::query::CoordinateInputs)?
                 ) -> Result<$out, $err> $body
             )*
         }
@@ -1376,7 +1427,8 @@ macro_rules! shacl_entries {
         pub(crate) enum ShaclRequest {
             $(
                 #[doc = concat!("`", stringify!($js), "`'s arguments.")]
-                $variant { $($param: $ty,)* $selection: Option<String>, $($law: Option<String>,)? },
+                $variant { $($param: $ty,)* $selection: Option<String>, $($law: Option<String>,)?
+                    $($coordinates: purrdf_validate::query::CoordinateInputs,)? },
             )*
         }
 
@@ -1385,8 +1437,8 @@ macro_rules! shacl_entries {
             /// carried as the value its synchronous entry returns or throws.
             pub(crate) fn run_job(self) -> JobOutcome {
                 match self {
-                    $(Self::$variant { $($param,)* $selection, $($law,)? } => {
-                        requests::$ctor($($param,)* $selection $(, $law)?)
+                    $(Self::$variant { $($param,)* $selection, $($law,)? $($coordinates,)? } => {
+                        requests::$ctor($($param,)* $selection $(, $law)? $(, $coordinates)?)
                             .map_or_else(ShaclFailure::into_outcome, ShaclAnswer::into_outcome)
                     })*
                 }
@@ -1396,6 +1448,27 @@ macro_rules! shacl_entries {
             pub(crate) fn select_xpath_regex(&mut self, name: Option<String>) {
                 match self {
                     $(Self::$variant { $selection, .. } => *$selection = name,)*
+                }
+            }
+
+            /// Admit owned execution controls only for actual rule requests.
+            pub(crate) fn select_coordinates(
+                &mut self,
+                inputs: purrdf_validate::query::CoordinateInputs,
+            ) -> Result<(), String> {
+                match self {
+                    $($(Self::$variant { $coordinates, .. } => {
+                        *$coordinates = inputs;
+                        Ok(())
+                    },)?)*
+                    _ => {
+                        let (now, seed) = inputs.into_parts();
+                        if now.is_some() || seed.is_some() {
+                            Err("now and entropySeed apply only to entailment and rule execution".to_owned())
+                        } else {
+                            Ok(())
+                        }
+                    }
                 }
             }
 
@@ -1427,8 +1500,12 @@ macro_rules! shacl_entries {
             #[allow(clippy::too_many_arguments)] // one argument per request input
             pub fn $sync(
                 $($param: $ty,)* $selection: Option<String> $(, $law: Option<String>)?
+                $(, $now: Option<JsValue>, $seed: Option<JsValue>)?
             ) -> Result<$out, JsValue> {
-                requests::$ctor($($param,)* $selection $(, $law)?)
+                $(let $coordinates = crate::query::QueryEngine::coordinate_inputs(
+                    $now.as_ref(), $seed.as_ref(),
+                )?;)?
+                requests::$ctor($($param,)* $selection $(, $law)? $(, $coordinates)?)
                     .map_err(ShaclFailure::into_rejection)
             }
         )*
@@ -1463,6 +1540,7 @@ macro_rules! shacl_entries {
                     Self {
                         request: ShaclRequest::$variant {
                             $($param,)* $selection: None, $($law: None,)?
+                            $($coordinates: purrdf_validate::query::CoordinateInputs::default(),)?
                         },
                     }
                 }
@@ -1658,7 +1736,8 @@ shacl_entries! {
         max_generated_terms: Option<u64>,
         max_stored_facts: Option<u64>,
         max_join_steps: Option<u64>,
-    ) selecting xpath_regex -> Result<ShaclEntailment, XPathValidationError> => Entail, entail / entail
+    ) selecting xpath_regex coordinates(now, entropy_seed) as coordinates
+        -> Result<ShaclEntailment, XPathValidationError> => Entail, entail / entail
     {
         entail_to_ntriples_impl(
             &shapes_ttl,
@@ -1674,6 +1753,7 @@ shacl_entries! {
                 max_join_steps,
             },
             shapes_profile(xpath_regex.as_deref())?,
+            coordinates,
         )
         .map(ShaclEntailment::from)
     }
@@ -1734,7 +1814,8 @@ shacl_entries! {
         max_generated_terms: Option<u64>,
         max_stored_facts: Option<u64>,
         max_join_steps: Option<u64>,
-    ) selecting xpath_regex -> Result<ShaclRulesInference, XPathValidationError> => ApplyRules, applyRules / apply_rules
+    ) selecting xpath_regex coordinates(now, entropy_seed) as coordinates
+        -> Result<ShaclRulesInference, XPathValidationError> => ApplyRules, applyRules / apply_rules
     {
         let profile = shapes_profile(xpath_regex.as_deref())?;
         let imports = shapes_import_pairs(
@@ -1755,7 +1836,7 @@ shacl_entries! {
             max_stored_facts,
             max_join_steps,
             host: purrdf_validate::RulesHost::Wasm,
-        }, profile)
+        }, profile, coordinates)
         .map(ShaclRulesInference::from)
     }
 
@@ -1997,6 +2078,16 @@ trait ShaclFailure {
     fn into_outcome(self) -> JobOutcome;
 }
 
+fn outcome_with_rule_receipt(outcome: JobOutcome, receipt: String) -> JobOutcome {
+    match outcome {
+        JobOutcome::Failed(error) => JobOutcome::Failed(error.with_execution_receipt(receipt)),
+        JobOutcome::Refused(refusal) => {
+            JobOutcome::Refused(ShaclRefusal::Execution(Box::new(refusal), receipt))
+        }
+        other => other,
+    }
+}
+
 impl ShaclFailure for ShapesError {
     fn into_rejection(self) -> JsValue {
         shapes_rejection(self)
@@ -2004,6 +2095,15 @@ impl ShaclFailure for ShapesError {
 
     fn into_outcome(self) -> JobOutcome {
         match self {
+            Self::RuleExecution(error) => {
+                let receipt =
+                    purrdf_validate::query::rule_execution_receipt_json(&error.coordinates);
+                let outcome = match error.into_cause() {
+                    purrdf_shapes::rules::RulesError::Shapes(cause) => cause.into_outcome(),
+                    cause => JobOutcome::Failed(JobError::message(SHACL_CODE, cause.to_string())),
+                };
+                outcome_with_rule_receipt(outcome, receipt)
+            }
             Self::Storage(error) => JobOutcome::Failed(JobError::diagnostic(error.into())),
             Self::Imports(error) => {
                 JobOutcome::Refused(ShaclRefusal::Import(ShaclImportError::from(&error)))
@@ -2021,6 +2121,12 @@ impl ShaclFailure for XPathValidationError {
     /// the plain `Error` it always was.
     fn into_rejection(self) -> JsValue {
         match self {
+            Self::RuleExecution { cause, coordinates } => {
+                crate::operation::attach_execution_receipt(
+                    cause.into_rejection(),
+                    &purrdf_validate::query::rule_execution_receipt_json(&coordinates),
+                )
+            }
             Self::Shapes(error) => shapes_rejection(error),
             other => {
                 let message = selected_error_message(&other);
@@ -2037,6 +2143,10 @@ impl ShaclFailure for XPathValidationError {
     /// [`SHACL_CODE`] otherwise.
     fn into_outcome(self) -> JobOutcome {
         match self {
+            Self::RuleExecution { cause, coordinates } => outcome_with_rule_receipt(
+                cause.into_outcome(),
+                purrdf_validate::query::rule_execution_receipt_json(&coordinates),
+            ),
             Self::Shapes(error) => error.into_outcome(),
             other => JobOutcome::Failed(JobError::message(
                 selected_refusal_code(&other).unwrap_or(SHACL_CODE),
@@ -2499,6 +2609,7 @@ pub(crate) mod tests {
             None,
             purrdf_validate::RuleLimits::default(),
             None,
+            purrdf_validate::query::CoordinateInputs::default(),
         )
         .expect("entailment produced")
         .ntriples;
@@ -2523,7 +2634,8 @@ pub(crate) mod tests {
                 &[],
                 None,
                 purrdf_validate::RuleLimits::default(),
-                None
+                None,
+                purrdf_validate::query::CoordinateInputs::default()
             )
             .is_err()
         );
@@ -2795,9 +2907,13 @@ CONSTRUCT { $this ex:n ?m } WHERE { $this ex:n ?k . FILTER(?k < 5) BIND(?k + 1 A
             host: purrdf_validate::RulesHost::Wasm,
             ..purrdf_validate::RulesRequest::default()
         };
-        let refused = apply_rules_impl(&request, None)
-            .expect_err("six facts exceed the selected ceiling")
-            .to_string();
+        let refused = apply_rules_impl(
+            &request,
+            None,
+            purrdf_validate::query::CoordinateInputs::default(),
+        )
+        .expect_err("six facts exceed the selected ceiling")
+        .to_string();
         assert!(
             refused.contains("5 facts observed, 4 permitted (the caller's limit)")
                 && refused.ends_with("raise it with shaclApplyRules's maxStoredFacts"),
@@ -2809,6 +2925,7 @@ CONSTRUCT { $this ex:n ?m } WHERE { $this ex:n ?k . FILTER(?k < 5) BIND(?k + 1 A
                 ..request
             },
             None,
+            purrdf_validate::query::CoordinateInputs::default(),
         )
         .expect("a limit of exactly the store admits it");
         assert_eq!(raised.inferred_ntriples.lines().count(), 3);
@@ -2819,6 +2936,7 @@ CONSTRUCT { $this ex:n ?m } WHERE { $this ex:n ?k . FILTER(?k < 5) BIND(?k + 1 A
                 ..request
             },
             None,
+            purrdf_validate::query::CoordinateInputs::default(),
         )
         .expect_err("one join step")
         .to_string();
@@ -2833,7 +2951,17 @@ CONSTRUCT { $this ex:n ?m } WHERE { $this ex:n ?k . FILTER(?k < 5) BIND(?k + 1 A
     #[test]
     fn wasm_entail_limits() {
         let run = |limits: purrdf_validate::RuleLimits| {
-            entail_to_ntriples_impl(TOOLS_SHAPES, None, TOOLS_DATA, &[], &[], None, limits, None)
+            entail_to_ntriples_impl(
+                TOOLS_SHAPES,
+                None,
+                TOOLS_DATA,
+                &[],
+                &[],
+                None,
+                limits,
+                None,
+                purrdf_validate::query::CoordinateInputs::default(),
+            )
         };
         let cases = [
             (
@@ -2923,13 +3051,18 @@ ex:S a sh:NodeShape ; sh:targetClass ex:Person ; ex:marker ex:secret ;
                 ..request
             },
             None,
+            purrdf_validate::query::CoordinateInputs::default(),
         )
         .expect("rules run")
         .inferred_ntriples;
         assert!(with.contains(named) && with.contains(marked), "{with}");
-        let without = apply_rules_impl(&request, None)
-            .expect("rules run")
-            .inferred_ntriples;
+        let without = apply_rules_impl(
+            &request,
+            None,
+            purrdf_validate::query::CoordinateInputs::default(),
+        )
+        .expect("rules run")
+        .inferred_ntriples;
         assert!(
             without.contains(unnamed) && !without.contains(marked),
             "{without}"
@@ -2944,6 +3077,7 @@ ex:S a sh:NodeShape ; sh:targetClass ex:Person ; ex:marker ex:secret ;
             Some("http://example.org/shapes-graph"),
             purrdf_validate::RuleLimits::default(),
             None,
+            purrdf_validate::query::CoordinateInputs::default(),
         )
         .expect("entails")
         .ntriples;
@@ -2960,6 +3094,7 @@ ex:S a sh:NodeShape ; sh:targetClass ex:Person ; ex:marker ex:secret ;
             None,
             purrdf_validate::RuleLimits::default(),
             None,
+            purrdf_validate::query::CoordinateInputs::default(),
         )
         .expect("entails")
         .ntriples;
@@ -2981,11 +3116,19 @@ ex:S a sh:NodeShape ; sh:targetClass ex:Person ; ex:marker ex:secret ;
                     shapes_graph: Some("http://example.org/shapes-graph"),
                     ..srl
                 },
-                None
+                None,
+                purrdf_validate::query::CoordinateInputs::default()
             )
             .is_err()
         );
-        assert!(apply_rules_impl(&srl, None).is_ok());
+        assert!(
+            apply_rules_impl(
+                &srl,
+                None,
+                purrdf_validate::query::CoordinateInputs::default()
+            )
+            .is_ok()
+        );
     }
 
     /// The rules entry point: the inference graph alone, the proof on request, the
@@ -2997,7 +3140,12 @@ ex:S a sh:NodeShape ; sh:targetClass ex:Person ; ex:marker ex:secret ;
             shapes_ttl: Some(TOOLS_SHAPES),
             ..purrdf_validate::RulesRequest::default()
         };
-        let plain = apply_rules_impl(&request, None).expect("rules run");
+        let plain = apply_rules_impl(
+            &request,
+            None,
+            purrdf_validate::query::CoordinateInputs::default(),
+        )
+        .expect("rules run");
         assert_eq!(plain.inferred_ntriples, tools_inference());
         assert_eq!(plain.proof, None);
         let explained = apply_rules_impl(
@@ -3006,6 +3154,7 @@ ex:S a sh:NodeShape ; sh:targetClass ex:Person ; ex:marker ex:secret ;
                 ..request
             },
             None,
+            purrdf_validate::query::CoordinateInputs::default(),
         )
         .expect("rules run");
         let proof = explained.proof.expect("a proof was asked for");
@@ -3016,6 +3165,7 @@ ex:S a sh:NodeShape ; sh:targetClass ex:Person ; ex:marker ex:secret ;
                 ..request
             },
             None,
+            purrdf_validate::query::CoordinateInputs::default(),
         )
         .expect_err("three rounds are too few")
         .to_string();
@@ -3026,6 +3176,7 @@ ex:S a sh:NodeShape ; sh:targetClass ex:Person ; ex:marker ex:secret ;
                 ..request
             },
             None,
+            purrdf_validate::query::CoordinateInputs::default(),
         )
         .expect("four rounds suffice");
         assert_eq!(enough.inferred_ntriples, tools_inference());
@@ -3040,6 +3191,7 @@ ex:S a sh:NodeShape ; sh:targetClass ex:Person ; ex:marker ex:secret ;
                 ..purrdf_validate::RulesRequest::default()
             },
             None,
+            purrdf_validate::query::CoordinateInputs::default(),
         )
         .expect("SPARQL 1.2 RL runs");
         assert_eq!(
@@ -3056,7 +3208,8 @@ ex:S a sh:NodeShape ; sh:targetClass ex:Person ; ex:marker ex:secret ;
                     data_nt: TOOLS_DATA,
                     ..purrdf_validate::RulesRequest::default()
                 },
-                None
+                None,
+                purrdf_validate::query::CoordinateInputs::default()
             )
             .is_err(),
             "no rule source"
@@ -3080,6 +3233,7 @@ ex:S a sh:NodeShape ; sh:targetClass ex:Person ; ex:marker ex:secret ;
                 ..request
             },
             None,
+            purrdf_validate::query::CoordinateInputs::default(),
         )
         .expect_err("three rounds are too few")
         .to_string();
@@ -3093,6 +3247,7 @@ ex:S a sh:NodeShape ; sh:targetClass ex:Person ; ex:marker ex:secret ;
                 ..request
             },
             None,
+            purrdf_validate::query::CoordinateInputs::default(),
         )
         .expect_err("five terms are too few")
         .to_string();
@@ -3114,6 +3269,7 @@ ex:S a sh:NodeShape ; sh:targetClass ex:Person ; ex:marker ex:secret ;
                 ..request
             },
             None,
+            purrdf_validate::query::CoordinateInputs::default(),
         )
         .expect("six terms suffice");
         assert_eq!(enough.inferred_ntriples, tools_inference());
@@ -3142,6 +3298,7 @@ ex:S a sh:NodeShape ; sh:targetClass ex:Person ; ex:marker ex:secret ;
                     ..purrdf_validate::RulesRequest::default()
                 },
                 None,
+                purrdf_validate::query::CoordinateInputs::default(),
             )
             .map(|outcome| outcome.inferred_ntriples)
             .map_err(|error| error.to_string())

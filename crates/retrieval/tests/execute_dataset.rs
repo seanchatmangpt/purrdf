@@ -13,6 +13,7 @@
 //! ranking. Every refusal is paired with the neighbouring case that must still
 //! succeed. Fixtures are `example.org` throughout.
 
+use purrdf_retrieval::fixture::PRECISION_12;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use std::sync::{Arc, OnceLock};
@@ -22,7 +23,7 @@ use purrdf_core::{
 };
 use purrdf_retrieval::{
     AdmissionEnvironment, BoundMode, CandidateDomains, CompiledRetrieval, DecayRule,
-    ExecutionError, Fixed, FusionProfile, IndexGeneration, Iri, ProducerStatus, RankFidelity,
+    ExecutionError, FusionProfile, IndexGeneration, Iri, ProducerStatus, RankFidelity,
     RankedStream, RankedStreamAdapter, RequestTerm, RetrievalRequest, ScoreExactness, SearchResult,
     ServiceLevel, Statistics, StratumUnit, StreamContract, Term, TopK, UnitError, compile, execute,
     plan, search,
@@ -318,6 +319,7 @@ fn declaring(stratum: &str, duplicates: DuplicatePolicy) -> RankedDeclaration {
             }],
         }],
         depth_placement: None,
+        rank_source: purrdf_sparql_eval::RankSource::Ordinal,
         candidate_position: 0,
         duplicates,
         // These fixtures fuse strata that rank the same dataset, so the widest
@@ -392,9 +394,10 @@ fn fixture_profile() -> FusionProfile {
     FusionProfile::with_decay(
         STRATA
             .iter()
-            .map(|stratum| (iri(&ex(stratum)), Fixed::ONE))
+            .map(|stratum| (iri(&ex(stratum)), PRECISION_12.score(PRECISION_12.scale())))
             .collect(),
         DecayRule::ReciprocalRank { k: K },
+        PRECISION_12,
     )
     .expect("the fixture profile is valid")
 }
@@ -813,12 +816,14 @@ fn a_producers_declared_contract_travels_the_pipeline_to_the_fusion_protocol() {
         let stats = statistics();
         let bundle = compiled(&registry, &stats);
         let expected = StreamContract::new(
+            purrdf_sparql_eval::RankLaw::Ordinal,
             duplicates,
             RankFidelity::EXACT,
             CandidateDomains::Unrestricted,
             ExclusionBasis::Unavailable,
         );
         let beta = StreamContract::new(
+            purrdf_sparql_eval::RankLaw::Ordinal,
             DuplicatePolicy::Unique,
             RankFidelity::EXACT,
             CandidateDomains::Unrestricted,
@@ -1642,6 +1647,7 @@ fn a_bundle_retagged_after_assembly_is_refused_and_one_assembled_by_hand_is_not(
     //     that policy before it pulls a row.
     let mut relaxed = compiled(&registry, &stats);
     relaxed.units[0].contract = StreamContract {
+        rank_law: relaxed.units[0].contract.rank_law,
         duplicates: DuplicatePolicy::Allowed,
         // Carried over rather than restated: this test rewrites the DUPLICATE
         // policy and nothing else, so a fidelity typed in here would be a second
