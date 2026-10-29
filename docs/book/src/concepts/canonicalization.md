@@ -84,7 +84,10 @@ are holding is part of the identity:
   statement layer to plain `rdf:reifies` / annotation triples first and
   canonicalizes *that* triple set under conformant RDFC-1.0. This is what the
   CLI's `convert --canonical`, the wasm `Dataset.canonicalize()` and the W3C
-  conformance gate run.
+  conformance gate run. The CLI's `--canonical` lane applies the output-name
+  policy (`refuse_transport_target`): a transport-suffixed output name
+  (`.gz`, `.gts`, …) is refused rather than writing plain N-Quads under a
+  lying name (`0d48c0f7`).
 - **The `purrdf-rdfc12` v2 profile** — `try_canonicalize` in `purrdf-core` keeps
   the statement layer and lowers it into a reserved `urn:purrdf:rdfc:`
   namespace instead (any input already carrying that namespace is refused,

@@ -10,6 +10,11 @@ bump is bugfix-only. The C ABI (`purrdf.h`) is versioned separately and remains
 
 **n3:** Introduced `purrdf-n3` (`crates/n3`): native Notation3 parsing, forward/backward reasoning and proof writing/checking over RDF 1.2, re-exported through the `purrdf` umbrella as `purrdf::n3`.
 
+- **Proof-checker hardening (WP P01, `2223f894`):**
+  `purrdf::n3::proof_check::CheckPolicy` (`crates/n3/src/proof_check.rs`:
+  `pub struct CheckPolicy { pub trusted_resolve: bool, pub trusted_digest: bool }`,
+  both `false` by default — unhardened checking stays the default), plus
+  source-digest policy, head pinning and the forgery court.
 - **Query-only bottom properties:** native axiom refutations install the same
   empty-role law as ontology parsing. Querying an unmentioned bottom object
   property now preserves its empty extension and native proof origin.
