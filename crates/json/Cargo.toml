@@ -6,6 +6,7 @@ name = "purrdf-json"
 description = "Lossless ordered JSON to RDF 1.2: queryable occurrences over a verified verbatim byte cover"
 version.workspace = true
 edition.workspace = true
+publish = false
 repository.workspace = true
 license.workspace = true
 homepage.workspace = true

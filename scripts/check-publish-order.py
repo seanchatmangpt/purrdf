@@ -46,7 +46,14 @@ def _array(text: str, name: str) -> list[str]:
     body = re.search(rf"{name}=\((.*?)\)", text, re.DOTALL)
     if not body:
         raise SystemExit(f"check-publish-order: no {name} array in {_RELEASE_CRATES}")
-    return [line.strip() for line in body.group(1).split() if line.strip()]
+    # Shell comments are annotations, not entries (fork posture: the lane
+    # may be deliberately empty).
+    entries: list[str] = []
+    for line in body.group(1).splitlines():
+        line = line.split("#", 1)[0].strip()
+        if line:
+            entries.append(line)
+    return entries
 
 
 def load_lists() -> tuple[list[str], list[str]]:
@@ -173,6 +180,10 @@ def self_test(
     def must_fail(label: str, *args: object) -> None:
         if not check(*args):  # type: ignore[arg-type]
             survived.append(label)
+
+    # Fork posture: an empty publish lane has nothing to perturb.
+    if not order:
+        return survived
 
     # 1: drop a publishable crate from the list / add a non-member
     must_fail("a publishable crate missing from the list",

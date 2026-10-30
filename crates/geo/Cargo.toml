@@ -6,6 +6,7 @@ name = "purrdf-geo"
 description = "PurRDF GeoSPARQL compatibility facade over shared geometry and evaluator adapters"
 version.workspace = true
 edition.workspace = true
+publish = false
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true

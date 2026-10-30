@@ -6,6 +6,7 @@ name = "purrdf-markdown"
 description = "PurRDF structural Markdown-to-RDF 1.2 slicer: a document becomes a graph of its own headings, verses, and paragraphs with verbatim byte spans, under a caller-supplied vocabulary and a declared, content-addressed profile."
 version.workspace = true
 edition.workspace = true
+publish = false
 repository.workspace = true
 license.workspace = true
 homepage.workspace = true

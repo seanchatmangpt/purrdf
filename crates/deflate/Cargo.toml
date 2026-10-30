@@ -6,6 +6,7 @@ name = "purrdf-deflate"
 description = "Native DEFLATE (RFC 1951) and gzip (RFC 1952) for PurRDF: a push-based streaming decoder, a deterministic encoder, and vector hot paths"
 version.workspace = true
 edition.workspace = true
+publish = false
 repository.workspace = true
 license.workspace = true
 homepage.workspace = true

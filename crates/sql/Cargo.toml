@@ -6,6 +6,7 @@ name = "purrdf-sql"
 description = "PurRDF declarative SQL-in-RDF AST representation, validation and deterministic compiler"
 version.workspace = true
 edition.workspace = true
+publish = false
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true

@@ -210,6 +210,13 @@ pub enum ProcessError {
         /// The absent field's accepted spellings.
         field: &'static str,
     },
+    /// The avec `Batch` layer refused a projected table.
+    BatchRefused {
+        /// Which projection table (`events`, `event_attrs`, …).
+        table: &'static str,
+        /// The batch layer's refusal detail.
+        detail: String,
+    },
 }
 
 impl core::fmt::Display for ProcessError {
@@ -336,6 +343,9 @@ impl core::fmt::Display for ProcessError {
             Self::MissingField { document, field } => {
                 write!(f, "{document} is missing its {field:?} field")
             }
+            Self::BatchRefused { table, detail } => {
+                write!(f, "batch layer refused the {table} table: {detail}")
+            }
         }
     }
 }
@@ -384,6 +394,7 @@ impl ProcessError {
             Self::NoAlignment => "alignment-none",
             Self::MarkingLengthMismatch { .. } => "petri-marking-length",
             Self::MissingField { .. } => "process-missing-field",
+            Self::BatchRefused { .. } => "process-batch-refused",
         }
     }
 }
@@ -489,6 +500,10 @@ impl StructuredError for ProcessError {
         MissingField { document, field } => "process-missing-field" {
             "document" => Text(document),
             "field" => Code(field),
+        },
+        BatchRefused { table, detail } => "process-batch-refused" {
+            "table" => Code(table),
+            "detail" => Message(detail),
         },
     }
 }

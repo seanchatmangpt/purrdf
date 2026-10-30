@@ -6,6 +6,7 @@ name = "purrdf-sparql-eval"
 description = "Native, RDF-1.2-first multiset SPARQL evaluator over the DatasetView read trait in interned TermId space — the runtime that consumes purrdf-sparql-algebra on the query path"
 version.workspace = true
 edition.workspace = true
+publish = false
 repository.workspace = true
 license.workspace = true
 homepage.workspace = true

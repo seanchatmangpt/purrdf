@@ -6,6 +6,7 @@ name = "purrdf-shex"
 description = "PurRDF ShEx 2.1 engine: ShExC/ShExJ schema parsing, structural validation, and shape-map validation over the purrdf-core IR, gated against the shexTest conformance suite"
 version.workspace = true
 edition.workspace = true
+publish = false
 repository.workspace = true
 license.workspace = true
 homepage.workspace = true

@@ -173,32 +173,49 @@ csv = [
 #                       the graph; required when no workspace member depends on
 #                       it directly, refused when one does.
 
+[packages.adler2]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+distinct = "Zstandard (RFC 8879) C implementation reached only through structured-zstd"
+holder = "purrdf-columnar"
 [packages.aead]
 category = "transitive:aes-gcm"
 reason = "AEAD trait for AES-GCM"
 distinct = "internal to aes-gcm's AES-256-GCM; PurRDF has no block cipher or AEAD of its own (purrdf_hash::fixed uses single AES rounds only as a hash mixer)"
 holder = "aes-gcm"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.aes]
 category = "transitive:aes-gcm"
 reason = "AES block cipher"
 distinct = "internal to aes-gcm's AES-256-GCM; PurRDF has no block cipher or AEAD of its own (purrdf_hash::fixed uses single AES rounds only as a hash mixer)"
 holder = "aes-gcm"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.aes-gcm]
 category = "crypto"
 reason = "AES-256-GCM for GTS COSE_Encrypt0 envelopes"
 distinct = "AES-256-GCM authenticated encryption for GTS COSE_Encrypt0; PurRDF has no native block cipher or AEAD"
-metrics = { direct = true, exclusive_closure = 12, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = true, exclusive_closure = 6, release = false, wasm = false, build_script = false, proc_macro = false }
 
+[packages.ahash]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+distinct = "Zstandard (RFC 8879) C implementation reached only through structured-zstd"
+holder = "purrdf-columnar"
 [packages.aho-corasick]
 category = "transitive:regex"
 reason = "locked, never built: regex is built without perf-literal, and Cargo keeps the optional dependencies its weak `?` feature references in Cargo.lock (no build resolves or compiles it; `cargo tree --workspace -i aho-corasick` prints nothing)"
 distinct = "internal to regex's literal prefilter, which the workspace does not enable; PurRDF has no multi-pattern literal search"
 holder = "regex"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.android_system_properties]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.anstream]
 category = "transitive:clap"
@@ -235,39 +252,196 @@ distinct = "internal to clap's terminal output; PurRDF has no command-line parse
 holder = "clap"
 metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
+[packages.anyhow]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.arrayvec]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.arrow]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.arrow-arith]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.arrow-array]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.arrow-buffer]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.arrow-cast]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.arrow-data]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.arrow-ord]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.arrow-row]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.arrow-schema]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.arrow-select]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.arrow-string]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.atoi]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.autocfg]
+category = "transitive:num-traits"
+reason = "rustc cfg probing at num-traits build time"
+distinct = "build-time feature detection only; no PurRDF call sites"
+holder = "num-traits"
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.avec-arrow]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = true, exclusive_closure = 1, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.base64]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.bindgen]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.bitflags]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
 [packages.block-buffer]
 category = "transitive:sha2"
 reason = "block buffering for RustCrypto digests"
 distinct = "RustCrypto plumbing inside sha2, the single SHA-2 implementation; no first-party code calls it"
 holder = "sha2"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.borsh]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.borsh-derive]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.bstr]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.bumpalo]
 category = "transitive:wasm-bindgen"
 reason = "bump allocator for the wasm-bindgen macro backend"
 distinct = "internal to wasm-bindgen's JavaScript binding; PurRDF has no JavaScript FFI of its own"
 holder = "wasm-bindgen"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.bytecount]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.bytes]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.bzip2]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.cast]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.cc]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.cexpr]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.cfg-if]
 category = "transitive:sha2"
 reason = "cfg dispatch helper used across RustCrypto and others"
 distinct = "a cfg dispatch macro inside sha2, getrandom, wasm-bindgen and the RustCrypto crates; no first-party code calls it"
 holder = "sha2"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.cfg_aliases]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.chrono]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.cipher]
 category = "transitive:aes-gcm"
 reason = "block/stream cipher traits for AES-GCM"
 distinct = "internal to aes-gcm's AES-256-GCM; PurRDF has no block cipher or AEAD of its own (purrdf_hash::fixed uses single AES rounds only as a hash mixer)"
 holder = "aes-gcm"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.clang-sys]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
 
 [packages.clap]
 category = "runtime"
 reason = "command-line argument parsing for the purrdf CLI"
 distinct = "command-line argument parsing for the purrdf CLI; PurRDF has no command-line parser of its own"
-metrics = { direct = true, exclusive_closure = 14, release = false, wasm = false, build_script = false, proc_macro = false }
+metrics = { direct = true, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.clap_builder]
 category = "transitive:clap"
@@ -295,7 +469,7 @@ category = "transitive:aes-gcm"
 reason = "constant-time conditional moves for RustCrypto"
 distinct = "internal to aes-gcm's AES-256-GCM; PurRDF has no block cipher or AEAD of its own (purrdf_hash::fixed uses single AES rounds only as a hash mixer)"
 holder = "aes-gcm"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.colorchoice]
 category = "transitive:clap"
@@ -304,107 +478,347 @@ distinct = "internal to clap's terminal output; PurRDF has no command-line parse
 holder = "clap"
 metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
+[packages.comfy-table]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.console]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
 [packages.const-oid]
 category = "transitive:sha2"
 reason = "ASN.1 OIDs for RustCrypto digest identifiers"
 distinct = "RustCrypto plumbing inside sha2, the single SHA-2 implementation; no first-party code calls it"
 holder = "sha2"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.const-random]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.const-random-macro]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.constant_time_eq]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.core-foundation]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.core-foundation-sys]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.core_detect]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.cpubits]
 category = "transitive:aes-gcm"
 reason = "target word-size detection for RustCrypto"
 distinct = "internal to aes-gcm's AES-256-GCM; PurRDF has no block cipher or AEAD of its own (purrdf_hash::fixed uses single AES rounds only as a hash mixer)"
 holder = "aes-gcm"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.cpufeatures]
 category = "transitive:sha2"
 reason = "runtime CPU feature detection for SIMD crypto"
 distinct = "runtime CPU detection inside sha2 and aes-gcm; purrdf_hash dispatches its own kernels, but this one serves only those two crates' internals"
 holder = "sha2"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = false, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.crc32fast]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
 
 [packages.crossbeam-deque]
 category = "transitive:rayon"
 reason = "work-stealing deques for rayon"
 distinct = "internal to rayon's work-stealing pool; PurRDF has no thread pool of its own"
 holder = "rayon"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
 
 [packages.crossbeam-epoch]
 category = "transitive:rayon"
 reason = "epoch-based reclamation for rayon"
 distinct = "internal to rayon's work-stealing pool; PurRDF has no thread pool of its own"
 holder = "rayon"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
 
 [packages.crossbeam-utils]
 category = "transitive:rayon"
 reason = "concurrency primitives for rayon"
 distinct = "internal to rayon's work-stealing pool; PurRDF has no thread pool of its own"
 holder = "rayon"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = true, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.crunchy]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
 
 [packages.crypto-common]
 category = "transitive:sha2"
 reason = "common RustCrypto traits"
 distinct = "RustCrypto plumbing inside sha2, the single SHA-2 implementation; no first-party code calls it"
 holder = "sha2"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.ctr]
 category = "transitive:aes-gcm"
 reason = "CTR mode for AES-GCM"
 distinct = "internal to aes-gcm's AES-256-GCM; PurRDF has no block cipher or AEAD of its own (purrdf_hash::fixed uses single AES rounds only as a hash mixer)"
 holder = "aes-gcm"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.ctutils]
 category = "transitive:aes-gcm"
 reason = "constant-time utilities for RustCrypto"
 distinct = "internal to aes-gcm's AES-256-GCM; PurRDF has no block cipher or AEAD of its own (purrdf_hash::fixed uses single AES rounds only as a hash mixer)"
 holder = "aes-gcm"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.cucumber]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = true, exclusive_closure = 45, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.cucumber-codegen]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.cucumber-expressions]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.deflate64]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.deranged]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.derive_more]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
 
 [packages.digest]
 category = "transitive:sha2"
 reason = "digest traits for RustCrypto hashes"
 distinct = "RustCrypto plumbing inside sha2, the single SHA-2 implementation; no first-party code calls it"
 holder = "sha2"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.displaydoc]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.drain_filter_polyfill]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.either]
 category = "transitive:rayon"
 reason = "Either type for rayon iterators"
 distinct = "internal to rayon's work-stealing pool; PurRDF has no thread pool of its own"
 holder = "rayon"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.encode_unicode]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.encoding_rs]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.equivalent]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.errno]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.fallible-iterator]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.fallible-streaming-iterator]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.fastrand]
 category = "runtime"
 reason = "seeds structured-zstd FastCOVER dictionary training reproducibly in GTS"
 distinct = "the thread-local generator structured-zstd's FastCOVER sampler draws from; GTS only seeds and restores it, and no native generator can stand in for the one that crate calls"
-metrics = { direct = true, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = true, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.filetime]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.find-msvc-tools]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.flate2]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.fnv]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.foldhash]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.foreign-types]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.foreign-types-shared]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.form_urlencoded]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.futures]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.futures-channel]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.futures-core]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.futures-executor]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.futures-io]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.futures-macro]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.futures-sink]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.futures-task]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.futures-util]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.getrandom]
 category = "runtime"
 reason = "native OS entropy for SPARQL RAND()/UUID() seeds and GTS test keys"
 distinct = "operating-system entropy for SPARQL RAND()/UUID() seeds and GTS test keys; PurRDF has no entropy source of its own"
-metrics = { direct = true, exclusive_closure = 4, release = true, wasm = false, build_script = true, proc_macro = false }
+metrics = { direct = true, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
 
 [packages.ghash]
 category = "transitive:aes-gcm"
 reason = "GHASH universal hash for AES-GCM"
 distinct = "internal to aes-gcm's AES-256-GCM; PurRDF has no block cipher or AEAD of its own (purrdf_hash::fixed uses single AES rounds only as a hash mixer)"
 holder = "aes-gcm"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.gherkin]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.glob]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.globset]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.globwalk]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.h2]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.half]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.hashbrown]
 category = "runtime"
 reason = "raw HashTable for store-once interners and dedup maps"
 distinct = "the raw HashTable API behind hash-once, store-once interners, which std does not expose; PurRDF has hashers (purrdf_hash::fixed) but no hash table"
-metrics = { direct = true, exclusive_closure = 1, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = true, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.hashlink]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.heck]
 category = "transitive:pyo3"
@@ -413,25 +827,210 @@ distinct = "identifier case conversion inside the pyo3 and clap derive macros; n
 holder = "pyo3"
 metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
+[packages.hmac]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.home]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.http]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.http-body]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.httparse]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.httpdate]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.humantime]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
 [packages.hybrid-array]
 category = "transitive:sha2"
 reason = "const-generic arrays for RustCrypto"
 distinct = "RustCrypto plumbing inside sha2, the single SHA-2 implementation; no first-party code calls it"
 holder = "sha2"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.hyper]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.hyper-tls]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.iana-time-zone]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.iana-time-zone-haiku]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.icu_collections]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.icu_locale_core]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.icu_locale_fallback]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.icu_locale_fallback_data]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.icu_normalizer]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.icu_normalizer_data]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.icu_properties]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.icu_properties_data]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.icu_provider]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.icu_segmenter]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.icu_segmenter_data]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.idna]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.idna_adapter]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.ignore]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.indexmap]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.inflections]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.inout]
 category = "transitive:aes-gcm"
 reason = "in/out buffers for cipher"
 distinct = "internal to aes-gcm's AES-256-GCM; PurRDF has no block cipher or AEAD of its own (purrdf_hash::fixed uses single AES rounds only as a hash mixer)"
 holder = "aes-gcm"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.inventory]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.ipnet]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.is_terminal_polyfill]
 category = "transitive:clap"
 reason = "terminal detection for anstream"
 distinct = "internal to clap's terminal output; PurRDF has no command-line parser of its own"
 holder = "clap"
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.itertools]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.itoa]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.jobserver]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.js-sys]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.lazy-regex]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.lazy-regex-proc_macros]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.lazy_static]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.lazycell]
+category = "UNCATEGORIZED"
+reason = ""
 metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.leb128fmt]
@@ -441,25 +1040,189 @@ distinct = "LEB128 emission inside wasm-encoder; the host linker reads LEB128 na
 holder = "wasm-encoder"
 metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
+[packages.lexical-core]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.lexical-parse-float]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.lexical-parse-integer]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.lexical-util]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.lexical-write-float]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.lexical-write-integer]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.libbz2-rs-sys]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
 [packages.libc]
 category = "runtime"
 reason = "Native pthread stack bounds for purrdf-stack and mmap/memfd_create/fcntl for the CLI immutable input authority; platform declarations only, absent from wasm; also reached through getrandom"
 distinct = "platform declarations for thread stack bounds and the CLI's mmap and memfd seals; bindings to the C library, not a job PurRDF implements"
-metrics = { direct = true, exclusive_closure = 0, release = true, wasm = false, build_script = true, proc_macro = false }
+metrics = { direct = true, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.libloading]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.libm]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.linked-hash-map]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.linux-raw-sys]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.litemap]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.log]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.lzma-rust2]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.memchr]
 category = "transitive:regex"
 reason = "locked, never built: regex is built without perf-literal, and Cargo keeps the optional dependencies its weak `?` feature references in Cargo.lock (no build resolves or compiles it; `cargo tree --workspace -i memchr` prints nothing); no workspace member names it"
 duplicates_native = "purrdf_lex::scan::find_byte"
 holder = "regex"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.mime]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.minimal-lexical]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.miniz_oxide]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.mio]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.multiversion_no_op]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.native-tls]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.nix]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.nom]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.nom_locate]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.nu-ansi-term]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.num]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.num-bigint]
+category = "direct:first-party-consumer"
+reason = "arbitrary-precision integers for the N3 math/list builtin families"
+distinct = "no workspace crate implements bigint arithmetic; upstream reference implementation"
+metrics = { direct = true, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.num-complex]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.num-conv]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.num-integer]
+category = "transitive:num-bigint"
+reason = "integer gcd/lcm used by num-bigint"
+distinct = "internal to num-bigint's arithmetic; no PurRDF call sites"
+holder = "num-bigint"
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.num-iter]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.num-rational]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.num-traits]
+category = "transitive:num-bigint"
+reason = "Signed::abs and ToPrimitive at the reasoner's numeric coercion sites"
+distinct = "no workspace equivalent numeric trait layer"
+metrics = { direct = true, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
 
 [packages.once_cell]
 category = "transitive:wasm-bindgen"
 reason = "lazy statics for wasm-bindgen and pyo3"
 distinct = "lazy statics inside wasm-bindgen and pyo3; no first-party code calls it"
 holder = "wasm-bindgen"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.once_cell_polyfill]
 category = "transitive:clap"
@@ -468,12 +1231,77 @@ distinct = "internal to clap's terminal output; PurRDF has no command-line parse
 holder = "clap"
 metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
+[packages.openssl]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.openssl-macros]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.openssl-probe]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.openssl-sys]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.pbkdf2]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.peg]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.peg-macros]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.peg-runtime]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.percent-encoding]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.pin-project]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.pin-project-internal]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.pin-project-lite]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.pkg-config]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
 [packages.polyval]
 category = "transitive:aes-gcm"
 reason = "POLYVAL universal hash for GHASH"
 distinct = "internal to aes-gcm's AES-256-GCM; PurRDF has no block cipher or AEAD of its own (purrdf_hash::fixed uses single AES rounds only as a hash mixer)"
 holder = "aes-gcm"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.portable-atomic]
 category = "transitive:pyo3"
@@ -482,11 +1310,41 @@ distinct = "internal to pyo3's CPython binding; PurRDF has no Python FFI of its 
 holder = "pyo3"
 metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
 
+[packages.potential_utf]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.powerfmt]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.ppmd-rust]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.ppv-lite86]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.prettyplease]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.proc-macro-crate]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
 [packages.proc-macro2]
 category = "oracle"
 reason = "token substrate for the syn-based source census tests and the unpublished helper-census tool"
 distinct = "the token substrate for the syn-based source census; PurRDF has no Rust parser of its own"
-metrics = { direct = true, exclusive_closure = 0, release = true, wasm = true, build_script = true, proc_macro = false }
+metrics = { direct = true, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
 
 [packages.pyo3]
 category = "binding"
@@ -520,66 +1378,221 @@ category = "transitive:pyo3"
 reason = "pyo3 macro code generation"
 distinct = "internal to pyo3's CPython binding; PurRDF has no Python FFI of its own"
 holder = "pyo3"
-metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
 
 [packages.quote]
 category = "transitive:syn"
 reason = "quasi-quoting for proc-macro code generation"
 distinct = "quasi-quoting inside the proc-macro stack; no first-party code calls it"
 holder = "syn"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = true, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
 
 [packages.r-efi]
 category = "transitive:getrandom"
 reason = "UEFI bindings for getrandom"
 distinct = "internal to getrandom's operating-system entropy bindings; PurRDF has no entropy source of its own"
 holder = "getrandom"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = false, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.rand]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.rand_chacha]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.rand_core]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.rayon]
 category = "runtime"
 reason = "data-parallel parsing, reasoning and scans; inline-sequential on wasm32"
 distinct = "data-parallel parsing, reasoning and scans, inline-sequential on wasm32; PurRDF has no thread pool of its own"
-metrics = { direct = true, exclusive_closure = 6, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = true, exclusive_closure = 2, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.rayon-core]
 category = "transitive:rayon"
 reason = "rayon thread pool"
 distinct = "internal to rayon's work-stealing pool; PurRDF has no thread pool of its own"
 holder = "rayon"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = true, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
 
 [packages.regex]
 category = "runtime"
 reason = "regex engine for legacy XSD patterns, SHACL/ShEx pattern constraints and JSON Schema regular expressions"
 distinct = "the regular matching backend for existing XSD and constraint APIs; SPARQL REGEX/REPLACE execute through the native owned XPath matcher"
-metrics = { direct = true, exclusive_closure = 4, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = true, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.regex-automata]
 category = "transitive:regex"
 reason = "regex matching engines"
 distinct = "the matching engines inside regex, which PurRDF's pattern dialects compile to"
 holder = "regex"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.regex-syntax]
 category = "runtime"
 reason = "regex IR for ECMA-262 pattern emission, the compiled-pattern literal prefilter and testkit string generators"
 distinct = "the pattern IR purrdf_core::xsd_regex reads to emit ECMA-262 and to find the byte window its prefilter searches with purrdf_lex::scan, and the testkit string generators walk; PurRDF has no regex IR of its own"
-metrics = { direct = true, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = true, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.reqwest]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.rust_decimal]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.rustc-hash]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.rustix]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.rustls-pemfile]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.rustversion]
 category = "transitive:wasm-bindgen"
 reason = "rustc version conditionals for wasm-bindgen"
 distinct = "internal to wasm-bindgen's JavaScript binding; PurRDF has no JavaScript FFI of its own"
 holder = "wasm-bindgen"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = true, proc_macro = true }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = true }
+
+[packages.ryu]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.same-file]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.schannel]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.scopeguard]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.sealed]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.security-framework]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.security-framework-sys]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.serde]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.serde_core]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.serde_derive]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.serde_json]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.serde_urlencoded]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.sha1]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.sha2]
 category = "crypto"
 reason = "SHA-2 family digests for SPARQL SHA256/384/512, RDF canonicalization and GTS"
 distinct = "the single SHA-2 implementation (a native build was benchmarked and did not beat it)"
-metrics = { direct = true, exclusive_closure = 3, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = true, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.sharded-slab]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.shlex]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.simd-adler32]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.simdutf8]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.slab]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.smallvec]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.smart-default]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.smawk]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.socket2]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.stable_deref_trait]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.strsim]
 category = "transitive:clap"
@@ -592,13 +1605,63 @@ metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false
 category = "spec-codec"
 reason = "pure-Rust Zstandard (RFC 8878) with dictionary training for GTS and columnar"
 distinct = "Zstandard (RFC 8878) with dictionary training for GTS and columnar; PurRDF has no native Zstandard codec"
-metrics = { direct = true, exclusive_closure = 2, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = true, exclusive_closure = 2, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.strum]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.strum_macros]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
 
 [packages.syn]
 category = "oracle"
 reason = "Rust source parser for the source-census tests in rdf and shapes and the unpublished helper-census tool"
 distinct = "the Rust source parser behind the source census tests and the helper census; PurRDF has no Rust parser of its own"
-metrics = { direct = true, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = true, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.sync_wrapper]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.synstructure]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.synthez]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.synthez-codegen]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.synthez-core]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.system-configuration]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.system-configuration-sys]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.tar]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.target-lexicon]
 category = "transitive:pyo3"
@@ -607,33 +1670,183 @@ distinct = "internal to pyo3's CPython binding; PurRDF has no Python FFI of its 
 holder = "pyo3"
 metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
 
+[packages.tempfile]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.terminal_size]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.textwrap]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.thiserror]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.thiserror-impl]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.thread_local]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.time]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.time-core]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.tiny-keccak]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.tinystr]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.tokio]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = true, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.tokio-macros]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.tokio-native-tls]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.tokio-util]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.toml_datetime]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.toml_edit]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.toml_parser]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.tower-service]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.tracing]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.tracing-attributes]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.tracing-core]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.tracing-log]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.tracing-subscriber]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.try-lock]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
 [packages.twox-hash]
 category = "transitive:structured-zstd"
 reason = "xxHash64 frame checksums for Zstandard"
 distinct = "xxHash64 frame checksums inside structured-zstd; purrdf-hash has no xxHash"
 holder = "structured-zstd"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.typed-builder]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.typed-builder-macro]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.typed-path]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.typenum]
 category = "transitive:sha2"
 reason = "type-level numbers for RustCrypto arrays"
 distinct = "RustCrypto plumbing inside sha2, the single SHA-2 implementation; no first-party code calls it"
 holder = "sha2"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.unicode-ident]
 category = "transitive:proc-macro2"
 reason = "Unicode identifier tables for proc-macro2"
 distinct = "UAX 31 identifier tables inside proc-macro2; purrdf-jsonschema carries XID ranges for ECMA-262 property escapes, but only proc-macro2 calls this crate, from its own internals"
 holder = "proc-macro2"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.unicode-width]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.universal-hash]
 category = "transitive:aes-gcm"
 reason = "universal hash traits for GHASH/POLYVAL"
 distinct = "internal to aes-gcm's AES-256-GCM; PurRDF has no block cipher or AEAD of its own (purrdf_hash::fixed uses single AES rounds only as a hash mixer)"
 holder = "aes-gcm"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.url]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.utf8_iter]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.utf8parse]
 category = "transitive:clap"
@@ -642,45 +1855,80 @@ distinct = "internal to clap's terminal output; PurRDF has no command-line parse
 holder = "clap"
 metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
+[packages.valuable]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.vcpkg]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.version_check]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
 [packages.visual-hashing]
 category = "runtime"
 reason = "emojihash and randomart key fingerprints for GTS"
 distinct = "emojihash and randomart key-fingerprint rendering for GTS; its BLAKE3 is private to those renderers, PurRDF calls only the renderers, and PurRDF has no fingerprint renderer of its own"
-metrics = { direct = true, exclusive_closure = 1, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = true, exclusive_closure = 1, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.walkdir]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.want]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.wasi]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.wasip2]
 category = "transitive:getrandom"
 reason = "WASI preview 2 bindings for getrandom"
 distinct = "internal to getrandom's operating-system entropy bindings; PurRDF has no entropy source of its own"
 holder = "getrandom"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = false, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.wasm-bindgen]
 category = "binding"
 reason = "JavaScript bindings for purrdf-wasm, SPARQL host clock and entropy, and the testkit wasm runner"
 distinct = "the JavaScript boundary for purrdf-wasm, the SPARQL host clock and entropy, and the testkit wasm runner; PurRDF has no JavaScript FFI of its own"
-metrics = { direct = true, exclusive_closure = 6, release = true, wasm = true, build_script = true, proc_macro = false }
+metrics = { direct = true, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.wasm-bindgen-futures]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.wasm-bindgen-macro]
 category = "transitive:wasm-bindgen"
 reason = "wasm-bindgen attribute macro"
 distinct = "internal to wasm-bindgen's JavaScript binding; PurRDF has no JavaScript FFI of its own"
 holder = "wasm-bindgen"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = true }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
 
 [packages.wasm-bindgen-macro-support]
 category = "transitive:wasm-bindgen"
 reason = "wasm-bindgen macro implementation"
 distinct = "internal to wasm-bindgen's JavaScript binding; PurRDF has no JavaScript FFI of its own"
 holder = "wasm-bindgen"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.wasm-bindgen-shared]
 category = "transitive:wasm-bindgen"
 reason = "shared ABI definitions for wasm-bindgen"
 distinct = "internal to wasm-bindgen's JavaScript binding; PurRDF has no JavaScript FFI of its own"
 holder = "wasm-bindgen"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = true, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
 
 [packages.wasm-encoder]
 category = "spec-codec"
@@ -688,48 +1936,213 @@ reason = "WebAssembly instruction and section emission for the private host link
 distinct = "WebAssembly section and instruction emission for the private host linker; PurRDF reads modules natively but has no WebAssembly encoder"
 metrics = { direct = true, exclusive_closure = 2, release = false, wasm = false, build_script = false, proc_macro = false }
 
+[packages.web-sys]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.which]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.winapi-util]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.windows-core]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.windows-implement]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.windows-interface]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
 [packages.windows-link]
 category = "transitive:clap"
 reason = "Windows import linking for windows-sys"
 distinct = "import-library linking for windows-sys; platform bindings, not a job PurRDF implements"
 holder = "windows-sys"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = false, build_script = false, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.windows-result]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.windows-strings]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.windows-sys]
 category = "runtime"
 reason = "GetCurrentThreadStackLimits declarations for purrdf-stack on Windows; also terminal detection through anstream"
 distinct = "platform declarations for thread stack limits on Windows; bindings to the operating system, not a job PurRDF implements"
-metrics = { direct = true, exclusive_closure = 0, release = true, wasm = false, build_script = false, proc_macro = false }
+metrics = { direct = true, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.windows-targets]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.windows_aarch64_gnullvm]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.windows_aarch64_msvc]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.windows_i686_gnu]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.windows_i686_gnullvm]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.windows_i686_msvc]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.windows_x86_64_gnu]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.windows_x86_64_gnullvm]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.windows_x86_64_msvc]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.winnow]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.winreg]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
 [packages.wit-bindgen]
 category = "transitive:getrandom"
 reason = "WIT bindings for wasip2"
 distinct = "internal to getrandom's operating-system entropy bindings; PurRDF has no entropy source of its own"
 holder = "getrandom"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = false, build_script = true, proc_macro = false }
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
 
-[packages.num-bigint]
-category = "direct:first-party-consumer"
-reason = "arbitrary-precision integers for the N3 math/list builtin families"
-distinct = "no workspace crate implements bigint arithmetic; upstream reference implementation"
-metrics = { direct = true, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+[packages.writeable]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
-[packages.num-integer]
-category = "transitive:num-bigint"
-reason = "integer gcd/lcm used by num-bigint"
-distinct = "internal to num-bigint's arithmetic; no PurRDF call sites"
-holder = "num-bigint"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+[packages.xattr]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
-[packages.num-traits]
-category = "transitive:num-bigint"
-reason = "Signed::abs and ToPrimitive at the reasoner's numeric coercion sites"
-distinct = "no workspace equivalent numeric trait layer"
-metrics = { direct = true, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+[packages.yoke]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
-[packages.autocfg]
-category = "transitive:num-traits"
-reason = "rustc cfg probing at num-traits build time"
-distinct = "build-time feature detection only; no PurRDF call sites"
-holder = "num-traits"
-metrics = { direct = false, exclusive_closure = 0, release = true, wasm = true, build_script = false, proc_macro = false }
+[packages.yoke-derive]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.zerocopy]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.zerocopy-derive]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.zerofrom]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.zerofrom-derive]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.zeroize]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.zerotrie]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.zerovec]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.zerovec-derive]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = true }
+
+[packages.zip]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.zlib-rs]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.zmij]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.zopfli]
+category = "UNCATEGORIZED"
+reason = ""
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.zstd]
+category = "UNCATEGORIZED"
+reason = "Zstandard C library behind the frozen-duckdb zip closure"
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
+
+[packages.zstd-safe]
+category = "UNCATEGORIZED"
+reason = "Zstandard C library behind the frozen-duckdb zip closure"
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+
+[packages.zstd-sys]
+category = "UNCATEGORIZED"
+reason = "Zstandard C library behind the frozen-duckdb zip closure"
+metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = true, proc_macro = false }
+

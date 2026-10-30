@@ -415,6 +415,7 @@ name = "purrdf-hooks"
 deps = [
     "purrdf-core",
     "purrdf-duckdb",
+    "purrdf-hash",
     "purrdf-rdf",
     "purrdf-shapes",
     "purrdf-sparql-eval",

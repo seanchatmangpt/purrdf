@@ -6,6 +6,7 @@ name = "purrdf-toml"
 description = "Lossless TOML 1.1 model and verified RDF 1.2 byte-cover codec"
 version.workspace = true
 edition.workspace = true
+publish = false
 rust-version.workspace = true
 repository.workspace = true
 homepage.workspace = true

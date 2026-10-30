@@ -6,6 +6,7 @@ name = "purrdf"
 description = "PurRDF umbrella crate: RDF 1.2 implementation, slices, and SHACL/ShEx shape validation"
 version.workspace = true
 edition.workspace = true
+publish = false
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true

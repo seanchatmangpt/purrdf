@@ -6,6 +6,7 @@ name = "purrdf-wasm"
 description = "purrdf: a wasm32, in-memory RDF 1.2 engine with an idiomatic RDF/JS (DataFactory/Dataset/Stream) API"
 version.workspace = true
 edition.workspace = true
+publish = false
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true

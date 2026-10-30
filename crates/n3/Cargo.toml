@@ -6,6 +6,7 @@ name = "purrdf-n3"
 description = "PurRDF native Notation3 (N3): parsing, semi-naive reasoning and backward proofs over RDF 1.2"
 version.workspace = true
 edition.workspace = true
+publish = false
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true

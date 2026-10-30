@@ -6,6 +6,7 @@ name = "purrdf-cdt"
 description = "Native SPARQL composite datatypes (SEP-0009 cdt:List / cdt:Map): iterative bounded lexical scanner, canonical lexical mapping, spec equality/ordering and a total order, for the RDF 1.2 query stack"
 version.workspace = true
 edition.workspace = true
+publish = false
 repository.workspace = true
 license.workspace = true
 homepage.workspace = true

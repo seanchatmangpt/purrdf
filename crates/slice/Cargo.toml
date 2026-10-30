@@ -6,6 +6,7 @@ name = "purrdf-slice"
 description = "PurRDF native slice catalog: manifest-based discovery, typed artifact inventory, content-addressed IDs"
 version.workspace = true
 edition.workspace = true
+publish = false
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true

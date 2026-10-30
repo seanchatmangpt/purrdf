@@ -6,6 +6,7 @@ name = "purrdf-duckdb"
 description = "PurRDF embedded DuckDB execution engine, virtual Parquet views and relational-to-RDF row projection"
 version.workspace = true
 edition.workspace = true
+publish = false
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true

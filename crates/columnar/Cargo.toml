@@ -6,6 +6,7 @@ name = "purrdf-columnar"
 description = "PurRDF's byte-deterministic, bidirectional five-table Parquet codec for RDF 1.2 datasets"
 version.workspace = true
 edition.workspace = true
+publish = false
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true

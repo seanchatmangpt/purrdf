@@ -6,6 +6,7 @@ name = "purrdf-shapes"
 description = "PurRDF SHACL validation engine core: native RDF 1.2 SHACL Core validator, gated against the SHACL conformance corpus"
 version.workspace = true
 edition.workspace = true
+publish = false
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true

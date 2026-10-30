@@ -6,6 +6,7 @@ name = "purrdf-rdf"
 description = "PurRDF RDF 1.2 implementation: PyO3-free model, diagnostics, store traits, and native GTS/text-codec adapters"
 version.workspace = true
 edition.workspace = true
+publish = false
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true

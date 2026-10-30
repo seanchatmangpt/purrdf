@@ -6,6 +6,7 @@ name = "purrdf-jsonschema"
 description = "Native JSON Schema validation for PurRDF: drafts 2020-12, 2019-09 and 07, every vocabulary, dynamic and recursive references, unevaluated keywords, standard output formats"
 version.workspace = true
 edition.workspace = true
+publish = false
 repository.workspace = true
 license = "(MIT OR Apache-2.0 OR MulanPSL-2.0) AND Unicode-3.0"
 homepage.workspace = true

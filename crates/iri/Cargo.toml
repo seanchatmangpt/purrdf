@@ -6,6 +6,7 @@ name = "purrdf-iri"
 description = "Native IRI/URI value space (RFC-3987 IRI + RFC-3986 URI parse/validate, reference resolution, syntax normalization, CURIE/prefix expansion) for the RDF 1.2 query stack"
 version.workspace = true
 edition.workspace = true
+publish = false
 repository.workspace = true
 license = "(MIT OR Apache-2.0 OR MulanPSL-2.0) AND Unicode-3.0"
 homepage.workspace = true

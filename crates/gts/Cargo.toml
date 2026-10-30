@@ -6,6 +6,7 @@ name = "purrdf-gts"
 description = "PurRDF GTS container engine: CBOR-sequence append-only graph transport reader, writer, folder, and verifier"
 version.workspace = true
 edition.workspace = true
+publish = false
 license.workspace = true
 homepage.workspace = true
 documentation = "https://docs.rs/purrdf-gts"

@@ -6,6 +6,7 @@ name = "purrdf-retrieval"
 description = "Composition layer over the ranked property-function producers: pure-data retrieval plans with a canonical, domain-separated BLAKE3 identity, driven by caller-supplied producers, strata and weights with no fabricated default vocabulary."
 version.workspace = true
 edition.workspace = true
+publish = false
 repository.workspace = true
 license.workspace = true
 homepage.workspace = true

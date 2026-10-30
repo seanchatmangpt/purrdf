@@ -5,6 +5,13 @@ SPDX-License-Identifier: CC-BY-4.0
 
 # Release Process
 
+> **FORK POSTURE (2026-10-29):** this repository is a diverged fork consumed
+> via direct git reference — it is never published to crates.io. Every member
+> manifest carries `publish = false`, the release lane
+> (`scripts/release-crates.sh`) is intentionally empty, and the crates.io
+> Trusted-Publisher flow below is retired for this fork. External substrates
+> (avec) are pinned by git rev so the pin travels to consumers.
+
 PurRDF publishes Rust crates to crates.io from the GitHub Actions workflow
 `.github/workflows/release-cargo.yaml`.
 

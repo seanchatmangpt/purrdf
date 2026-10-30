@@ -16,7 +16,6 @@ use purrdf_duckdb::PurRdfDuckDB;
 use purrdf_shapes::engine::{parse_shapes, validate_dataset};
 use purrdf_sparql_eval::NativeSparqlEngine;
 use purrdf_sql::compile_turtle;
-use thiserror::Error;
 
 pub use cache::ConditionCache;
 pub use dependency_graph::DependencyGraph;
@@ -36,33 +35,56 @@ pub const MAX_FIRINGS: usize = 10_000;
 /// Largest dataset, in quads, a pack may grow the state to.
 pub const MAX_STATE_QUADS: usize = 1_000_000;
 
+/// Hex digest binding one firing marker to its payload (`purrdf-hash`
+/// BLAKE3; the zero-external-dep law).
+fn firing_digest(payload: String) -> String {
+    purrdf_hash::hex::encode(purrdf_hash::blake3::hash(payload.as_bytes()).as_bytes())
+}
+
 /// Errors arising from knowledge hook execution.
-#[derive(Debug, Error)]
+#[derive(Debug)]
 pub enum HookError {
     /// SPARQL evaluation or parsing error.
-    #[error("SPARQL error: {0:?}")]
     Sparql(RdfDiagnostic),
     /// Underlying RDF dataset or term storage error.
-    #[error("RDF error: {0}")]
     Rdf(String),
     /// Unsupported hook configuration or invalid handler.
-    #[error("Unsupported hook configuration: {0}")]
     Unsupported(String),
     /// Resource limit exceeded during materialization.
-    #[error("Resource limit exceeded: {0}")]
     ResourceLimit(String),
     /// Dependency cycle detected among hooks.
-    #[error("Dependency cycle detected: {0:?}")]
     Cycle(Vec<String>),
     /// SHACL shapes evaluation error.
-    #[error("SHACL error: {0}")]
     Shacl(String),
     /// SQL-in-RDF compilation error.
-    #[error("SQL AST error: {0}")]
-    Sql(#[from] purrdf_sql::AstError),
+    Sql(purrdf_sql::AstError),
     /// DuckDB execution error.
-    #[error("DuckDB evaluation error: {0}")]
-    DuckDb(#[from] purrdf_duckdb::EvaluatorError),
+    DuckDb(purrdf_duckdb::EvaluatorError),
+}
+
+impl core::fmt::Display for HookError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Sparql(diag) => write!(f, "SPARQL error: {diag:?}"),
+            Self::Rdf(msg) => write!(f, "RDF error: {msg}"),
+            Self::Unsupported(msg) => write!(f, "Unsupported hook configuration: {msg}"),
+            Self::ResourceLimit(msg) => write!(f, "Resource limit exceeded: {msg}"),
+            Self::Cycle(names) => write!(f, "Dependency cycle detected: {names:?}"),
+            Self::Shacl(msg) => write!(f, "SHACL error: {msg}"),
+            Self::Sql(error) => write!(f, "SQL AST error: {error}"),
+            Self::DuckDb(error) => write!(f, "DuckDB evaluation error: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for HookError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Sql(error) => Some(error),
+            Self::DuckDb(error) => Some(error),
+            _ => None,
+        }
+    }
 }
 
 impl From<RdfDiagnostic> for HookError {
@@ -412,7 +434,10 @@ impl HookPack {
                                 .collect();
 
                             let digest =
-                                blake3::hash(format!("{}\0{bound:?}", hook.iri).as_bytes());
+                                *purrdf_hash::blake3::hash(
+                                    format!("{}\0{bound:?}", hook.iri).as_bytes(),
+                                )
+                                .as_bytes();
                             let marker = format!("urn:graphlaw:hook-firing:{}", digest.to_hex());
 
                             if !fired.insert(marker.clone()) {
@@ -552,8 +577,11 @@ impl HookPack {
                         )?;
 
                         if res.rows_emitted > 0 {
-                            let digest =
-                                blake3::hash(format!("{}\0sql\0{}", hook.iri, res.rows_emitted).as_bytes());
+                            let digest = *purrdf_hash::blake3::hash(
+                                format!("{}\0sql\0{}", hook.iri, res.rows_emitted)
+                                    .as_bytes(),
+                            )
+                            .as_bytes();
                             let marker = format!("urn:graphlaw:hook-firing:{}", digest.to_hex());
 
                             if fired.insert(marker) {
@@ -574,7 +602,7 @@ impl HookPack {
                     }
 
                     ConditionKind::SparqlAsk => {
-                        let mut hasher = blake3::Hasher::new();
+                        let mut hasher = purrdf_hash::blake3::Hasher::new();
                         hasher.update(&current.quad_count().to_le_bytes());
                         let digest = *hasher.finalize().as_bytes();
                         let satisfied = match cond_cache.get(&hook.iri, &digest) {
@@ -599,7 +627,7 @@ impl HookPack {
                         if satisfied {
                             let marker = format!(
                                 "urn:graphlaw:hook-firing:{}",
-                                blake3::hash(format!("{}\0ask", hook.iri).as_bytes()).to_hex()
+                                firing_digest(format!("{}\0ask", hook.iri).as_bytes())
                             );
                             if fired.insert(marker) {
                                 progressed = true;

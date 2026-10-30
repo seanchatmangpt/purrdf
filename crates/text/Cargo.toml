@@ -8,6 +8,7 @@ exclude = ["lexicons/**"]
 description = "Deterministic in-memory full-text search over RDF 1.2 literals, exposed to SPARQL through the property-function seam under caller-supplied IRIs; exact fixed-point BM25F ranking with no floating-point arithmetic."
 version.workspace = true
 edition.workspace = true
+publish = false
 repository.workspace = true
 license = "(MIT OR Apache-2.0 OR MulanPSL-2.0) AND Unicode-3.0"
 homepage.workspace = true

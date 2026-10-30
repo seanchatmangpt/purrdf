@@ -1,9 +1,19 @@
 # [OPT-?] avec Consumption — Publication Decision and Wiring Recipe
 
-> STATUS (2026-10-29): DECIDED + DOCUMENTED. avec stays avec: purrdf consumes
-> the substrate as an external dependency; nothing is ported, renamed, or
-> moved. Wiring is deferred until avec lands T1 (batch/table layer) or T2
-> (typed zero-copy ingest) from `~/avec/docs/CONSUMER_REQUIREMENTS.md`.
+> STATUS (2026-10-29, revised same day): **SUPERSEDED by the fork posture.**
+> purrdf is a diverged fork, never published; every member carries
+> `publish = false`, and the crate registry lane is retired. The decision
+> below (patch bridge) held only while publishing was on the table.
+
+> CURRENT MODEL: purrdf-process consumes `avec-arrow` as a **git dependency
+> pinned by rev** — `avec-arrow = { git = "https://github.com/seanchatmangpt/avec", rev = "965fcc5" }`
+> in root `[workspace.dependencies]`. Unlike a `[patch]`, a git dependency
+> travels with the workspace to any git-referencing consumer. Tickets T1-T4
+> are landed at that rev (see `~/avec/docs/CONSUMER_REQUIREMENTS.md`), and
+> purrdf-process's columnar OCEL projection
+> (`crates/process/src/log/columnar.rs`) is the first consumer.
+>
+> The original patch-bridge decision and recipe follow, kept for the record.
 
 ## 1. Decision
 

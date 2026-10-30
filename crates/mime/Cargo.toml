@@ -6,6 +6,7 @@ name = "purrdf-mime"
 description = "Lossless original-byte MIME-to-RDF codec with ordered occurrences and shared cover verification"
 version.workspace = true
 edition.workspace = true
+publish = false
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true

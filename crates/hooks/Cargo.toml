@@ -5,6 +5,7 @@
 name = "purrdf-hooks"
 version.workspace = true
 edition.workspace = true
+publish = false
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -13,13 +14,12 @@ description = "Declarative RDF-described, SPARQL-driven knowledge derivation hoo
 
 [dependencies]
 purrdf-core.workspace = true
+purrdf-hash.workspace = true
 purrdf-rdf.workspace = true
 purrdf-shapes.workspace = true
 purrdf-sparql-eval.workspace = true
 purrdf-sql.workspace = true
 purrdf-duckdb.workspace = true
-blake3 = "1.5"
-thiserror = "2.0"
 
 [dev-dependencies]
 cucumber = { version = "0.21", features = ["macros"] }

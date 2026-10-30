@@ -12,12 +12,14 @@
 //! `zcode_ocel_verifier.ex` with BLAKE3 in place of sha256; the writer's
 //! fixed key order follows ex4pm `ocel_writer.ex`.
 
+pub mod columnar;
 pub mod integrity;
 pub mod model;
 pub mod parse;
 pub mod validate;
 pub mod write;
 
+pub use columnar::{LogTables, ValueKind, to_batches};
 pub use model::{
     AttrValue, EventObjectRef, ObjectAttribute, ObjectChange, OcelEvent, OcelLog, OcelObject,
     OcelType, OcelTypeAttribute, ValueAtTime,

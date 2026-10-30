@@ -6,6 +6,7 @@ name = "purrdf-geo-kernel"
 description = "Deterministic geometry, geodesy and spatial indexes shared by PurRDF hosts"
 version.workspace = true
 edition.workspace = true
+publish = false
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true

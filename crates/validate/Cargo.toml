@@ -6,6 +6,7 @@ name = "purrdf-validate"
 description = "PurRDF SARIF 2.1.0 reporting boundary: renders RDF diagnostics and SHACL/ShEx validation reports to source-traced, byte-deterministic SARIF — the boundary crate that keeps purrdf-core structured but SARIF-free"
 version.workspace = true
 edition.workspace = true
+publish = false
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true

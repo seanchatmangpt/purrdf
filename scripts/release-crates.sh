@@ -45,48 +45,9 @@
 
 # shellcheck disable=SC2034  # consumed by the sourcing script.
 PURRDF_RELEASE_CRATES=(
-  purrdf-hash
-  purrdf-branchless
-  purrdf-arrow
-  purrdf-stack
-  purrdf-lex
-  purrdf-events
-  purrdf-iri
-  purrdf-xsd
-  purrdf-cdt
-  purrdf-jsonschema
-  purrdf-deflate
-  purrdf-ed25519
-  purrdf-gts
-  purrdf-core
-  purrdf-process
-  purrdf-geo-kernel
-  purrdf-columnar
-  purrdf-datalog
-  purrdf-entail
-  purrdf-sparql-algebra
-  purrdf-sparql-results
-  purrdf-sparql-eval
-  purrdf-hnsw
-  purrdf-text
-  purrdf-retrieval
-  purrdf-rdf
-  purrdf-n3
-  purrdf-markdown
-  purrdf-mime
-  purrdf-json
-  purrdf-toml
-  purrdf-slice
-  purrdf-shapes
-  purrdf-sql
-  purrdf-duckdb
-  purrdf-geo
-  purrdf-shex
-  purrdf-validate
-  purrdf-glob
-  purrdf-hooks
-  purrdf
-  purrdf-wasm
+  # FORK POSTURE: purrdf is consumed via git reference and is never
+  # published to crates.io. Every member manifest carries publish = false,
+  # so this lane is intentionally empty.
 )
 
 # The crates in the set above that have NO crates.io record yet, in publish
@@ -111,14 +72,5 @@ PURRDF_RELEASE_CRATES=(
 
 # shellcheck disable=SC2034  # consumed by the sourcing script.
 PURRDF_UNBOOTSTRAPPED_CRATES=(
-  purrdf-branchless
-  purrdf-arrow
-  purrdf-process
-  purrdf-geo-kernel
-  purrdf-mime
-  purrdf-toml
-  purrdf-sql
-  purrdf-duckdb
-  purrdf-glob
-  purrdf-hooks
+  # FORK POSTURE: nothing to bootstrap while the publish lane is retired.
 )

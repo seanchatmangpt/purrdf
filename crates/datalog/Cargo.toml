@@ -6,6 +6,7 @@ name = "purrdf-datalog"
 description = "PurRDF native Datalog: deterministic wasm-clean semi-naive evaluation over a columnar relation store"
 version.workspace = true
 edition.workspace = true
+publish = false
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true
