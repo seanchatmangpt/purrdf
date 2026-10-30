@@ -402,6 +402,26 @@ deps = [
 ]
 
 [[crate]]
+name = "purrdf-process"
+deps = [
+    "purrdf-branchless",
+    "purrdf-hash",
+    "purrdf-lex",
+    "purrdf-xsd",
+]
+
+[[crate]]
+name = "purrdf-hooks"
+deps = [
+    "purrdf-core",
+    "purrdf-duckdb",
+    "purrdf-rdf",
+    "purrdf-shapes",
+    "purrdf-sparql-eval",
+    "purrdf-sql",
+]
+
+[[crate]]
 name = "purrdf"
 deps = [
     "purrdf-arrow",
@@ -416,11 +436,13 @@ deps = [
     "purrdf-geo",
     "purrdf-gts",
     "purrdf-hnsw",
+    "purrdf-hooks",
     "purrdf-iri",
     "purrdf-json",
     "purrdf-lex",
     "purrdf-markdown",
     "purrdf-mime",
+    "purrdf-process",
     "purrdf-rdf",
     "purrdf-retrieval",
     "purrdf-shapes",

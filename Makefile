@@ -647,6 +647,7 @@ wasm: bounded-preflight ## Build the release crates for wasm32-unknown-unknown (
 			-p purrdf-datalog -p purrdf-n3 \
 			-p purrdf-sparql-algebra -p purrdf-sparql-results -p purrdf-sparql-eval -p purrdf-hnsw \
 			-p purrdf-rdf -p purrdf-markdown -p purrdf-mime -p purrdf-json -p purrdf-toml -p purrdf-glob -p purrdf-slice -p purrdf-shapes -p purrdf-shex -p purrdf-entail \
+			-p purrdf-process \
 			-p purrdf-geo -p purrdf-geo-kernel -p purrdf-text -p purrdf-retrieval \
 			-p purrdf-validate -p purrdf -p purrdf-wasm \
 			-p purrdf-bench; \

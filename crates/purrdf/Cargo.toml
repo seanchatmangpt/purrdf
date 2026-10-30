@@ -31,6 +31,7 @@ hooks = ["dep:purrdf-hooks", "sql"]
 purrdf-columnar = { workspace = true }
 purrdf-arrow = { workspace = true }
 purrdf-branchless = { workspace = true }
+purrdf-process = { workspace = true }
 purrdf-sql = { workspace = true, optional = true }
 purrdf-duckdb = { workspace = true, optional = true }
 purrdf-hooks = { workspace = true, optional = true }

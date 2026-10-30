@@ -318,6 +318,12 @@ pub mod branchless {
     pub use purrdf_branchless::*;
 }
 
+/// Process mining and planning ([`purrdf_process`]): POWL 2.0 models,
+/// OCEL 2.0 event logs, HTN/FOND synthesis, and the conformance turnstile.
+pub mod process {
+    pub use purrdf_process::*;
+}
+
 /// Notation3 ([`purrdf_n3`]): parsing, the forward/backward reasoner, and proof
 /// writing/checking over RDF 1.2 — N3 reads the syntaxes the facade already
 /// parses (Turtle, TriG, N-Triples, N-Quads), so its surface is carried here

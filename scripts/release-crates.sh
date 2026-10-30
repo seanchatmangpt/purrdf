@@ -59,6 +59,7 @@ PURRDF_RELEASE_CRATES=(
   purrdf-ed25519
   purrdf-gts
   purrdf-core
+  purrdf-process
   purrdf-geo-kernel
   purrdf-columnar
   purrdf-datalog
@@ -83,6 +84,7 @@ PURRDF_RELEASE_CRATES=(
   purrdf-shex
   purrdf-validate
   purrdf-glob
+  purrdf-hooks
   purrdf
   purrdf-wasm
 )
@@ -111,10 +113,12 @@ PURRDF_RELEASE_CRATES=(
 PURRDF_UNBOOTSTRAPPED_CRATES=(
   purrdf-branchless
   purrdf-arrow
+  purrdf-process
   purrdf-geo-kernel
   purrdf-mime
   purrdf-toml
   purrdf-sql
   purrdf-duckdb
   purrdf-glob
+  purrdf-hooks
 )

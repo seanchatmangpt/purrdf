@@ -95,6 +95,7 @@ workflow, the bootstrap script and the crates.io preflight all source, and which
 - `purrdf-ed25519`
 - `purrdf-gts`
 - `purrdf-core`
+- `purrdf-process`
 - `purrdf-geo-kernel`
 - `purrdf-columnar`
 - `purrdf-datalog`
