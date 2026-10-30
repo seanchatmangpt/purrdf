@@ -91,9 +91,24 @@ impl ExecutionReceipt {
         base_digest: &str,
         corresponds_to_steps: Vec<String>,
     ) -> Self {
+        let plan_id: String = plan_id.into();
+        let run_id: String = run_id.into();
         let mut record = Json::new();
+        record.push("plan", Value::from(plan_id.as_str()));
+        record.push("run", Value::from(run_id.as_str()));
         record.push("status", Value::from(status.code()));
         record.push("outcome", outcome.clone());
+        record.push("subject", Value::from(subject_digest));
+        record.push("base", Value::from(base_digest));
+        record.push(
+            "steps",
+            Value::Array(
+                corresponds_to_steps
+                    .iter()
+                    .map(|step| Value::from(step.as_str()))
+                    .collect(),
+            ),
+        );
         let digest = blake3::hash(write_compact(&Value::Object(record)).as_bytes());
         let full = hex::encode(digest.as_bytes());
         let outcome_digest: String = full.chars().take(16).collect();

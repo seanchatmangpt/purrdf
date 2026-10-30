@@ -699,24 +699,25 @@ fn replay_fitness_courts() {
     assert!((fitting.fitness - 1.0).abs() < 1e-9);
 
     // Truncated at b: art72 accounting counts the end deficit into consumed
-    // and the end excess into produced (c=p=4, m=r=1) — 0.5*(1-1/4) * 2 = 3/4.
+    // and the end excess into produced (c=p=3, m=r=1) — 0.5*(1-1/3) * 2 = 2/3.
     let truncated = replay_trace(&net, &["a", "b"]);
-    assert_eq!(truncated.consumed, 4);
-    assert_eq!(truncated.produced, 4);
+    assert_eq!(truncated.consumed, 3);
+    assert_eq!(truncated.produced, 3);
     assert_eq!(truncated.missing, 1);
     assert_eq!(truncated.remaining, 1);
     assert!(!truncated.final_reached);
-    assert!((truncated.fitness - 0.75).abs() < 1e-9);
+    assert!((truncated.fitness - 2.0 / 3.0).abs() < 1e-9);
 
-    // Unknown label: a consumes 1, the unknown label adds 1 missing into
-    // consumed, then the end deficit/excess land: c=3, p=2, m=2, r=1 —
-    // 0.5*(1-2/3) + 0.5*(1-1/2) = 5/12.
+    // Unknown label: wasm4pm's convention — the unknown label records a
+    // missing token without consuming; a's tokens plus the end
+    // deficit/excess land as c=2, p=2, m=2, r=1 — 0.5*(1-2/2) + 0.5*(1-1/2)
+    // = 1/4.
     let unknown = replay_trace(&net, &["a", "x"]);
     assert_eq!(unknown.missing, 2);
-    assert_eq!(unknown.consumed, 3);
+    assert_eq!(unknown.consumed, 2);
     assert_eq!(unknown.produced, 2);
     assert_eq!(unknown.remaining, 1);
-    assert!((unknown.fitness - 5.0 / 12.0).abs() < 1e-9);
+    assert!((unknown.fitness - 0.25).abs() < 1e-9);
     assert_eq!(
         unknown.deviations,
         vec![Deviation::UnknownLabel("x".to_owned())]
@@ -780,10 +781,18 @@ fn shuffle_membership_courts() {
         vec![(0, 1)],
     )
     .unwrap();
-    assert_eq!(
-        spec.accepts(&["a", "c", "b"], 1_000_000).unwrap(),
-        ShuffleVerdict::Accepted
-    );
+    // Precedence (0 -> 1) means ALL of child 0 precedes child 1's head:
+    // [a, b, c] is the only interleaving, and [a, c, b] dies at position 1
+    // (child 0 still owes its "b" when "c" arrives).
+    match spec.accepts(&["a", "c", "b"], 1_000_000).unwrap() {
+        ShuffleVerdict::Rejected {
+            position, label, ..
+        } => {
+            assert_eq!(position, 1);
+            assert_eq!(label, "c");
+        }
+        other => panic!("expected a rejection, got {other:?}"),
+    }
     assert_eq!(
         spec.accepts(&["a", "b", "c"], 1_000_000).unwrap(),
         ShuffleVerdict::Accepted

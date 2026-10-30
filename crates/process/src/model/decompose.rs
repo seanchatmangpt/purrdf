@@ -55,17 +55,22 @@ pub fn decompose(net: &PetriNet) -> Result<Powl, ProcessError> {
 /// Every place has at most one input and at most one output transition.
 fn marked_graph(net: &PetriNet) -> bool {
     let places = net.places();
-    let mut inputs = vec![0usize; places];
-    let mut outputs = vec![0usize; places];
+    let mut in_degree = vec![0usize; places];
+    let mut out_degree = vec![0usize; places];
     for transition in net.transitions() {
+        // A transition's inputs are the place's outgoing flow; its outputs
+        // are the place's incoming flow.
         for (place, _) in &transition.inputs {
-            inputs[*place] += 1;
+            out_degree[*place] += 1;
         }
         for (place, _) in &transition.outputs {
-            outputs[*place] += 1;
+            in_degree[*place] += 1;
         }
     }
-    inputs.iter().chain(outputs.iter()).all(|count| *count <= 1)
+    in_degree
+        .iter()
+        .chain(out_degree.iter())
+        .all(|count| *count <= 1)
 }
 
 /// Every transition has exactly one input place and exactly one output place,
@@ -145,14 +150,16 @@ fn partition_sm(net: &PetriNet) -> Result<Powl, ProcessError> {
     Powl::choice_graph("cg_root", children, edges)
 }
 
-/// Transitions on one side of `place`: inputs when `incoming`, else outputs.
-fn arcs_at(net: &PetriNet, place: usize, incoming: bool) -> Vec<usize> {
+/// Transitions on one side of `place`: the transitions feeding it (whose
+/// outputs produce into it) when `feeding`, else the transitions consuming
+/// from it. ex4pm's `get_input_transitions` = feeding side.
+fn arcs_at(net: &PetriNet, place: usize, feeding: bool) -> Vec<usize> {
     let mut out: Vec<usize> = net
         .transitions()
         .iter()
         .enumerate()
         .filter(|(_, t)| {
-            let side = if incoming { &t.inputs } else { &t.outputs };
+            let side = if feeding { &t.outputs } else { &t.inputs };
             side.iter().any(|(p, _)| *p == place)
         })
         .map(|(index, _)| index)

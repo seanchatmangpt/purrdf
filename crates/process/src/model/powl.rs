@@ -526,7 +526,7 @@ pub fn shuffle(
         Vec::new(),
     )];
     while let Some((active, acc)) = stack.pop() {
-        if active.is_empty() {
+        if active.iter().all(|part| part.is_empty()) {
             out.push(acc);
             if out.len() > limits.max_language {
                 return Err(ProcessError::LanguageBudgetExceeded {
@@ -536,6 +536,9 @@ pub fn shuffle(
             continue;
         }
         for j in 0..active.len() {
+            if active[j].is_empty() {
+                continue;
+            }
             let head = &active[j][0];
             let eligible = predecessors(j).iter().all(|p| active[*p].is_empty());
             if !eligible {

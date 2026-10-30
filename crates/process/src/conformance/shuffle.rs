@@ -30,13 +30,37 @@ pub enum ShuffleVerdict {
     Accepted,
     /// The trace is not.
     Rejected {
-        /// The first failing position.
+        /// The deepest failing position.
         position: usize,
         /// The label at that position.
         label: String,
         /// Why it failed: no eligible child carries this label.
         reason: &'static str,
     },
+}
+
+impl ShuffleVerdict {
+    /// The deeper of two rejections (the most-informative failure locus).
+    #[must_use]
+    pub fn max_position(a: Self, b: Self) -> Self {
+        match (&a, &b) {
+            (
+                Self::Rejected {
+                    position: a_pos, ..
+                },
+                Self::Rejected {
+                    position: b_pos, ..
+                },
+            ) => {
+                if b_pos > a_pos {
+                    b
+                } else {
+                    a
+                }
+            }
+            _ => a,
+        }
+    }
 }
 
 impl ShuffleSpec {
@@ -115,6 +139,11 @@ impl ShuffleSpec {
                 candidates.push(child);
             }
         }
+        let mut deepest = ShuffleVerdict::Rejected {
+            position,
+            label: label.to_owned(),
+            reason: "no eligible child carries this label",
+        };
         for child in candidates {
             cursors[child] += 1;
             if cursors[child] == self.child_sequences[child].len() {
@@ -131,18 +160,16 @@ impl ShuffleSpec {
             )?;
             match verdict {
                 ShuffleVerdict::Accepted => return Ok(ShuffleVerdict::Accepted),
-                ShuffleVerdict::Rejected { .. } => {}
+                ShuffleVerdict::Rejected { .. } => {
+                    deepest = ShuffleVerdict::max_position(deepest, verdict);
+                }
             }
             if cursors[child] == self.child_sequences[child].len() {
                 clear_bit(done, child);
             }
             cursors[child] -= 1;
         }
-        Ok(ShuffleVerdict::Rejected {
-            position,
-            label: label.to_owned(),
-            reason: "no eligible child carries this label",
-        })
+        Ok(deepest)
     }
 
     /// Per-child predecessor bit masks.
