@@ -10,7 +10,7 @@ SPDX-License-Identifier: CC-BY-4.0
 > manifest carries `publish = false`, the release lane
 > (`scripts/release-crates.sh`) is intentionally empty, and the crates.io
 > Trusted-Publisher flow below is retired for this fork. External substrates
-> (avec) are pinned by git rev so the pin travels to consumers.
+> (cgap) are pinned by git rev so the pin travels to consumers.
 
 PurRDF publishes Rust crates to crates.io from the GitHub Actions workflow
 `.github/workflows/release-cargo.yaml`.

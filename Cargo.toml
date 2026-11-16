@@ -142,7 +142,7 @@ purrdf-validate = { path = "crates/validate", version = "26.10.29" }
 purrdf-xsd = { path = "crates/xsd", version = "26.10.29" }
 # --- external substrates (fork posture: git-rev pins travel to consumers;
 # the workspace is never published, only referenced by git) ---
-avec-arrow = { git = "https://github.com/seanchatmangpt/avec", rev = "965fcc5" }
+avec-arrow = { git = "https://github.com/seanchatmangpt/avec", rev = "20248e4" }
 
 # --- external crates ---
 # The structural source censuses (the rdf and shapes census tests and the

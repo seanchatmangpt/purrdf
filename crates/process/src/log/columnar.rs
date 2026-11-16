@@ -1,18 +1,18 @@
-//! Columnar projection of an OCEL log over the avec substrate.
+//! Columnar projection of an OCEL log over the cgap substrate.
 //!
 //! Donor of the shape: purrdf's OCEL model (`super::model`), projected into
-//! avec-arrow `Batch` tables (ticket T1's layer). Determinism: every table
+//! cgap-arrow `Batch` tables (ticket T1's layer). Determinism: every table
 //! is built over the canonical orders the writer uses (types by name,
 //! objects by id, events by `(time, id)` with canonically minted ids,
 //! changes by `(time, name)`, attributes name-sorted) — the same orders
 //! `super::write::to_json_string` emits, so a columnar store can reproduce
 //! the JSON contract from row order. Performance posture: one pass per
 //! table, partitioned value columns (no per-row unions), single-copy into
-//! avec's 64-byte-aligned buffers (the builders' contract), `u32` row
+//! cgap's 64-byte-aligned buffers (the builders' contract), `u32` row
 //! indices linking tables instead of id strings.
 
 
-use avec_arrow::{Batch, BatchBuilder, ColumnBuilder};
+use cgap_arrow::{Batch, BatchBuilder, ColumnBuilder};
 
 use crate::error::ProcessError;
 use crate::log::integrity::canonical_event_id;
@@ -121,19 +121,19 @@ impl ValueKind {
 /// row's payload in exactly one partition (empty string / zero elsewhere),
 /// occupancy tagged by `kind`.
 struct ValueColumns {
-    kind: avec_arrow::PrimitiveBuilder<u8>,
-    text: avec_arrow::VarlenBuilder<u32>,
-    number: avec_arrow::VarlenBuilder<u32>,
-    flag: avec_arrow::PrimitiveBuilder<i8>,
+    kind: cgap_arrow::PrimitiveBuilder<u8>,
+    text: cgap_arrow::VarlenBuilder<u32>,
+    number: cgap_arrow::VarlenBuilder<u32>,
+    flag: cgap_arrow::PrimitiveBuilder<i8>,
 }
 
 impl ValueColumns {
     fn new() -> Self {
         Self {
-            kind: avec_arrow::PrimitiveBuilder::new(),
-            text: avec_arrow::VarlenBuilder::new(),
-            number: avec_arrow::VarlenBuilder::new(),
-            flag: avec_arrow::PrimitiveBuilder::new(),
+            kind: cgap_arrow::PrimitiveBuilder::new(),
+            text: cgap_arrow::VarlenBuilder::new(),
+            number: cgap_arrow::VarlenBuilder::new(),
+            flag: cgap_arrow::PrimitiveBuilder::new(),
         }
     }
 
@@ -198,15 +198,15 @@ fn batch_of(
 pub fn to_batches(log: &OcelLog) -> Result<LogTables, ProcessError> {
     let events = log.sorted_events();
     let objects = log.sorted_objects();
-    let mut event_id = avec_arrow::VarlenBuilder::<u32>::new();
-    let mut event_type = avec_arrow::VarlenBuilder::<u32>::new();
-    let mut event_time = avec_arrow::VarlenBuilder::<u32>::new();
+    let mut event_id = cgap_arrow::VarlenBuilder::<u32>::new();
+    let mut event_type = cgap_arrow::VarlenBuilder::<u32>::new();
+    let mut event_time = cgap_arrow::VarlenBuilder::<u32>::new();
     let mut attrs = ValueColumns::new();
-    let mut attr_event_index = avec_arrow::PrimitiveBuilder::<u32>::new();
-    let mut attr_name = avec_arrow::VarlenBuilder::<u32>::new();
-    let mut ref_event_index = avec_arrow::PrimitiveBuilder::<u32>::new();
-    let mut ref_object_id = avec_arrow::VarlenBuilder::<u32>::new();
-    let mut ref_qualifier = avec_arrow::VarlenBuilder::<u32>::new();
+    let mut attr_event_index = cgap_arrow::PrimitiveBuilder::<u32>::new();
+    let mut attr_name = cgap_arrow::VarlenBuilder::<u32>::new();
+    let mut ref_event_index = cgap_arrow::PrimitiveBuilder::<u32>::new();
+    let mut ref_object_id = cgap_arrow::VarlenBuilder::<u32>::new();
+    let mut ref_qualifier = cgap_arrow::VarlenBuilder::<u32>::new();
     for (index, event) in events.iter().enumerate() {
         let row = u32::try_from(index).unwrap_or(u32::MAX);
         let id = event
@@ -266,9 +266,9 @@ pub fn to_batches(log: &OcelLog) -> Result<LogTables, ProcessError> {
     let objects_batch = project_objects(&objects)?;
     let object_changes_batch = project_object_changes(&objects)?;
     let o2o_batch = {
-        let mut source = avec_arrow::VarlenBuilder::<u32>::new();
-        let mut target = avec_arrow::VarlenBuilder::<u32>::new();
-        let mut qualifier = avec_arrow::VarlenBuilder::<u32>::new();
+        let mut source = cgap_arrow::VarlenBuilder::<u32>::new();
+        let mut target = cgap_arrow::VarlenBuilder::<u32>::new();
+        let mut qualifier = cgap_arrow::VarlenBuilder::<u32>::new();
         for relationship in &log.object_relationships {
             source.push(Some(relationship.source_id.as_bytes()));
             target.push(Some(relationship.target_id.as_bytes()));
@@ -296,8 +296,8 @@ pub fn to_batches(log: &OcelLog) -> Result<LogTables, ProcessError> {
 
 /// `objects`: id, type — canonical id order.
 fn project_objects(objects: &[crate::log::model::OcelObject]) -> Result<Batch, ProcessError> {
-    let mut id = avec_arrow::VarlenBuilder::<u32>::new();
-    let mut object_type = avec_arrow::VarlenBuilder::<u32>::new();
+    let mut id = cgap_arrow::VarlenBuilder::<u32>::new();
+    let mut object_type = cgap_arrow::VarlenBuilder::<u32>::new();
     for object in objects {
         id.push(Some(object.id.as_bytes()));
         object_type.push(Some(object.object_type.as_bytes()));
@@ -315,9 +315,9 @@ fn project_objects(objects: &[crate::log::model::OcelObject]) -> Result<Batch, P
 fn project_object_changes(
     objects: &[crate::log::model::OcelObject],
 ) -> Result<Batch, ProcessError> {
-    let mut object_index = avec_arrow::PrimitiveBuilder::<u32>::new();
-    let mut time = avec_arrow::VarlenBuilder::<u32>::new();
-    let mut name = avec_arrow::VarlenBuilder::<u32>::new();
+    let mut object_index = cgap_arrow::PrimitiveBuilder::<u32>::new();
+    let mut time = cgap_arrow::VarlenBuilder::<u32>::new();
+    let mut name = cgap_arrow::VarlenBuilder::<u32>::new();
     let mut values = ValueColumns::new();
     for (index, object) in objects.iter().enumerate() {
         let row = u32::try_from(index).unwrap_or(u32::MAX);
@@ -343,10 +343,10 @@ fn project_object_changes(
 /// `types`: family, type name, attribute name, declared attribute type —
 /// name-sorted per family.
 fn project_types(log: &OcelLog) -> Result<Batch, ProcessError> {
-    let mut family = avec_arrow::VarlenBuilder::<u32>::new();
-    let mut type_name = avec_arrow::VarlenBuilder::<u32>::new();
-    let mut attr_name = avec_arrow::VarlenBuilder::<u32>::new();
-    let mut attr_type = avec_arrow::VarlenBuilder::<u32>::new();
+    let mut family = cgap_arrow::VarlenBuilder::<u32>::new();
+    let mut type_name = cgap_arrow::VarlenBuilder::<u32>::new();
+    let mut attr_name = cgap_arrow::VarlenBuilder::<u32>::new();
+    let mut attr_type = cgap_arrow::VarlenBuilder::<u32>::new();
     let mut sorted_object: Vec<&crate::log::model::OcelType> = log.object_types.iter().collect();
     sorted_object.sort_by(|a, b| a.name.cmp(&b.name));
     for object_type in sorted_object {
@@ -381,7 +381,7 @@ fn project_types(log: &OcelLog) -> Result<Batch, ProcessError> {
 mod tests {
     use super::*;
     use crate::log::from_json_str;
-    use avec_arrow::Column;
+    use cgap_arrow::Column;
 
     /// The parser courts' fixture (numeric attribute exercises the Number
     /// partition).

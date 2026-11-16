@@ -210,7 +210,7 @@ pub enum ProcessError {
         /// The absent field's accepted spellings.
         field: &'static str,
     },
-    /// The avec `Batch` layer refused a projected table.
+    /// The cgap `Batch` layer refused a projected table.
     BatchRefused {
         /// Which projection table (`events`, `event_attrs`, …).
         table: &'static str,

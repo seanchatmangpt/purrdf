@@ -877,3 +877,11 @@ fn integrity_chain_courts() {
         other => panic!("expected a chain break, got {other:?}"),
     }
 }
+
+/// The cgap git-rev pin and the substrate's ontology-driven version must
+/// move together: a pin bump without an upstream release (or the reverse)
+/// fails this court loudly instead of silently drifting.
+#[test]
+fn cgap_pin_matches_substrate_version() {
+    assert_eq!(cgap_arrow::VERSION, "26.10.29");
+}

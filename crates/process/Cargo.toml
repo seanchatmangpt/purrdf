@@ -13,7 +13,7 @@ homepage.workspace = true
 description = "Process mining and planning over branchless columnar primitives: POWL 2.0 models, OCEL 2.0 event logs, HTN/FOND synthesis, and the conformance turnstile."
 
 [dependencies]
-avec-arrow.workspace = true
+cgap-arrow.workspace = true
 purrdf-branchless.workspace = true
 purrdf-hash.workspace = true
 purrdf-lex.workspace = true

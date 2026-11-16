@@ -329,7 +329,7 @@ distinct = "build-time feature detection only; no PurRDF call sites"
 holder = "num-traits"
 metrics = { direct = false, exclusive_closure = 0, release = false, wasm = false, build_script = false, proc_macro = false }
 
-[packages.avec-arrow]
+[packages.cgap-arrow]
 category = "UNCATEGORIZED"
 reason = ""
 metrics = { direct = true, exclusive_closure = 1, release = false, wasm = false, build_script = false, proc_macro = false }
